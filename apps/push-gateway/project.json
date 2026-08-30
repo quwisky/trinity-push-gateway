@@ -54,12 +54,6 @@
         "cwd": "apps/push-gateway"
       }
     },
-    "lint": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "eslint apps/push-gateway"
-      }
-    },
     "migrate-local": {
       "executor": "nx:run-commands",
       "cache": false,
@@ -73,13 +67,6 @@
       "cache": false,
       "options": {
         "command": "wrangler d1 migrations apply TRINITY_PUSH_GATEWAY_DB --remote",
-        "cwd": "apps/push-gateway"
-      }
-    },
-    "test": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "vitest run --config vitest.config.ts",
         "cwd": "apps/push-gateway"
       }
     },

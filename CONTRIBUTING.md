@@ -4,7 +4,7 @@
 
 Install Node 24, Bun 1.4.0, and dependencies with `pnpm install --frozen-lockfile`. Husky then enables two local safeguards:
 
-- `pre-commit` runs ESLint and Prettier on staged files, followed by the full typecheck and test suite.
+- `pre-commit` runs the uncached Nx lint fixer for staged gateway source, then Prettier, followed by the full typecheck and test suite.
 - `commit-msg` validates the commit message with Commitlint.
 
 Run the complete repository gate before opening a pull request:
@@ -15,7 +15,9 @@ pnpm nx run push-gateway:check
 pnpm nx run push-gateway:check-bun
 ```
 
-Use explicit Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, and `pnpm nx run push-gateway:dev`. Nx uses only its local cache; deployment, migration, development-server, release, and Docker-daemon operations are never cached.
+Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, and `pnpm nx run push-gateway:dev`. The official ESLint and Vitest plugins infer the project-scoped `lint` and run-mode `test` targets; Wrangler, Bun, TypeScript, migration, coverage, bundle-policy, and aggregate targets remain explicit. Nx uses only its local cache; deployment, migration, development-server, release, and Docker-daemon operations are never cached.
+
+Pull-request and `master` CI use Nx affected execution. Shared dependencies, workspace configuration, Compose, and CI configuration affect `push-gateway`; documentation-only and future UI-placeholder changes keep the required checks visible but skip unrelated gateway and container work.
 
 ## Commits and pull requests
 

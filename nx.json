@@ -5,13 +5,26 @@
     "default": [
       "{projectRoot}/**/*",
       "sharedGlobals",
-      { "runtime": "node --version" },
-      { "runtime": "pnpm --version" }
+      {
+        "runtime": "node --version"
+      },
+      {
+        "runtime": "pnpm --version"
+      }
     ],
     "sharedGlobals": [
+      "{workspaceRoot}/.github/workflows/ci.yml",
+      "{workspaceRoot}/.github/workflows/container.yml",
+      "{workspaceRoot}/.husky/pre-commit",
+      "{workspaceRoot}/.npmrc",
+      "{workspaceRoot}/.nvmrc",
+      "{workspaceRoot}/compose.yml",
       "{workspaceRoot}/eslint.config.mjs",
+      "{workspaceRoot}/lint-staged.config.mjs",
+      "{workspaceRoot}/nx.json",
       "{workspaceRoot}/package.json",
-      "{workspaceRoot}/pnpm-lock.yaml"
+      "{workspaceRoot}/pnpm-lock.yaml",
+      "{workspaceRoot}/pnpm-workspace.yaml"
     ]
   },
   "targetDefaults": {
@@ -20,7 +33,12 @@
     },
     "build-bun": {
       "cache": true,
-      "inputs": ["default", { "runtime": "bun --version" }]
+      "inputs": [
+        "default",
+        {
+          "runtime": "bun --version"
+        }
+      ]
     },
     "check-bundle": {
       "cache": true,
@@ -34,7 +52,12 @@
     },
     "test-bun": {
       "cache": true,
-      "inputs": ["default", { "runtime": "bun --version" }]
+      "inputs": [
+        "default",
+        {
+          "runtime": "bun --version"
+        }
+      ]
     },
     "test-coverage": {
       "cache": true
@@ -45,5 +68,20 @@
     "typecheck-bun": {
       "cache": true
     }
-  }
+  },
+  "plugins": [
+    {
+      "plugin": "@nx/eslint/plugin",
+      "options": {
+        "targetName": "lint"
+      }
+    },
+    {
+      "plugin": "@nx/vitest",
+      "options": {
+        "testTargetName": "test",
+        "testMode": "run"
+      }
+    }
+  ]
 }
