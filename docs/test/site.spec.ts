@@ -89,4 +89,15 @@ describe('Pages publication trigger', () => {
     expect(workflow).toContain('workflows: [CI]');
     expect(workflow).not.toContain('workflow_dispatch');
   });
+
+  it('deploys an assembled site when the release build is intentionally skipped', () => {
+    const workflow = readFileSync(
+      new URL('../../.github/workflows/pages.yml', import.meta.url),
+      'utf8',
+    );
+
+    expect(workflow).toContain(
+      "deploy:\n    name: Deploy GitHub Pages\n    if: >-\n      always() && needs.assemble.result == 'success'",
+    );
+  });
 });
