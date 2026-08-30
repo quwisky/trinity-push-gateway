@@ -66,7 +66,7 @@ curl --fail --show-error https://push.example.com/health
 Expected response:
 
 ```json
-{ "status": "ok", "version": "0.1.0" }
+{ "status": "ok", "version": "<current package version>" }
 ```
 
 Do not point Matrix pushers at the production hostname until the D1 migration and readiness check both succeed.
@@ -78,6 +78,7 @@ Do not point Matrix pushers at the production hostname until the D1 migration an
 - Rotate the Google service-account key and `FINGERPRINT_KEY` through Wrangler secrets. Rotating the fingerprint key resets event retry suppression, so schedule it during a low-volume period.
 - Apply future D1 migrations before deploying code that requires them.
 - Use immutable `vX.Y.Z` Git tags for releases and retain the preceding Worker version for rollback.
+- Keep the repository-scoped `RELEASE_PLEASE_TOKEN` secret current. It requires only Contents, Issues, and Pull requests write access so generated release pull requests can run CI.
 
 ## External smoke test
 

@@ -13,3 +13,5 @@ Include the affected version or commit, impact, reproduction steps, and a minima
 ## Security boundaries
 
 The Matrix notification endpoint is intentionally public so arbitrary homeservers can reach it. The gateway relies on strict validation, fixed app IDs, bounded requests, rate controls, a global delivery budget, private payloads, and Cloudflare/Firebase secret bindings. See [the design](docs/DESIGN.md) for the complete threat and privacy model.
+
+Release automation uses a repository-scoped `RELEASE_PLEASE_TOKEN` with only Contents, Issues, and Pull requests write access. It cannot deploy the Worker or publish to npm and must be rotated before expiry.

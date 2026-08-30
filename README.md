@@ -41,6 +41,8 @@ pnpm check
 
 The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits and rejects runtime dependencies outside the exact `jose` and Valibot allowlist.
 
+Local commits are protected by Husky: lint-staged applies ESLint and Prettier before the full typecheck and test suite, and Commitlint validates Conventional Commit messages. See [the contribution guide](CONTRIBUTING.md) for the pull-request and release contract.
+
 ## Configuration
 
 Non-secret limits and the two exact app IDs live in `wrangler.jsonc`. These four values are secrets:
@@ -55,6 +57,10 @@ The default limits are 64 KiB per request, 49 client installations per Matrix re
 ## Deployment
 
 See [the deployment guide](docs/DEPLOYMENT.md). Production requires a stable custom hostname in a Cloudflare-managed zone. The default `workers.dev` route is for development only.
+
+## Releases
+
+Successful changes on `master` create or refresh a Release Please pull request. Only squash-merging that reviewed pull request creates an immutable `vX.Y.Z` tag and GitHub Release. Releases update `package.json` and `CHANGELOG.md`; they do not publish to npm or deploy the Worker.
 
 ## Design and operations
 

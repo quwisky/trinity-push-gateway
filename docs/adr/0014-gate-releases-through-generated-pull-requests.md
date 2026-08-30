@@ -1,0 +1,3 @@
+# Gate releases through generated pull requests
+
+Release Please will derive versions from Conventional Commits, maintain a reviewable release pull request, update `package.json` and `CHANGELOG.md`, and create an immutable `vX.Y.Z` tag plus GitHub Release only after that pull request passes CI and is squash-merged. The gateway remains private on npm, prerelease channels and automatic Worker deployment are excluded, and the package version is the runtime version source. This supersedes ADR 0012's hand-maintained `Unreleased` changelog requirement while retaining its licensing, semantic-versioning, and immutable-tag decisions.
