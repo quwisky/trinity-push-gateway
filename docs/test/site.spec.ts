@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canonicalDocumentationUrl,
   docsBuildContext,
+  normalizeRootChangelog,
   renderConfigurationReference,
 } from '../.vitepress/site';
 
@@ -75,6 +76,23 @@ describe('configuration reference rendering', () => {
     expect(markdown).toContain('65536');
     expect(markdown).not.toContain('-----BEGIN PRIVATE KEY-----');
     expect(markdown).not.toContain('gateway@example.test');
+  });
+});
+
+describe('changelog rendering', () => {
+  it('keeps generated releases without duplicating the page heading', () => {
+    const generated = readFileSync(
+      new URL('./fixtures/release-changelog.md.fixture', import.meta.url),
+      'utf8',
+    );
+
+    const rendered = normalizeRootChangelog(generated);
+
+    expect(rendered).toContain('## 0.1.0 (2026-08-30)');
+    expect(rendered).toContain(
+      'Release Please generates versioned entries from Conventional Commit history.',
+    );
+    expect(rendered).not.toMatch(/^#{1,6} Changelog$/mu);
   });
 });
 

@@ -1,0 +1,11 @@
+# Changelog
+
+## 0.1.0 (2026-08-30)
+
+### Features
+
+- create Matrix push gateway
+
+## Changelog
+
+Release Please generates versioned entries from Conventional Commit history.

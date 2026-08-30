@@ -100,8 +100,15 @@ export function renderConfigurationReference(): string {
   return [...header, ...rows].join('\n');
 }
 
-export function renderRootChangelog(): string {
-  return readFileSync(new URL('../../CHANGELOG.md', import.meta.url), 'utf8')
-    .replace(/^# Changelog\s*/u, '')
+export function normalizeRootChangelog(markdown: string): string {
+  return markdown
+    .replace(/^# Changelog[ \t]*(?:\r?\n|$)/u, '')
+    .replace(/^## Changelog[ \t]*(?:\r?\n|$)/mu, '')
     .trim();
+}
+
+export function renderRootChangelog(): string {
+  return normalizeRootChangelog(
+    readFileSync(new URL('../../CHANGELOG.md', import.meta.url), 'utf8'),
+  );
 }
