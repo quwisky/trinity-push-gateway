@@ -57,7 +57,7 @@ Event notifications have a one-hour provider TTL and do not collapse. Count-only
 
 ## Delivery processing
 
-FCM OAuth tokens are minted with native Web Crypto from Worker secrets, cached only in isolate memory, refreshed early, and protected against concurrent refreshes. FCM calls run in waves of no more than six simultaneous connections.
+FCM OAuth tokens are minted with `jose` on native Web Crypto from Worker secrets, cached only in isolate memory, refreshed early, and protected against concurrent refreshes. FCM calls run in waves of no more than six simultaneous connections.
 
 D1 coordinates event delivery with an HMAC-SHA-256 fingerprint of app ID, Account Route, event ID, and Push Key. Raw identifiers are never stored.
 
@@ -70,7 +70,7 @@ D1 coordinates event delivery with an HMAC-SHA-256 fingerprint of app ID, Accoun
 
 This suppresses ordinary retries while preferring a rare duplicate over silent loss in the unavoidable crash window between FCM acceptance and recording the result. The service does not claim exactly-once delivery.
 
-For mixed outcomes, `200 {"rejected": [...]}` is returned only after every installation has a terminal outcome. `UNREGISTERED` and explicitly token-specific `INVALID_ARGUMENT` results reject a Push Key. Quota, availability, internal, authentication, APNs credential, ambiguous invalid-argument, and network failures remain retryable. The gateway does not retry FCM within the same invocation.
+For mixed outcomes, `200 {"rejected": [...]}` is returned only after every installation has a terminal outcome. `UNREGISTERED` and explicitly token-specific `INVALID_ARGUMENT` results reject a Push Key. Quota, availability, internal, authentication, APNs credential, ambiguous invalid-argument, and network failures remain retryable. Both delay-seconds and HTTP-date `Retry-After` guidance are preserved. The gateway does not retry FCM within the same invocation.
 
 ## Free-tier protection
 
@@ -88,9 +88,9 @@ The Worker uses Cloudflare's built-in logs and observability without an external
 
 ## Implementation and repository
 
-The standalone repository is `https://github.com/quwisky/trinity-push-gateway`. Its initial history is created on `main` without force operations.
+The standalone repository is `https://github.com/quwisky/trinity-push-gateway`. Its default branch is `master`.
 
-The implementation uses pnpm 11, Node 24, strict TypeScript, Cloudflare's module Worker format, direct `fetch`, native Web Crypto, D1 bindings, and manual boundary validation. It has no runtime dependencies. Development uses Vitest, ESLint, Prettier, Wrangler, Conventional Commits, Keep a Changelog, and GitHub Actions with immutable action pins.
+The implementation uses pnpm 11, Node 24, strict TypeScript, Cloudflare's module Worker format, direct `fetch`, native Web Crypto, D1 bindings, `jose` for service-account JWT signing, and Valibot for structured external-boundary validation. Runtime dependencies are exactly pinned and allowlisted; Firebase Admin, Google Auth, Node compatibility layers, routers, ORMs, retry libraries, and external logging SDKs remain excluded. Development uses Vitest, ESLint, Prettier, Wrangler, Conventional Commits, Keep a Changelog, Dependabot, and GitHub Actions with immutable action pins.
 
 Cloudflare resources and configuration are managed through Wrangler. Firebase project setup, platform registration, APNs credentials, and least-privilege service-account creation remain documented operator steps. Secrets are injected interactively and never stored in Git.
 
@@ -107,6 +107,6 @@ Mobile-client development is explicitly outside this repository and implementati
 
 ## Verification and completion
 
-Automated coverage includes validation, payload mapping, OAuth signing, FCM error classification, redaction, D1 integration, Matrix contract fixtures, multi-account behavior, mixed outcomes, concurrent duplicates, build size, and zero runtime dependencies. External services are mocked in CI.
+Automated coverage includes validation, payload mapping, OAuth signing, FCM error classification, redaction, D1 integration, Matrix contract fixtures, multi-account behavior, mixed outcomes, concurrent duplicates, Cloudflare Free-plan bundle limits, and the exact runtime dependency allowlist. External services are mocked in CI.
 
 Gateway completion additionally requires a deployed-Worker smoke test when credentials and a target FCM installation are available, plus a documented client contract and handoff checklist for the separate mobile task. Real-device notification presentation, tapping, account routing, and badge behavior are deferred to that task. Documentation and the changelog are updated before final validation. No credentials or proof artifacts enter version control.

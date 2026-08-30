@@ -1,3 +1,21 @@
+import {
+  array,
+  literal,
+  looseObject,
+  maxLength,
+  minLength,
+  minValue,
+  number,
+  optional,
+  picklist,
+  pipe,
+  regex,
+  safeInteger,
+  safeParse,
+  string,
+  unknown as unknownValue,
+} from 'valibot';
+
 import { createFcmClient } from './fcm';
 import type {
   DeliveryPlatform,
@@ -19,6 +37,35 @@ const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
 } as const;
 const NOTIFY_PATH = '/_matrix/push/v1/notify';
+const NON_NEGATIVE_INTEGER_SCHEMA = pipe(number(), safeInteger(), minValue(0));
+const NOTIFICATION_REQUEST_SCHEMA = looseObject({
+  notification: looseObject({
+    counts: optional(
+      looseObject({
+        missed_calls: optional(NON_NEGATIVE_INTEGER_SCHEMA),
+        unread: optional(NON_NEGATIVE_INTEGER_SCHEMA),
+      }),
+    ),
+    devices: array(unknownValue()),
+    event_id: optional(string()),
+    prio: optional(picklist(['high', 'low'])),
+    room_id: optional(string()),
+  }),
+});
+const DEVICE_SCHEMA = looseObject({
+  app_id: string(),
+  data: looseObject({
+    format: literal('event_id_only'),
+    trinity_account_id: pipe(
+      string(),
+      regex(/^[A-Za-z0-9_-]+$/u),
+      maxLength(48),
+    ),
+    trinity_push_version: literal('1'),
+  }),
+  pushkey: pipe(string(), minLength(1), maxLength(4096)),
+  tweaks: optional(unknownValue()),
+});
 
 type GatewayDependencies = {
   readonly fcmClient?: FcmClient;
@@ -113,12 +160,6 @@ function rateLimitResponse(error: string, retryAfterMs: number): Response {
   );
 }
 
-function nonNegativeInteger(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-    ? value
-    : undefined;
-}
-
 async function readJsonBody(
   request: Request,
   maxBytes: number,
@@ -164,54 +205,28 @@ async function readJsonBody(
 }
 
 function parseNotification(body: unknown): ParsedNotification | undefined {
-  const devices =
-    isRecord(body) && isRecord(body.notification)
-      ? body.notification.devices
-      : undefined;
+  const result = safeParse(NOTIFICATION_REQUEST_SCHEMA, body);
+  if (!result.success) {
+    return undefined;
+  }
+  const notification = result.output.notification;
   if (
-    !isRecord(body) ||
-    !isRecord(body.notification) ||
-    !Array.isArray(devices)
-  ) {
-    return undefined;
-  }
-  const notification = body.notification;
-  const eventId = notification.event_id;
-  const roomId = notification.room_id;
-  if (
-    (eventId !== undefined && typeof eventId !== 'string') ||
-    (roomId !== undefined && typeof roomId !== 'string') ||
-    (eventId !== undefined && roomId === undefined)
-  ) {
-    return undefined;
-  }
-  if (notification.counts !== undefined && !isRecord(notification.counts)) {
-    return undefined;
-  }
-  const counts = isRecord(notification.counts) ? notification.counts : {};
-  const unread =
-    counts.unread === undefined ? 0 : nonNegativeInteger(counts.unread);
-  const missedCalls =
-    counts.missed_calls === undefined
-      ? 0
-      : nonNegativeInteger(counts.missed_calls);
-  if (unread === undefined || missedCalls === undefined) {
-    return undefined;
-  }
-  if (
-    notification.prio !== undefined &&
-    notification.prio !== 'high' &&
-    notification.prio !== 'low'
+    notification.event_id !== undefined &&
+    notification.room_id === undefined
   ) {
     return undefined;
   }
   return {
-    devices,
-    ...(typeof eventId === 'string' ? { eventId } : {}),
-    missedCalls,
+    devices: notification.devices,
+    ...(notification.event_id === undefined
+      ? {}
+      : { eventId: notification.event_id }),
+    missedCalls: notification.counts?.missed_calls ?? 0,
     priority: notification.prio === 'low' ? 'low' : 'high',
-    ...(typeof roomId === 'string' ? { roomId } : {}),
-    unread,
+    ...(notification.room_id === undefined
+      ? {}
+      : { roomId: notification.room_id }),
+    unread: notification.counts?.unread ?? 0,
   };
 }
 
@@ -230,27 +245,18 @@ function deliveryFor(
   notification: ParsedNotification,
   env: Env,
 ): FcmDelivery | undefined {
-  if (
-    !isRecord(device) ||
-    typeof device.app_id !== 'string' ||
-    typeof device.pushkey !== 'string' ||
-    device.pushkey.length === 0 ||
-    device.pushkey.length > 4096 ||
-    !isRecord(device.data) ||
-    device.data.format !== 'event_id_only' ||
-    device.data.trinity_push_version !== '1' ||
-    typeof device.data.trinity_account_id !== 'string' ||
-    !/^[A-Za-z0-9_-]{1,48}$/u.test(device.data.trinity_account_id)
-  ) {
+  const result = safeParse(DEVICE_SCHEMA, device);
+  if (!result.success) {
     return undefined;
   }
-  const platform = platformFor(device.app_id, env);
+  const parsedDevice = result.output;
+  const platform = platformFor(parsedDevice.app_id, env);
   if (platform === undefined) {
     return undefined;
   }
-  const tweaks = isRecord(device.tweaks) ? device.tweaks : {};
+  const tweaks = isRecord(parsedDevice.tweaks) ? parsedDevice.tweaks : {};
   const deliveryBase = {
-    accountRoute: device.data.trinity_account_id,
+    accountRoute: parsedDevice.data.trinity_account_id,
     ...(typeof tweaks.highlight === 'boolean'
       ? { highlight: tweaks.highlight }
       : {}),
@@ -258,7 +264,7 @@ function deliveryFor(
     platform,
     priority:
       notification.eventId === undefined ? 'low' : notification.priority,
-    pushKey: device.pushkey,
+    pushKey: parsedDevice.pushkey,
     sound:
       notification.eventId !== undefined && typeof tweaks.sound === 'string',
     unread: notification.unread,
