@@ -10,13 +10,16 @@
   },
   "type": "module",
   "engines": {
+    "bun": "1.4.0",
     "node": "^24.15.0"
   },
   "packageManager": "pnpm@11.19.0",
   "scripts": {
     "build": "wrangler deploy --dry-run --outdir dist",
+    "build:bun": "bun build src/bun/main.ts --target bun --outdir dist/bun",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm check:bundle",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "check:bun": "pnpm typecheck:bun && pnpm test:bun && pnpm build:bun",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "format": "prettier --write .",
@@ -25,8 +28,10 @@
     "lint:staged": "lint-staged",
     "prepare": "husky",
     "test": "vitest run",
+    "test:bun": "bun test test/bun",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.test.json",
+    "typecheck:bun": "tsc --noEmit --project tsconfig.bun.json",
     "types": "wrangler types"
   },
   "devDependencies": {
@@ -35,6 +40,7 @@
     "@commitlint/cli": "21.2.2",
     "@commitlint/config-conventional": "21.2.2",
     "@eslint/js": "10.0.1",
+    "@types/bun": "1.4.0",
     "@types/node": "26.4.0",
     "@vitest/coverage-istanbul": "4.1.11",
     "eslint": "10.9.1",

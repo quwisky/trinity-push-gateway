@@ -2,7 +2,7 @@
 
 ## Local checks
 
-Install dependencies with `pnpm install --frozen-lockfile`. Husky then enables two local safeguards:
+Install Node 24, Bun 1.4.0, and dependencies with `pnpm install --frozen-lockfile`. Husky then enables two local safeguards:
 
 - `pre-commit` runs ESLint and Prettier on staged files, followed by the full typecheck and test suite.
 - `commit-msg` validates the commit message with Commitlint.
@@ -11,6 +11,7 @@ Run the complete repository gate before opening a pull request:
 
 ```sh
 pnpm check
+pnpm check:bun
 ```
 
 ## Commits and pull requests

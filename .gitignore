@@ -5,4 +5,8 @@ coverage/
 .dev.vars
 .env*
 !.env.example
+!.env.self-host.example
+secrets/
+backups/
+*.sqlite*
 *.log

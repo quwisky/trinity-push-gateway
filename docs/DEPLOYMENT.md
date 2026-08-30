@@ -1,6 +1,8 @@
-# Deployment Guide
+# Cloudflare Deployment Guide
 
 The production deployment is a Cloudflare Worker with D1, a rate-limit binding, a daily cron trigger, and a stable custom hostname. Firebase and Cloudflare credentials are operator-owned and must never be committed.
+
+For the supported Docker deployment with Bun and SQLite, use the separate [self-hosting guide](SELF-HOSTING.md).
 
 ## Prerequisites
 

@@ -70,7 +70,10 @@ export type FcmOutcome =
     };
 
 export type FcmClient = {
-  readonly send: (delivery: FcmDelivery) => Promise<FcmOutcome>;
+  readonly send: (
+    delivery: FcmDelivery,
+    deadlineMs?: number,
+  ) => Promise<FcmOutcome>;
 };
 
 export type FcmClientOptions = {
@@ -79,6 +82,7 @@ export type FcmClientOptions = {
   readonly now: () => number;
   readonly privateKey: string;
   readonly projectId: string;
+  readonly timeoutMs?: number;
 };
 
 type AccessToken = {
@@ -117,6 +121,7 @@ function hasFcmErrorCode(value: unknown, expected: string): boolean {
 
 async function requestAccessToken(
   options: FcmClientOptions,
+  deadlineMs?: number,
 ): Promise<AccessToken> {
   const assertion = await signJwt(
     options.clientEmail,
@@ -130,6 +135,7 @@ async function requestAccessToken(
     }),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     method: 'POST',
+    signal: requestSignal(options, deadlineMs),
   });
   const body: unknown = await response.json();
   const parsed = safeParse(OAUTH_RESPONSE_SCHEMA, body);
@@ -140,6 +146,19 @@ async function requestAccessToken(
     expiresAt: options.now() + parsed.output.expires_in * 1000,
     value: parsed.output.access_token,
   };
+}
+
+function requestSignal(
+  options: FcmClientOptions,
+  deadlineMs: number | undefined,
+): AbortSignal {
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  const remainingMs =
+    deadlineMs === undefined ? timeoutMs : deadlineMs - options.now();
+  if (remainingMs <= 0) {
+    throw new Error('Gateway request deadline exceeded.');
+  }
+  return AbortSignal.timeout(Math.min(timeoutMs, remainingMs));
 }
 
 function parseRetryAfter(
@@ -243,14 +262,14 @@ export function createFcmClient(options: FcmClientOptions): FcmClient {
   let accessToken: AccessToken | undefined;
   let accessTokenRequest: Promise<AccessToken> | undefined;
 
-  const getAccessToken = async (): Promise<AccessToken> => {
+  const getAccessToken = async (deadlineMs?: number): Promise<AccessToken> => {
     if (
       accessToken !== undefined &&
       accessToken.expiresAt > options.now() + 60_000
     ) {
       return accessToken;
     }
-    accessTokenRequest ??= requestAccessToken(options);
+    accessTokenRequest ??= requestAccessToken(options, deadlineMs);
     try {
       accessToken = await accessTokenRequest;
       return accessToken;
@@ -260,10 +279,10 @@ export function createFcmClient(options: FcmClientOptions): FcmClient {
   };
 
   return {
-    async send(delivery): Promise<FcmOutcome> {
+    async send(delivery, deadlineMs): Promise<FcmOutcome> {
       let response: Response;
       try {
-        const token = await getAccessToken();
+        const token = await getAccessToken(deadlineMs);
         response = await options.fetch(
           `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(options.projectId)}/messages:send`,
           {
@@ -273,6 +292,7 @@ export function createFcmClient(options: FcmClientOptions): FcmClient {
               'content-type': 'application/json; charset=utf-8',
             },
             method: 'POST',
+            signal: requestSignal(options, deadlineMs),
           },
         );
       } catch {

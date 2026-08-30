@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["bun"]
+  },
+  "exclude": [],
+  "include": [
+    "src/bun/**/*.ts",
+    "src/fingerprint.ts",
+    "src/ports.ts",
+    "test/bun/**/*.ts"
+  ]
+}

@@ -1,0 +1,5 @@
+# Keep the self-hosted operational boundary narrow
+
+The Bun container will serve plain HTTP behind operator-managed TLS, bind the supplied Compose port to loopback, and trust a forwarded client address only when the direct peer belongs to an explicit trusted-proxy CIDR. It reads direct or file-mounted credentials once at startup, makes direct CA-validated HTTPS requests to Google OAuth and FCM, exposes only redacted status and version through public health, and writes structured redacted operational events without raw access logs.
+
+The gateway will not bundle a reverse proxy, TLS termination, outbound proxy or custom-CA support, live configuration reload, an HTTP administration surface, or database encryption. The SQLite file contains only fingerprints and delivery-control metadata, so local volume permissions, host-disk encryption, backup encryption, log retention, and public ingress configuration remain Gateway Operator responsibilities. Generated databases, backups, container archives, logs, and build attestations stay outside version control.

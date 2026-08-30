@@ -7,7 +7,7 @@ import {
   string,
 } from 'valibot';
 
-import type { Env } from './env';
+import type { ConfigurationEnvironment } from './env';
 
 const NON_EMPTY_STRING_SCHEMA = pipe(string(), minLength(1));
 const POSITIVE_INTEGER_STRING_SCHEMA = pipe(string(), regex(/^[1-9]\d*$/u));
@@ -22,7 +22,9 @@ const ENV_SCHEMA = looseObject({
   MAX_DAILY_ATTEMPTS: POSITIVE_INTEGER_STRING_SCHEMA,
   MAX_DEVICES: POSITIVE_INTEGER_STRING_SCHEMA,
   PENDING_LEASE_SECONDS: POSITIVE_INTEGER_STRING_SCHEMA,
+  REQUEST_DEADLINE_SECONDS: POSITIVE_INTEGER_STRING_SCHEMA,
   TERMINAL_RETENTION_SECONDS: POSITIVE_INTEGER_STRING_SCHEMA,
+  UPSTREAM_TIMEOUT_SECONDS: POSITIVE_INTEGER_STRING_SCHEMA,
 });
 
 export type RuntimeConfig = {
@@ -30,7 +32,9 @@ export type RuntimeConfig = {
   readonly maxDailyAttempts: number;
   readonly maxDevices: number;
   readonly pendingLeaseSeconds: number;
+  readonly requestDeadlineSeconds: number;
   readonly terminalRetentionSeconds: number;
+  readonly upstreamTimeoutSeconds: number;
 };
 
 function positiveInteger(value: string): number | undefined {
@@ -38,7 +42,9 @@ function positiveInteger(value: string): number | undefined {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-export function runtimeConfig(env: Env): RuntimeConfig | undefined {
+export function runtimeConfig(
+  env: ConfigurationEnvironment,
+): RuntimeConfig | undefined {
   const result = safeParse(ENV_SCHEMA, env);
   if (!result.success) {
     return undefined;
@@ -48,8 +54,14 @@ export function runtimeConfig(env: Env): RuntimeConfig | undefined {
   const maxDailyAttempts = positiveInteger(parsedEnv.MAX_DAILY_ATTEMPTS);
   const maxDevices = positiveInteger(parsedEnv.MAX_DEVICES);
   const pendingLeaseSeconds = positiveInteger(parsedEnv.PENDING_LEASE_SECONDS);
+  const requestDeadlineSeconds = positiveInteger(
+    parsedEnv.REQUEST_DEADLINE_SECONDS,
+  );
   const terminalRetentionSeconds = positiveInteger(
     parsedEnv.TERMINAL_RETENTION_SECONDS,
+  );
+  const upstreamTimeoutSeconds = positiveInteger(
+    parsedEnv.UPSTREAM_TIMEOUT_SECONDS,
   );
   if (
     parsedEnv.ANDROID_APP_ID === parsedEnv.IOS_APP_ID ||
@@ -59,8 +71,11 @@ export function runtimeConfig(env: Env): RuntimeConfig | undefined {
     maxDevices === undefined ||
     maxDevices > 49 ||
     pendingLeaseSeconds === undefined ||
+    requestDeadlineSeconds === undefined ||
     terminalRetentionSeconds === undefined ||
-    terminalRetentionSeconds <= pendingLeaseSeconds
+    terminalRetentionSeconds <= pendingLeaseSeconds ||
+    upstreamTimeoutSeconds === undefined ||
+    upstreamTimeoutSeconds >= requestDeadlineSeconds
   ) {
     return undefined;
   }
@@ -69,6 +84,8 @@ export function runtimeConfig(env: Env): RuntimeConfig | undefined {
     maxDailyAttempts,
     maxDevices,
     pendingLeaseSeconds,
+    requestDeadlineSeconds,
     terminalRetentionSeconds,
+    upstreamTimeoutSeconds,
   };
 }

@@ -1,0 +1,9 @@
+# Publish minimal attested Bun images from stable releases
+
+Each stable release will publish a Bun-targeted application bundle in a hardened official Bun slim image pinned by version and multi-platform digest. GitHub Container Registry will receive one AMD64 and ARM64 manifest under immutable `vX.Y.Z` and moving `latest` tags, with an SBOM, provenance attestation, and image digest attached to the GitHub Release; ordinary merges and unmerged release pull requests will not publish images.
+
+The runtime image contains the application bundle and canonical SQL migrations but excludes pnpm, Wrangler, development dependencies, tests, and source tooling. pnpm and `pnpm-lock.yaml` remain the sole dependency-resolution authority, while Dependabot proposes Bun base-image updates and CI smoke-tests the AMD64 image before merge and both architectures before publication.
+
+Production support covers the supplied Linux image on AMD64 and ARM64. It runs as the fixed non-root Bun user with a read-only root filesystem, a local named volume for `/data`, no Linux capabilities or privilege escalation, and no automatic updater; production deployments pin an immutable version or digest and upgrade explicitly after a verified backup. Image publication uses a narrowly permitted ephemeral GitHub token and never grants package authority to the Release Please token or pull-request workflows.
+
+CI reports unpacked and compressed image size and rejects an AMD64 image above 150 MiB compressed. A release whose downstream image publication fails retains its immutable tag and failed workflow for safe rerun; the release notes receive the image digest only after both architectures, SBOM generation, and provenance attestation succeed. The runtime image supplies its health probe through Bun rather than adding a diagnostic package solely for Docker.

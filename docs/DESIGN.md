@@ -4,9 +4,9 @@ This document records the accepted design implemented by the Trinity Push Gatewa
 
 ## Goal
 
-Provide a small, privacy-preserving implementation of the Matrix Push Gateway API that runs within Cloudflare Workers' free tier and delivers notifications to Trinity's Android and iOS apps through Firebase Cloud Messaging HTTP v1.
+Provide a small, privacy-preserving implementation of the Matrix Push Gateway API that runs either within Cloudflare Workers' free tier or as one self-hosted Bun/SQLite container and delivers notifications to compatible Android and iOS apps through Firebase Cloud Messaging HTTP v1.
 
-The gateway is single-tenant. It serves one operator-controlled Firebase project and these Matrix app IDs:
+The gateway is single-tenant. Each deployment serves one operator-controlled Firebase project and one Android/iOS app-ID pair. Trinity uses:
 
 - `ovh.qwky.trinity.android`
 - `ovh.qwky.trinity.ios`
@@ -59,7 +59,7 @@ Event notifications have a one-hour provider TTL and do not collapse. Count-only
 
 FCM OAuth tokens are minted with `jose` on native Web Crypto from Worker secrets, cached only in isolate memory, refreshed early, and protected against concurrent refreshes. FCM calls run in waves of no more than six simultaneous connections.
 
-D1 coordinates event delivery with an HMAC-SHA-256 fingerprint of app ID, Account Route, event ID, and Push Key. Raw identifiers are never stored.
+The runtime's Gateway Store coordinates event delivery with an HMAC-SHA-256 fingerprint of app ID, Account Route, event ID, and Push Key. Cloudflare uses D1; Bun uses one local durable SQLite database. Raw identifiers are never stored.
 
 1. Atomically claim a two-minute pending lease.
 2. Return a retryable response to concurrent attempts.
@@ -68,33 +68,35 @@ D1 coordinates event delivery with an HMAC-SHA-256 fingerprint of app ID, Accoun
 5. Allow an expired pending lease to be reclaimed.
 6. Remove expired records with daily scheduled cleanup.
 
+Both adapters implement one behavioral storage contract. Bun applies the canonical migrations before listening and uses strict bindings, WAL, full synchronous durability, foreign keys, and a finite busy timeout. Its supported topology is one service instance and one local persistent volume; horizontal replicas and network-hosted SQLite files are excluded.
+
 This suppresses ordinary retries while preferring a rare duplicate over silent loss in the unavoidable crash window between FCM acceptance and recording the result. The service does not claim exactly-once delivery.
 
 For mixed outcomes, `200 {"rejected": [...]}` is returned only after every installation has a terminal outcome. `UNREGISTERED` and explicitly token-specific `INVALID_ARGUMENT` results reject a Push Key. Quota, availability, internal, authentication, APNs credential, ambiguous invalid-argument, and network failures remain retryable. Both delay-seconds and HTTP-date `Retry-After` guidance are preserved. The gateway does not retry FCM within the same invocation.
 
-## Free-tier protection
+## Safety envelope
 
-- Best-effort source limit: 300 requests per source IP per 10 seconds.
+- Best-effort source limit: 300 requests per source IP per 10 seconds. Cloudflare uses its binding; Bun uses a restart-local bounded in-memory limiter.
 - Authoritative global limit: 20,000 delivery candidates per UTC day. Conservative accounting may include an event retry that D1 subsequently suppresses.
 - Limits are configurable but must never default to unlimited behavior.
 - Limits are checked before delivery state is claimed or FCM is contacted.
-- Free-tier exhaustion produces explicit failures rather than acknowledged drops.
+- Cloudflare free-tier exhaustion and self-hosted resource failures produce explicit failures rather than acknowledged drops.
 
 ## Security and observability
 
 The public endpoint has no homeserver authentication because arbitrary Matrix homeservers must be supported. Protection comes from exact routing, bounded validation, known app IDs, rate controls, a global safety budget, minimal FCM payloads, and secret isolation.
 
-The Worker uses Cloudflare's built-in logs and observability without an external runtime service. Logs may contain a random correlation ID, aggregate counts, coarse latency, platform, configured app ID, and outcome category. They must never contain notification content, Push Keys, access tokens, service-account material, room IDs, event IDs, sender identities, Account Routes, or Matrix user IDs.
+Cloudflare uses built-in observability; Bun emits structured JSON to stdout/stderr. Logs may contain a random correlation ID, aggregate counts, coarse latency, platform, configured app ID, and outcome category. They must never contain notification content, Push Keys, access tokens, service-account material, room IDs, event IDs, sender identities, Account Routes, or Matrix user IDs.
 
 ## Implementation and repository
 
 The standalone repository is `https://github.com/quwisky/trinity-push-gateway`. Its default branch is `master`.
 
-The implementation uses pnpm 11, Node 24, strict TypeScript, Cloudflare's module Worker format, direct `fetch`, native Web Crypto, D1 bindings, `jose` for service-account JWT signing, and Valibot for structured external-boundary validation. Runtime dependencies are exactly pinned and allowlisted; Firebase Admin, Google Auth, Node compatibility layers, routers, ORMs, retry libraries, and external logging SDKs remain excluded. Development uses Vitest, ESLint, Prettier, Wrangler, Commitlint, Husky, lint-staged, Dependabot, and GitHub Actions with immutable action pins.
+The implementation uses one runtime-neutral request core with narrow storage and limiter ports. Cloudflare composes the module Worker, D1, rate-limit binding, and cron adapters; the self-hosted target composes Bun 1.4, built-in SQLite, an in-memory limiter, and internal cleanup scheduling. Both use direct `fetch`, native Web Crypto, `jose` for service-account JWT signing, and Valibot for structured external-boundary validation. Runtime dependencies are exactly pinned and allowlisted; Firebase Admin, Google Auth, routers, ORMs, retry libraries, database packages, and external logging SDKs remain excluded. Development uses pnpm 11, Node 24, strict TypeScript, Vitest, Bun's test runner for runtime integration, ESLint, Prettier, Wrangler, Commitlint, Husky, lint-staged, Dependabot, Docker, and GitHub Actions with immutable action pins.
 
-Cloudflare resources and configuration are managed through Wrangler. Firebase project setup, platform registration, APNs credentials, and least-privilege service-account creation remain documented operator steps. Secrets are injected interactively and never stored in Git.
+Cloudflare resources and configuration are managed through Wrangler. Self-hosting uses a hardened non-root, read-only container with a local `/data` volume, Docker secret files, external TLS termination, explicit proxy trust, startup migrations, graceful shutdown, health probing, and a verified backup command. Firebase project setup, platform registration, APNs credentials, and least-privilege service-account creation remain documented operator steps. Secrets are injected at runtime and never stored in Git.
 
-The project uses Apache-2.0 and semantic versions. Release Please derives versions from Conventional Commits and maintains one reviewable release pull request; only squash-merging that pull request updates the generated changelog and package version and creates an immutable `vX.Y.Z` tag plus GitHub Release. npm publication, prerelease channels, and automatic Worker deployment are excluded. Production uses a stable custom hostname on a Cloudflare-managed domain; `workers.dev` is development-only.
+The project uses Apache-2.0 and semantic versions. Release Please derives versions from Conventional Commits and maintains one reviewable release pull request; only squash-merging that pull request updates the generated changelog and package version and creates an immutable `vX.Y.Z` tag plus GitHub Release. That stable release publishes attested AMD64 and ARM64 Bun images to GitHub Container Registry. npm publication, prerelease channels, automatic Worker deployment, and automatic container updates are excluded. Production uses a stable TLS hostname; `workers.dev` is development-only.
 
 ## Companion client handoff
 
@@ -107,6 +109,6 @@ Mobile-client development is explicitly outside this repository and implementati
 
 ## Verification and completion
 
-Automated coverage includes validation, payload mapping, OAuth signing, FCM error classification, redaction, D1 integration, Matrix contract fixtures, multi-account behavior, mixed outcomes, concurrent duplicates, Cloudflare Free-plan bundle limits, and the exact runtime dependency allowlist. External services are mocked in CI.
+Automated coverage includes validation, payload mapping, OAuth signing, FCM error classification, redaction, shared D1/SQLite storage behavior, Matrix contract fixtures, multi-account behavior, mixed outcomes, concurrent duplicates, proxy address handling, limiter bounds, migrations, persistence, backup integrity, Bun HTTP lifecycle, Cloudflare Free-plan bundle limits, container size and health, and the exact runtime dependency allowlist. External services are mocked in CI.
 
 Gateway completion additionally requires a deployed-Worker smoke test when credentials and a target FCM installation are available, plus a documented client contract and handoff checklist for the separate mobile task. Real-device notification presentation, tapping, account routing, and badge behavior are deferred to that task. Documentation is updated before final validation; `CHANGELOG.md` is generated only by the release pull request. No credentials or proof artifacts enter version control.

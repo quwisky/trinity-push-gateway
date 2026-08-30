@@ -1,12 +1,16 @@
 # Trinity Push Gateway
 
-The Trinity Push Gateway context covers the handoff of Matrix notification requests to Trinity mobile client installations through a mobile push provider.
+The Trinity Push Gateway context covers the handoff of Matrix notification requests to compatible mobile client installations through a mobile push provider.
 
 ## Language
 
 **Push Gateway**:
-The Trinity-operated service that accepts Matrix notification requests and attempts delivery to the addressed Trinity client installations.
+The single-tenant service that accepts Matrix notification requests and attempts delivery to client installations belonging to one compatible app operator.
 _Avoid_: Push server, notification server, Sygnal
+
+**Gateway Operator**:
+The person or organization that controls a Push Gateway deployment, its app identifiers, and its Firebase project.
+_Avoid_: Host, administrator, Trinity
 
 **Notification Request**:
 A Matrix homeserver's request for one event notification or an update to unread counts, addressed to one or more client installations.
@@ -25,11 +29,11 @@ The privacy-preserving mobile notification derived from a Notification Request f
 _Avoid_: Firebase notification, translated notification
 
 **Client Installation**:
-One installed instance of a Trinity Android or iOS app, identified to the mobile push provider by a Push Key.
+One installed instance of a compatible Android or iOS app, identified to the mobile push provider by a Push Key.
 _Avoid_: Device, user, client
 
 **Account Route**:
-An opaque identifier created by a Trinity Client Installation to associate a Delivery Message with one locally signed-in Matrix account without exposing that account's Matrix user ID.
+An opaque identifier created by a Client Installation to associate a Delivery Message with one locally signed-in Matrix account without exposing that account's Matrix user ID.
 _Avoid_: User ID, account ID, `trinity_user_id`
 
 **Push Key**:
@@ -49,5 +53,5 @@ A Matrix server that evaluates a user's push rules and sends a Notification Requ
 _Avoid_: Client server, origin server
 
 **Pusher**:
-A registration held by a Homeserver that associates a Matrix account, Trinity app, Push Gateway, Push Key, and Account Route for notification delivery.
+A registration held by a Homeserver that associates a Matrix account, compatible app, Push Gateway, Push Key, and Account Route for notification delivery.
 _Avoid_: Device registration, push subscription
