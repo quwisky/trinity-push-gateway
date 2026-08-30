@@ -24,4 +24,6 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) for every commi
 
 The repository uses squash-only merging, and the validated pull-request title becomes the commit subject on `master`.
 
+Dependabot groups npm updates under the short `runtime` and `dev` names. Keep these names concise because Dependabot includes the group name in generated pull-request titles, which must stay within Commitlint's 100-character limit.
+
 Do not edit `CHANGELOG.md` in an ordinary pull request. Release Please creates or refreshes one release pull request after successful `master` CI, and that generated pull request owns the version bump and changelog entry. `CHANGELOG.md` and `.release-please-manifest.json` are intentionally excluded from Prettier so its generated output remains unchanged. Merging the release pull request creates an immutable `vX.Y.Z` tag and GitHub Release; it does not publish to npm or deploy the Worker.
