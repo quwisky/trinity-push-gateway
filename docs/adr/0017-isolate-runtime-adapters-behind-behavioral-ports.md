@@ -1,0 +1,7 @@
+# Isolate runtime adapters behind behavioral ports
+
+The Matrix and FCM gateway core will depend on small asynchronous ports for storage, source limiting, time, logging, and upstream requests rather than on Cloudflare binding shapes or Bun APIs. D1 and Bun SQLite remain independent adapters implementing delivery claims, completion, release, budget reservation, cleanup, readiness, and migration behavior; one contract suite must prove both adapters preserve the same concurrency and failure semantics. A single canonical migration directory feeds Wrangler's D1 runner and the Bun startup runner so the schemas cannot evolve independently.
+
+The adapters will remain narrow and runtime-specific: the project will not imitate D1 over SQLite, introduce a general database layer or ORM, mix Bun and Worker globals in one type configuration, or fork the Matrix delivery behavior by deployment target. Shared upstream and overall request deadlines apply to both targets so runtime portability does not introduce different retry behavior.
+
+The Bun adapter may execute its short indexed `bun:sqlite` statements synchronously in the service process while presenting the shared asynchronous port; worker threads, pools, and cross-process coordination are excluded unless contract and load evidence later show a need. Runtime-specific entry points, adapters, type configurations, and tests remain visibly separate, and the existing Wrangler entry point continues to export the Cloudflare Worker.

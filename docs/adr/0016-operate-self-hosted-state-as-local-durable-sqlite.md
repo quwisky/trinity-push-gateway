@@ -1,0 +1,7 @@
+# Operate self-hosted state as local durable SQLite
+
+The Bun deployment will keep delivery coordination and daily budgets in one local SQLite database owned by one service process. It will use strict bindings, WAL mode, full synchronous durability, foreign keys, and a finite busy timeout; forward-only migrations run before the HTTP listener opens, while expired-state cleanup runs at startup and every 24 hours. The short source-IP limit remains in memory because it is best-effort and persisting every public request would turn SQLite into an avoidable contention surface.
+
+The database and its WAL files must remain together on a local persistent volume. The gateway will include a consistent online backup command plus cold-backup and integrity-check instructions, but not remote backup storage or scheduling. A network filesystem, multiple gateway replicas sharing one file, destructive automatic migration, or serving with an unknown schema version is unsupported.
+
+Schema changes must be expand-first and readable by the immediately preceding stable image so operators retain a one-version rollback path. Busy, full, I/O, and corruption failures remain explicit retryable gateway failures rather than bypassing coordination or budgets; migration, incompatible-schema, and startup integrity failures terminate the process. Configuration and credential files are read once at startup and require a controlled container recreation to change.

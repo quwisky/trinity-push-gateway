@@ -5,8 +5,12 @@ The Trinity Push Gateway context covers the handoff of Matrix notification reque
 ## Language
 
 **Push Gateway**:
-The Trinity-operated service that accepts Matrix notification requests and attempts delivery to the addressed Trinity client installations.
+The single-tenant service that accepts Matrix notification requests and attempts delivery to client installations belonging to one compatible app operator.
 _Avoid_: Push server, notification server, Sygnal
+
+**Gateway Operator**:
+The person or organization that controls a Push Gateway deployment, its app identifiers, and its Firebase project.
+_Avoid_: Host, administrator, Trinity
 
 **Notification Request**:
 A Matrix homeserver's request for one event notification or an update to unread counts, addressed to one or more client installations.
