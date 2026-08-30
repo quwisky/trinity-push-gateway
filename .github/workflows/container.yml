@@ -3,9 +3,12 @@ name: Container
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  release:
-    types: [published]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -16,7 +19,7 @@ env:
 jobs:
   container:
     name: container
-    if: github.event_name != 'release'
+    if: inputs.release_tag == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -65,7 +68,7 @@ jobs:
           exit 1
 
   publish:
-    if: github.event_name == 'release' && github.event.release.prerelease == false
+    if: inputs.release_tag != ''
     permissions:
       attestations: write
       contents: write
@@ -77,12 +80,12 @@ jobs:
       - name: Check out release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ inputs.release_tag }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: Validate release version
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           package_version=$(node --print "require('./package.json').version")
           test "$RELEASE_TAG" = "v$package_version"
@@ -98,12 +101,12 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ github.event.release.tag_name }}
+            type=raw,value=${{ inputs.release_tag }}
             type=raw,value=latest
       - name: Find an existing immutable release image
         id: existing
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           if image_digest=$(docker buildx imagetools inspect "$IMAGE_NAME:$RELEASE_TAG" --format '{{.Manifest.Digest}}' 2>/dev/null); then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -132,7 +135,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest || steps.existing.outputs.digest }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           gh release view "$RELEASE_TAG" --json body --jq .body > "$RUNNER_TEMP/release-notes.md"
           if ! grep --fixed-strings --quiet "$IMAGE_NAME@$IMAGE_DIGEST" "$RUNNER_TEMP/release-notes.md"; then
