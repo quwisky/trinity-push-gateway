@@ -1,0 +1,61 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "push-gateway-docs",
+  "projectType": "application",
+  "sourceRoot": "docs",
+  "implicitDependencies": ["push-gateway"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "{workspaceRoot}/CHANGELOG.md",
+        "{workspaceRoot}/apps/push-gateway/src/config-reference.ts",
+        "{workspaceRoot}/apps/push-gateway/src/config.ts"
+      ],
+      "outputs": ["{workspaceRoot}/dist/docs/push-gateway-docs"],
+      "options": {
+        "command": "node scripts/build.mjs",
+        "cwd": "docs"
+      }
+    },
+    "check": {
+      "executor": "nx:noop",
+      "cache": false,
+      "dependsOn": ["lint", "typecheck", "test", "check-output"]
+    },
+    "check-output": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "node scripts/output-contract.ts",
+        "cwd": "docs"
+      }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "options": {
+        "command": "TRINITY_DOCS_BASE=/ TRINITY_DOCS_CHANNEL=next TRINITY_DOCS_OUT_DIR=../dist/docs/push-gateway-docs-preview node scripts/build.mjs && TRINITY_DOCS_BASE=/ TRINITY_DOCS_CHANNEL=next TRINITY_DOCS_OUT_DIR=../dist/docs/push-gateway-docs-preview vitepress preview .",
+        "cwd": "docs"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "options": {
+        "command": "vitepress dev .",
+        "cwd": "docs"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit --project tsconfig.json",
+        "cwd": "docs"
+      }
+    }
+  }
+}

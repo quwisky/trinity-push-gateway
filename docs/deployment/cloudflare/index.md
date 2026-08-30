@@ -2,7 +2,7 @@
 
 The production deployment is a Cloudflare Worker with D1, a rate-limit binding, a daily cron trigger, and a stable custom hostname. Firebase and Cloudflare credentials are operator-owned and must never be committed.
 
-For the supported Docker deployment with Bun and SQLite, use the separate [self-hosting guide](SELF-HOSTING.md).
+For the supported Docker deployment with Bun and SQLite, use the separate [self-hosting guide](/deployment/self-hosting/).
 
 ## Prerequisites
 
@@ -85,4 +85,4 @@ Do not point Matrix pushers at the production hostname until the D1 migration an
 
 ## External smoke test
 
-A real FCM installation token is intentionally not stored or used by CI. Once a compatible client build exists in the separate client task, send one private Matrix event to a test account and verify provider acceptance plus the client-side behavior listed in [the client contract](CLIENT-CONTRACT.md).
+A real FCM installation token is intentionally not stored or used by CI. Once a compatible client build exists in the separate client task, send one private Matrix event to a test account and verify provider acceptance plus the client-side behavior listed in [the client contract](/integration/matrix).

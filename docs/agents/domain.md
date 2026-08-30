@@ -7,7 +7,7 @@ This repository uses a single-context domain-document layout.
 Read the following when relevant:
 
 - `CONTEXT.md` for the project glossary and domain boundaries.
-- Relevant ADRs under `docs/adr/`.
+- Relevant ADRs under `docs/architecture/adr/`.
 
 If either location is absent, proceed without treating its absence as an error.
 
