@@ -1,0 +1,3 @@
+# Coordinate deliveries with D1
+
+D1 will hold short-lived delivery records identified by HMAC-SHA-256 fingerprints rather than raw Matrix or FCM identifiers. The fingerprint covers the app ID, Account Route, event ID, and Push Key so multiple accounts sharing one installation are not conflated. Atomic two-minute pending leases will serialize concurrent retries, stale leases will be reclaimable, terminal outcomes will expire after 24 hours, and daily cleanup will remove expired records; this adds one small stateful binding in exchange for protocol-correct retry behavior within Cloudflare's free allowance.

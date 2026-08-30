@@ -1,0 +1,44 @@
+{
+  "name": "@trinity/push-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A privacy-preserving Matrix push gateway for Trinity mobile apps.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quwisky/trinity-push-gateway.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": "^24.15.0"
+  },
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm check:bundle",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.test.json",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.2",
+    "@cloudflare/workers-types": "5.20260829.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.4.0",
+    "@vitest/coverage-istanbul": "4.1.11",
+    "eslint": "10.9.1",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.68.0",
+    "vitest": "4.1.11",
+    "wrangler": "4.127.1"
+  }
+}

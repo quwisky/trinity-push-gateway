@@ -1,0 +1,3 @@
+# Protect the zero-cost envelope
+
+The public gateway will remain within Cloudflare's free tier through 64 KiB request bodies, no more than 49 client installations per request, a best-effort limit of 300 requests per source IP per 10 seconds, and an authoritative default budget of 20,000 delivery candidates per UTC day. Conservative budget accounting may include an event retry that D1 subsequently suppresses. Quota pressure will produce explicit Matrix errors before delivery state is claimed or FCM is contacted rather than acknowledging discarded work, while the design will retain a documented path to paid capacity. Operational telemetry will use Cloudflare's built-in facilities without an external runtime service.
