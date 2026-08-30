@@ -19,5 +19,6 @@
     "target": "ES2024",
     "types": ["@cloudflare/workers-types"]
   },
+  "exclude": ["src/bun/**/*.ts"],
   "include": ["src/**/*.ts", "worker-configuration.d.ts"]
 }

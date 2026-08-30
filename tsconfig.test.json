@@ -9,5 +9,6 @@
       "vitest/globals"
     ]
   },
+  "exclude": ["src/bun/**/*.ts", "test/bun/**/*.ts"],
   "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
 }

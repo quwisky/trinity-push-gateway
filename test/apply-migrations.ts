@@ -2,7 +2,7 @@ import { applyD1Migrations, env } from 'cloudflare:test';
 import type { D1Migration } from 'cloudflare:test';
 import { beforeAll } from 'vitest';
 
-import type { Env as GatewayEnv } from '../src/env';
+import type { Env as GatewayEnv } from '../src/cloudflare-env';
 
 declare global {
   namespace Cloudflare {

@@ -1,0 +1,10 @@
+.git
+.github
+.husky
+.wrangler
+coverage
+dist
+node_modules
+secrets
+*.log
+*.sqlite*

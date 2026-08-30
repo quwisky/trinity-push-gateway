@@ -738,4 +738,34 @@ describe('FCM adapter', () => {
       },
     });
   });
+
+  it('classifies an upstream timeout as a transient failure', async () => {
+    const fetcher: typeof fetch = async (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new Error('aborted'));
+        });
+      });
+    const client = createFcmClient({
+      clientEmail: 'gateway@example.test',
+      fetch: fetcher,
+      now: () => 2_000_000_000_000,
+      privateKey: await createPrivateKeyPem(),
+      projectId: 'test-project',
+      timeoutMs: 1,
+    });
+
+    await expect(
+      client.send({
+        accountRoute: 'account-route',
+        kind: 'counts',
+        missedCalls: 0,
+        platform: 'android',
+        priority: 'low',
+        pushKey: 'registration',
+        sound: false,
+        unread: 0,
+      }),
+    ).resolves.toEqual({ kind: 'transient', reason: 'unavailable' });
+  });
 });

@@ -1,57 +1,10 @@
-export type DeliveryIdentity = {
-  readonly accountRoute: string;
-  readonly appId: string;
-  readonly eventId: string;
-  readonly pushKey: string;
-};
-
-export type DeliveryClaim =
-  | { readonly fingerprint: string; readonly kind: 'acquired' }
-  | { readonly kind: 'delivered' }
-  | { readonly kind: 'pending'; readonly retryAfterSeconds: number }
-  | { readonly kind: 'rejected' };
+import { fingerprintFor } from './fingerprint';
+import type { DeliveryClaim, DeliveryIdentity } from './ports';
 
 type DeliveryRow = {
   readonly lease_expires_at: number | null;
   readonly outcome: 'delivered' | 'pending' | 'rejected';
 };
-
-function base64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary)
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replace(/=+$/u, '');
-}
-
-async function fingerprintFor(
-  identity: DeliveryIdentity,
-  fingerprintKey: string,
-): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(fingerprintKey),
-    { hash: 'SHA-256', name: 'HMAC' },
-    false,
-    ['sign'],
-  );
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(
-      JSON.stringify([
-        identity.appId,
-        identity.accountRoute,
-        identity.eventId,
-        identity.pushKey,
-      ]),
-    ),
-  );
-  return base64Url(new Uint8Array(signature));
-}
 
 export async function claimDelivery(
   database: D1Database,

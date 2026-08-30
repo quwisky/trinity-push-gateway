@@ -79,6 +79,7 @@ export type FcmClientOptions = {
   readonly now: () => number;
   readonly privateKey: string;
   readonly projectId: string;
+  readonly timeoutMs?: number;
 };
 
 type AccessToken = {
@@ -130,6 +131,7 @@ async function requestAccessToken(
     }),
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     method: 'POST',
+    signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
   });
   const body: unknown = await response.json();
   const parsed = safeParse(OAUTH_RESPONSE_SCHEMA, body);
@@ -273,6 +275,7 @@ export function createFcmClient(options: FcmClientOptions): FcmClient {
               'content-type': 'application/json; charset=utf-8',
             },
             method: 'POST',
+            signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
           },
         );
       } catch {

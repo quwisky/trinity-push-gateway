@@ -1,6 +1,5 @@
-export type Env = {
+export type ConfigurationEnvironment = {
   readonly ANDROID_APP_ID: string;
-  readonly DB: D1Database;
   readonly FCM_CLIENT_EMAIL: string;
   readonly FCM_PRIVATE_KEY: string;
   readonly FCM_PROJECT_ID: string;
@@ -10,6 +9,7 @@ export type Env = {
   readonly MAX_DAILY_ATTEMPTS: string;
   readonly MAX_DEVICES: string;
   readonly PENDING_LEASE_SECONDS: string;
-  readonly SOURCE_RATE_LIMITER: RateLimit;
+  readonly REQUEST_DEADLINE_SECONDS: string;
+  readonly UPSTREAM_TIMEOUT_SECONDS: string;
   readonly TERMINAL_RETENTION_SECONDS: string;
 };

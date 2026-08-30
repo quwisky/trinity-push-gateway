@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { version as gatewayVersion } from '../package.json';
 import type { FcmDelivery } from '../src/fcm';
-import type { Env } from '../src/env';
+import type { Env } from '../src/cloudflare-env';
 import worker, { createGateway } from '../src/index';
 
 describe('gateway HTTP boundary', () => {

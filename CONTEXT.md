@@ -1,6 +1,6 @@
 # Trinity Push Gateway
 
-The Trinity Push Gateway context covers the handoff of Matrix notification requests to Trinity mobile client installations through a mobile push provider.
+The Trinity Push Gateway context covers the handoff of Matrix notification requests to compatible mobile client installations through a mobile push provider.
 
 ## Language
 
@@ -29,11 +29,11 @@ The privacy-preserving mobile notification derived from a Notification Request f
 _Avoid_: Firebase notification, translated notification
 
 **Client Installation**:
-One installed instance of a Trinity Android or iOS app, identified to the mobile push provider by a Push Key.
+One installed instance of a compatible Android or iOS app, identified to the mobile push provider by a Push Key.
 _Avoid_: Device, user, client
 
 **Account Route**:
-An opaque identifier created by a Trinity Client Installation to associate a Delivery Message with one locally signed-in Matrix account without exposing that account's Matrix user ID.
+An opaque identifier created by a Client Installation to associate a Delivery Message with one locally signed-in Matrix account without exposing that account's Matrix user ID.
 _Avoid_: User ID, account ID, `trinity_user_id`
 
 **Push Key**:
@@ -53,5 +53,5 @@ A Matrix server that evaluates a user's push rules and sends a Notification Requ
 _Avoid_: Client server, origin server
 
 **Pusher**:
-A registration held by a Homeserver that associates a Matrix account, Trinity app, Push Gateway, Push Key, and Account Route for notification delivery.
+A registration held by a Homeserver that associates a Matrix account, compatible app, Push Gateway, Push Key, and Account Route for notification delivery.
 _Avoid_: Device registration, push subscription
