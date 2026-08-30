@@ -10,7 +10,7 @@ import {
 
 const NON_EMPTY_STRING_SCHEMA = pipe(string(), minLength(1));
 const POSITIVE_INTEGER_STRING_SCHEMA = pipe(string(), regex(/^[1-9]\d*$/u));
-const ENV_SCHEMA = looseObject({
+const CONFIGURATION_ENVIRONMENT_SCHEMAS = {
   TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: NON_EMPTY_STRING_SCHEMA,
   TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL: NON_EMPTY_STRING_SCHEMA,
   TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY: NON_EMPTY_STRING_SCHEMA,
@@ -25,9 +25,20 @@ const ENV_SCHEMA = looseObject({
   TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS:
     POSITIVE_INTEGER_STRING_SCHEMA,
   TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: POSITIVE_INTEGER_STRING_SCHEMA,
-});
+};
+
+const ENV_SCHEMA = looseObject(CONFIGURATION_ENVIRONMENT_SCHEMAS);
 
 export type ConfigurationEnvironment = InferOutput<typeof ENV_SCHEMA>;
+export type ConfigurationEnvironmentName =
+  keyof typeof CONFIGURATION_ENVIRONMENT_SCHEMAS;
+
+export const CONFIGURATION_ENVIRONMENT_NAMES: readonly ConfigurationEnvironmentName[] =
+  Object.freeze(
+    Object.keys(
+      CONFIGURATION_ENVIRONMENT_SCHEMAS,
+    ) as ConfigurationEnvironmentName[],
+  );
 
 export type RuntimeConfig = {
   readonly maxBodyBytes: number;

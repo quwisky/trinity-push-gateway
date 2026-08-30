@@ -13,11 +13,12 @@ Run the complete repository gate before opening a pull request:
 pnpm nx format:check --all
 pnpm nx run push-gateway:check
 pnpm nx run push-gateway:check-bun
+pnpm nx run push-gateway-docs:check
 ```
 
-Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, and `pnpm nx run push-gateway:dev`. The official ESLint and Vitest plugins infer the project-scoped `lint` and run-mode `test` targets; Wrangler, Bun, TypeScript, migration, coverage, bundle-policy, and aggregate targets remain explicit. Nx uses only its local cache; deployment, migration, development-server, release, and Docker-daemon operations are never cached.
+Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, `pnpm nx run push-gateway:dev`, and `pnpm nx run push-gateway-docs:serve`. The official ESLint and Vitest plugins infer the project-scoped `lint` and run-mode `test` targets; Wrangler, Bun, VitePress, TypeScript, migration, coverage, bundle-policy, and aggregate targets remain explicit. Nx uses only its local cache; deployment, migration, development-server, release, and Docker-daemon operations are never cached.
 
-Pull-request and `master` CI use Nx affected execution. Shared dependencies, workspace configuration, Compose, and CI configuration affect `push-gateway`; documentation-only and future UI-placeholder changes keep the required checks visible but skip unrelated gateway and container work.
+Pull-request and `master` CI use Nx affected execution. Shared dependencies, workspace configuration, Compose, and CI configuration affect `push-gateway`; documentation changes run `push-gateway-docs:check` while skipping unrelated gateway and container work. After successful `master` CI, the dedicated Pages workflow publishes `/next/` and, for a verified Release Please tag, the write-once release version plus `/latest/`.
 
 ## Commits and pull requests
 

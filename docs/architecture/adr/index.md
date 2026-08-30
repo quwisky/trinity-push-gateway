@@ -1,0 +1,26 @@
+# Architecture decision records
+
+Decision records explain the constraints behind the gateway's deliberately
+narrow runtime, privacy, delivery, release, and repository boundaries.
+
+1. [Narrow single-tenant gateway](./0001-narrow-single-tenant-gateway)
+2. [Public Matrix endpoint](./0002-public-matrix-endpoint)
+3. [Private standards-conformant delivery](./0003-private-standards-conformant-delivery)
+4. [Prefer delivery over exactly once](./0004-prefer-delivery-over-exactly-once)
+5. [Protect the zero-cost envelope](./0005-protect-the-zero-cost-envelope)
+6. [Use FCM for both mobile platforms](./0006-use-fcm-for-both-mobile-platforms)
+7. [Coordinate deliveries with D1](./0007-coordinate-deliveries-with-d1)
+8. [Version the mobile delivery contract](./0008-version-the-mobile-delivery-contract)
+9. [Coordinate the version-one client rollout](./0009-coordinate-the-version-one-client-rollout)
+10. [Use a stable production hostname](./0010-use-a-stable-production-hostname)
+11. [Automate Cloudflare, not Firebase, provisioning](./0011-automate-cloudflare-not-firebase-provisioning)
+12. [Release as an Apache-licensed service](./0012-release-as-an-apache-licensed-service)
+13. [Use focused boundary dependencies](./0013-use-focused-boundary-dependencies)
+14. [Gate releases through generated pull requests](./0014-gate-releases-through-generated-pull-requests)
+15. [Maintain one contract across deployment targets](./0015-maintain-one-contract-across-deployment-targets)
+16. [Operate self-hosted state as local durable SQLite](./0016-operate-self-hosted-state-as-local-durable-sqlite)
+17. [Isolate runtime adapters behind behavioral ports](./0017-isolate-runtime-adapters-behind-behavioral-ports)
+18. [Publish minimal attested Bun images](./0018-publish-minimal-attested-bun-images-from-stable-releases)
+19. [Keep the self-hosted operational boundary narrow](./0019-keep-the-self-hosted-operational-boundary-narrow)
+20. [Organize future applications with Nx](./0020-organize-future-applications-with-nx)
+21. [Publish versioned user documentation](./0021-publish-versioned-user-documentation)

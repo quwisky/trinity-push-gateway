@@ -17,7 +17,7 @@ The Worker has two focused runtime dependencies: `jose` for standards-conformant
 - Source rate limiting, a daily delivery safety budget, and six-request FCM waves
 - Daily cleanup, structured redacted logs, and strict configuration readiness
 
-This repository does not contain Trinity client development. Client registration and notification handling are defined only as a handoff in [the client contract](docs/CLIENT-CONTRACT.md).
+This repository does not contain Trinity client development. Client registration and notification handling are defined only as a handoff in [the client contract](docs/integration/matrix.md).
 
 ## Local development
 
@@ -39,6 +39,7 @@ Run the complete repository gate with:
 pnpm nx format:check --all
 pnpm nx run push-gateway:check
 pnpm nx run push-gateway:check-bun
+pnpm nx run push-gateway-docs:check
 ```
 
 The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits and rejects runtime dependencies outside the exact `jose` and Valibot allowlist.
@@ -58,7 +59,7 @@ The default limits are 64 KiB per request, 49 client installations per Matrix re
 
 ## Deployment
 
-See the [Cloudflare deployment guide](docs/DEPLOYMENT.md) or the [Bun/SQLite self-hosting guide](docs/SELF-HOSTING.md). Both production targets require a stable TLS hostname; `workers.dev` is development-only.
+See the [Cloudflare deployment guide](docs/deployment/cloudflare/index.md) or the [Bun/SQLite self-hosting guide](docs/deployment/self-hosting/index.md). Both production targets require a stable TLS hostname; `workers.dev` is development-only. The published user documentation is available at [quwisky.github.io/trinity-push-gateway](https://quwisky.github.io/trinity-push-gateway/).
 
 ## Releases
 
@@ -66,15 +67,17 @@ Successful changes on `master` create or refresh a Release Please pull request. 
 
 ## Design and operations
 
-- [Accepted design](docs/DESIGN.md)
+- [Accepted design](docs/architecture/index.md)
 - [Domain context](CONTEXT.md)
-- [Architecture decisions](docs/adr/)
+- [Architecture decisions](docs/architecture/adr/)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
 
 ## Workspace
 
 Nx 23 orchestrates the root-managed pnpm workspace. Official Nx plugins infer project-scoped ESLint and run-mode Vitest targets; runtime-specific targets remain explicit, and CI runs only tasks affected by each change. The implemented backend is the `push-gateway` project under `apps/push-gateway`; `apps/push-gateway-ui` only reserves the name and location of a future Angular administration interface for self-hosted Gateway Operators. It contains no client implementation or Nx project yet.
+
+The `push-gateway-docs` project uses the existing `docs/` tree. Run `pnpm nx run push-gateway-docs:serve` for local authoring, or `pnpm nx run push-gateway-docs:check` for its complete static-site contract.
 
 ## License
 

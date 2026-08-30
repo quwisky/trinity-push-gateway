@@ -3,3 +3,5 @@ pnpm nx run push-gateway:typecheck
 pnpm nx run push-gateway:typecheck-bun
 pnpm nx run push-gateway:test
 pnpm nx run push-gateway:test-bun
+pnpm nx run push-gateway-docs:typecheck
+pnpm nx run push-gateway-docs:test

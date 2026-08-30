@@ -1,0 +1,285 @@
+name: Pages
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve publication
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
+    steps:
+      - name: Resolve source commit
+        id: source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_SHA: ${{ github.sha }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
+            source_sha="$MANUAL_SHA"
+          else
+            source_sha="$WORKFLOW_SHA"
+          fi
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'Invalid source SHA: %s\n' "$source_sha" >&2
+            exit 1
+          fi
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Check out validated source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ steps.source.outputs.source_sha }}
+      - name: Verify source belongs to master
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        run: |
+          set -Eeuo pipefail
+          git fetch origin master --no-tags
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/master
+      - name: Detect verified release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        run: |
+          set -Eeuo pipefail
+          mapfile -t release_tags < <(git tag --points-at "$SOURCE_SHA" --list 'v[0-9]*.[0-9]*.[0-9]*')
+          if (( ${#release_tags[@]} == 0 )); then
+            printf 'release_tag=\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if (( ${#release_tags[@]} != 1 )) || [[ ! "${release_tags[0]}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'Expected exactly one semantic release tag for %s.\n' "$SOURCE_SHA" >&2
+            exit 1
+          fi
+          release_tag="${release_tags[0]}"
+          release_sha="$(gh release view "$release_tag" --json targetCommitish --jq .targetCommitish)"
+          resolved_release_sha="$(git rev-list --max-count=1 "$release_tag")"
+          if [[ "$resolved_release_sha" != "$SOURCE_SHA" ]]; then
+            printf 'Release tag does not resolve to the publication commit.\n' >&2
+            exit 1
+          fi
+          if [[ "$release_sha" =~ ^[0-9a-f]{40}$ && "$release_sha" != "$SOURCE_SHA" ]]; then
+            printf 'GitHub Release targets a different commit.\n' >&2
+            exit 1
+          fi
+          printf 'release_tag=%s\n' "$release_tag" >> "$GITHUB_OUTPUT"
+
+  build-next:
+    name: Build next documentation
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out validated source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.source_sha }}
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: pnpm
+          node-version-file: .nvmrc
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build next documentation
+        env:
+          TRINITY_DOCS_BASE: /trinity-push-gateway/next/
+          TRINITY_DOCS_CHANNEL: next
+          TRINITY_DOCS_OUT_DIR: ${{ runner.temp }}/next
+          TRINITY_DOCS_SOURCE_REF: master
+        run: |
+          pnpm nx run push-gateway-docs:build --skip-nx-cache
+          node docs/scripts/output-contract.ts "$TRINITY_DOCS_OUT_DIR"
+      - name: Upload next documentation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          if-no-files-found: error
+          name: next-documentation
+          path: ${{ runner.temp }}/next
+          retention-days: 1
+
+  build-release:
+    name: Build released documentation
+    if: needs.resolve.outputs.release_tag != ''
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.release_tag }}
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: pnpm
+          node-version-file: .nvmrc
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build immutable version
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+          TRINITY_DOCS_OUT_DIR: ${{ runner.temp }}/release/version
+          TRINITY_DOCS_SOURCE_REF: ${{ needs.resolve.outputs.release_tag }}
+        run: |
+          set -Eeuo pipefail
+          export TRINITY_DOCS_BASE="/trinity-push-gateway/$RELEASE_TAG/"
+          export TRINITY_DOCS_CHANNEL="$RELEASE_TAG"
+          pnpm nx run push-gateway-docs:build --skip-nx-cache
+          node docs/scripts/output-contract.ts "$TRINITY_DOCS_OUT_DIR"
+      - name: Build latest alias
+        env:
+          TRINITY_DOCS_BASE: /trinity-push-gateway/latest/
+          TRINITY_DOCS_CHANNEL: latest
+          TRINITY_DOCS_OUT_DIR: ${{ runner.temp }}/release/latest
+          TRINITY_DOCS_SOURCE_REF: ${{ needs.resolve.outputs.release_tag }}
+        run: |
+          pnpm nx run push-gateway-docs:build --skip-nx-cache
+          node docs/scripts/output-contract.ts "$TRINITY_DOCS_OUT_DIR"
+      - name: Upload released documentation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          if-no-files-found: error
+          name: released-documentation
+          path: ${{ runner.temp }}/release
+          retention-days: 1
+
+  assemble:
+    name: Assemble immutable Pages history
+    if: >-
+      always() &&
+      needs.resolve.result == 'success' &&
+      needs.build-next.result == 'success' &&
+      (needs.build-release.result == 'success' || needs.build-release.result == 'skipped')
+    needs: [resolve, build-next, build-release]
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted assembly script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: source
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.source_sha }}
+      - name: Download next documentation
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: next-documentation
+          path: inputs/next
+      - name: Download released documentation
+        if: needs.resolve.outputs.release_tag != ''
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: released-documentation
+          path: inputs/release
+      - name: Check out generated history
+        run: |
+          set -Eeuo pipefail
+          mkdir history
+          git -C history init
+          git -C history remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          if git -C history ls-remote --exit-code origin refs/heads/pages-history >/dev/null 2>&1; then
+            git -C history fetch --depth=1 origin refs/heads/pages-history
+            git -C history switch --create pages-history FETCH_HEAD
+          else
+            git -C history switch --orphan pages-history
+          fi
+      - name: Assemble write-once history
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+          TRINITY_PAGES_HISTORY_DIR: ${{ github.workspace }}/history
+          TRINITY_PAGES_LATEST_DIR: ${{ github.workspace }}/inputs/release/latest
+          TRINITY_PAGES_NEXT_DIR: ${{ github.workspace }}/inputs/next
+          TRINITY_PAGES_RELEASE_DIR: ${{ github.workspace }}/inputs/release/version
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "$RELEASE_TAG" ]]; then
+            TRINITY_PAGES_RELEASE_TAG="$RELEASE_TAG" bash source/docs/scripts/assemble-pages.sh
+          else
+            unset TRINITY_PAGES_LATEST_DIR TRINITY_PAGES_RELEASE_DIR
+            bash source/docs/scripts/assemble-pages.sh
+          fi
+      - name: Commit generated history
+        id: commit
+        run: |
+          set -Eeuo pipefail
+          git -C history config user.name github-actions[bot]
+          git -C history config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C history add --all
+          if git -C history diff --cached --quiet; then
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+          else
+            git -C history commit -m 'docs: publish GitHub Pages history'
+            printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Push generated history
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          authorization="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -C history \
+            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $authorization" \
+            push origin HEAD:refs/heads/pages-history
+      - name: Export generated site
+        run: |
+          set -Eeuo pipefail
+          mkdir site
+          git -C history archive HEAD | tar -x -C site
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: site
+
+  deploy:
+    name: Deploy GitHub Pages
+    needs: assemble
+    permissions:
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

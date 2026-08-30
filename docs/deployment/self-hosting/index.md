@@ -46,7 +46,7 @@ Compose binds plain HTTP to `127.0.0.1:3000` by default; `TRINITY_PUSH_GATEWAY_H
 
 For a host proxy, a minimal Caddy route is:
 
-```caddyfile
+```txt
 push.example.com {
   reverse_proxy 127.0.0.1:3000
 }

@@ -26,6 +26,7 @@ export default tseslint.config(
           './apps/push-gateway/tsconfig.json',
           './apps/push-gateway/tsconfig.bun.json',
           './apps/push-gateway/tsconfig.test.json',
+          './docs/tsconfig.json',
         ],
         tsconfigRootDir: import.meta.dirname,
       },
@@ -40,7 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/push-gateway/test/**/*.ts'],
+    files: ['apps/push-gateway/test/**/*.ts', 'docs/test/**/*.ts'],
     rules: {
       '@typescript-eslint/consistent-type-definitions': 'off',
       '@typescript-eslint/no-deprecated': 'off',
