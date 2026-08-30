@@ -260,6 +260,8 @@ jobs:
 
   deploy:
     name: Deploy GitHub Pages
+    if: >-
+      always() && needs.assemble.result == 'success'
     needs: assemble
     permissions:
       id-token: write
