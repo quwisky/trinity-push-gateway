@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 
 import { runtimeConfig, type ConfigurationEnvironment } from '../config';
 import {
+  BUN_CONFIGURATION_DEFAULTS,
+  SHARED_CONFIGURATION_DEFAULTS,
+} from '../configuration-defaults';
+import {
   trustedProxyConfigurationValid,
   type ClientIpHeader,
 } from './client-address';
@@ -52,10 +56,10 @@ function credential(environment: Environment, name: string): string {
 function positiveInteger(
   environment: Environment,
   name: string,
-  fallback: number,
+  fallback: string,
   maximum = Number.MAX_SAFE_INTEGER,
 ): number {
-  const raw = environment[name] ?? String(fallback);
+  const raw = environment[name] ?? fallback;
   const parsed = Number(raw);
   if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
     throw new Error(
@@ -97,45 +101,50 @@ export function loadBunConfiguration(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES',
-        65_536,
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES,
       ),
     ),
     TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS',
-        20_000,
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS,
       ),
     ),
     TRINITY_PUSH_GATEWAY_MAX_DEVICES: String(
-      positiveInteger(environment, 'TRINITY_PUSH_GATEWAY_MAX_DEVICES', 49, 49),
+      positiveInteger(
+        environment,
+        'TRINITY_PUSH_GATEWAY_MAX_DEVICES',
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_DEVICES,
+        49,
+      ),
     ),
     TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS',
-        120,
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS,
       ),
     ),
     TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS',
-        30,
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS,
       ),
     ),
     TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS',
-        86_400,
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS,
       ),
     ),
     TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS',
-        10,
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS,
       ),
     ),
   };
@@ -144,7 +153,8 @@ export function loadBunConfiguration(
   }
 
   const clientIpHeader =
-    environment.TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER ?? 'x-forwarded-for';
+    environment.TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER ??
+    BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER;
   if (
     clientIpHeader !== 'x-forwarded-for' &&
     clientIpHeader !== 'cf-connecting-ip'
@@ -154,7 +164,8 @@ export function loadBunConfiguration(
     );
   }
   const trustedProxyCidrs = (
-    environment.TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS ?? ''
+    environment.TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS ??
+    BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS
   )
     .split(',')
     .map((cidr) => cidr.trim())
@@ -169,33 +180,36 @@ export function loadBunConfiguration(
     cleanupIntervalSeconds: positiveInteger(
       environment,
       'TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS',
-      86_400,
+      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS,
     ),
     clientIpHeader,
     databasePath:
-      environment.TRINITY_PUSH_GATEWAY_DATABASE_PATH ?? '/data/gateway.sqlite',
+      environment.TRINITY_PUSH_GATEWAY_DATABASE_PATH ??
+      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_DATABASE_PATH,
     environment: runtimeEnvironment,
-    host: environment.TRINITY_PUSH_GATEWAY_HOST ?? '0.0.0.0',
+    host:
+      environment.TRINITY_PUSH_GATEWAY_HOST ??
+      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_HOST,
     maxSourceKeys: positiveInteger(
       environment,
       'TRINITY_PUSH_GATEWAY_MAX_SOURCE_KEYS',
-      10_000,
+      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_SOURCE_KEYS,
     ),
     port: positiveInteger(
       environment,
       'TRINITY_PUSH_GATEWAY_PORT',
-      3000,
+      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_PORT,
       65_535,
     ),
     sourceLimit: positiveInteger(
       environment,
       'TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMIT',
-      300,
+      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMIT,
     ),
     sourcePeriodSeconds: positiveInteger(
       environment,
       'TRINITY_PUSH_GATEWAY_SOURCE_RATE_PERIOD_SECONDS',
-      10,
+      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_SOURCE_RATE_PERIOD_SECONDS,
     ),
     trustedProxyCidrs,
   };

@@ -113,4 +113,54 @@ describe('Pages history assembly', () => {
     expect(collision.status).not.toBe(0);
     expect(collision.stderr).toContain('different output');
   });
+
+  it('does not move latest backward when an older release is replayed', () => {
+    const paths = fixture();
+    writeFileSync(path.join(paths.latest, 'index.html'), '<h1>latest v2</h1>');
+    writeFileSync(
+      path.join(paths.version, 'index.html'),
+      '<h1>version v2</h1>',
+    );
+
+    const newest = spawnSync('bash', [script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        TRINITY_PAGES_HISTORY_DIR: paths.history,
+        TRINITY_PAGES_LATEST_DIR: paths.latest,
+        TRINITY_PAGES_NEXT_DIR: paths.next,
+        TRINITY_PAGES_RELEASE_DIR: paths.version,
+        TRINITY_PAGES_RELEASE_TAG: 'v2.0.0',
+      },
+    });
+    expect(newest.stderr).toBe('');
+    expect(newest.status).toBe(0);
+
+    writeFileSync(path.join(paths.latest, 'index.html'), '<h1>latest v1</h1>');
+    writeFileSync(
+      path.join(paths.version, 'index.html'),
+      '<h1>version v1</h1>',
+    );
+    const older = spawnSync('bash', [script], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        TRINITY_PAGES_HISTORY_DIR: paths.history,
+        TRINITY_PAGES_LATEST_DIR: paths.latest,
+        TRINITY_PAGES_NEXT_DIR: paths.next,
+        TRINITY_PAGES_RELEASE_DIR: paths.version,
+        TRINITY_PAGES_RELEASE_TAG: 'v1.0.0',
+      },
+    });
+    expect(older.stderr).toBe('');
+    expect(older.status).toBe(0);
+    expect(
+      readFileSync(path.join(paths.history, 'latest', 'index.html'), 'utf8'),
+    ).toBe('<h1>latest v2</h1>');
+    expect(
+      JSON.parse(
+        readFileSync(path.join(paths.history, 'versions.json'), 'utf8'),
+      ),
+    ).toEqual({ latest: 'v2.0.0', versions: ['v2.0.0', 'v1.0.0'] });
+  });
 });

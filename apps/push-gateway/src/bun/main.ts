@@ -1,3 +1,4 @@
+import { BUN_CONFIGURATION_DEFAULTS } from '../configuration-defaults';
 import { loadBunConfiguration } from './config';
 import { readMigrations } from './migrations';
 import { startBunGateway } from './server';
@@ -9,7 +10,8 @@ function log(event: Readonly<Record<string, unknown>>): void {
 
 const config = loadBunConfiguration(process.env);
 const migrations = readMigrations(
-  process.env.TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH ?? '/app/migrations',
+  process.env.TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH ??
+    BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH,
 );
 const command = process.argv[2] ?? 'serve';
 

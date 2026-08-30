@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -73,5 +75,18 @@ describe('configuration reference rendering', () => {
     expect(markdown).toContain('65536');
     expect(markdown).not.toContain('-----BEGIN PRIVATE KEY-----');
     expect(markdown).not.toContain('gateway@example.test');
+  });
+});
+
+describe('Pages publication trigger', () => {
+  it('publishes master only after the CI workflow succeeds', () => {
+    const workflow = readFileSync(
+      new URL('../../.github/workflows/pages.yml', import.meta.url),
+      'utf8',
+    );
+
+    expect(workflow).toContain('workflow_run:');
+    expect(workflow).toContain('workflows: [CI]');
+    expect(workflow).not.toContain('workflow_dispatch');
   });
 });

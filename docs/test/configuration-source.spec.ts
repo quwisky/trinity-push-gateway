@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { GATEWAY_CONFIGURATION_REFERENCE } from '../../apps/push-gateway/src/config-reference';
+import { SHARED_CONFIGURATION_DEFAULTS } from '../../apps/push-gateway/src/configuration-defaults';
 
 describe('configuration documentation coverage', () => {
   it('documents every configuration name accepted by code and Compose', () => {
@@ -26,5 +27,16 @@ describe('configuration documentation coverage', () => {
     );
 
     expect([...acceptedNames].sort()).toEqual([...documentedNames].sort());
+  });
+
+  it('keeps Cloudflare variables aligned with shared runtime defaults', () => {
+    const wrangler = readFileSync(
+      new URL('../../apps/push-gateway/wrangler.jsonc', import.meta.url),
+      'utf8',
+    );
+
+    for (const [name, value] of Object.entries(SHARED_CONFIGURATION_DEFAULTS)) {
+      expect(wrangler).toContain(`"${name}": "${value}"`);
+    }
   });
 });

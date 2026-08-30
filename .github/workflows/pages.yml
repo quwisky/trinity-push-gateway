@@ -5,7 +5,6 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [master]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,10 +17,9 @@ jobs:
   resolve:
     name: Resolve publication
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event != 'pull_request' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -31,16 +29,10 @@ jobs:
       - name: Resolve source commit
         id: source
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          MANUAL_SHA: ${{ github.sha }}
           WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -Eeuo pipefail
-          if [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
-            source_sha="$MANUAL_SHA"
-          else
-            source_sha="$WORKFLOW_SHA"
-          fi
+          source_sha="$WORKFLOW_SHA"
           if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
             printf 'Invalid source SHA: %s\n' "$source_sha" >&2
             exit 1

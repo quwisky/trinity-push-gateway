@@ -4,6 +4,10 @@ import {
   GATEWAY_CONFIGURATION_REFERENCE,
   type GatewayConfigurationName,
 } from '../src/config-reference';
+import {
+  BUN_CONFIGURATION_DEFAULTS,
+  SHARED_CONFIGURATION_DEFAULTS,
+} from '../src/configuration-defaults';
 import { CONFIGURATION_ENVIRONMENT_NAMES } from '../src/config';
 
 describe('gateway configuration reference', () => {
@@ -41,7 +45,7 @@ describe('gateway configuration reference', () => {
     }
   });
 
-  it('keeps documented safety defaults aligned with the runtime contract', () => {
+  it('keeps documented defaults aligned with the runtime contract', () => {
     const defaults = Object.fromEntries(
       GATEWAY_CONFIGURATION_REFERENCE.map(({ defaultValue, name }) => [
         name,
@@ -50,13 +54,8 @@ describe('gateway configuration reference', () => {
     );
 
     expect(defaults).toMatchObject({
-      TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES: '65536',
-      TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS: '20000',
-      TRINITY_PUSH_GATEWAY_MAX_DEVICES: '49',
-      TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS: '120',
-      TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS: '30',
-      TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS: '86400',
-      TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: '10',
+      ...SHARED_CONFIGURATION_DEFAULTS,
+      ...BUN_CONFIGURATION_DEFAULTS,
     });
   });
 });

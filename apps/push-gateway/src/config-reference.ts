@@ -1,4 +1,8 @@
 import type { ConfigurationEnvironmentName } from './config';
+import {
+  BUN_CONFIGURATION_DEFAULTS,
+  SHARED_CONFIGURATION_DEFAULTS,
+} from './configuration-defaults';
 
 type BunOnlyConfigurationName =
   | 'TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS'
@@ -87,7 +91,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES',
       description: 'Maximum accepted Matrix notification request size.',
-      defaultValue: '65536',
+      defaultValue:
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES,
       required: false,
       runtimes: bothRuntimes,
       secret: false,
@@ -96,7 +101,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS',
       description: 'Maximum persisted FCM delivery attempts per UTC day.',
-      defaultValue: '20000',
+      defaultValue:
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS,
       required: false,
       runtimes: bothRuntimes,
       secret: false,
@@ -105,7 +111,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_MAX_DEVICES',
       description: 'Maximum devices accepted in one Matrix notification.',
-      defaultValue: '49',
+      defaultValue:
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_DEVICES,
       required: false,
       runtimes: bothRuntimes,
       secret: false,
@@ -114,7 +121,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS',
       description: 'Lease duration for an in-progress delivery.',
-      defaultValue: '120',
+      defaultValue:
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS,
       required: false,
       runtimes: bothRuntimes,
       secret: false,
@@ -123,7 +131,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS',
       description: 'Overall deadline for one gateway request.',
-      defaultValue: '30',
+      defaultValue:
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS,
       required: false,
       runtimes: bothRuntimes,
       secret: false,
@@ -132,7 +141,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS',
       description: 'Retention time for completed delivery fingerprints.',
-      defaultValue: '86400',
+      defaultValue:
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS,
       required: false,
       runtimes: bothRuntimes,
       secret: false,
@@ -141,7 +151,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS',
       description: 'Timeout for Google OAuth and FCM requests.',
-      defaultValue: '10',
+      defaultValue:
+        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS,
       required: false,
       runtimes: bothRuntimes,
       secret: false,
@@ -178,7 +189,7 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_HOST',
       description: 'Address used by the Bun HTTP listener.',
-      defaultValue: '0.0.0.0',
+      defaultValue: BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_HOST,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -186,7 +197,7 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_PORT',
       description: 'Port used by the Bun HTTP listener.',
-      defaultValue: '3000',
+      defaultValue: BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_PORT,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -195,7 +206,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_DATABASE_PATH',
       description: 'Path to the persistent SQLite database.',
-      defaultValue: '/data/gateway.sqlite',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_DATABASE_PATH,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -203,7 +215,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH',
       description: 'Path containing forward-only SQL migrations.',
-      defaultValue: '/app/migrations',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -211,7 +224,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMIT',
       description: 'Process-local request allowance per source period.',
-      defaultValue: '300',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMIT,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -220,7 +234,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_SOURCE_RATE_PERIOD_SECONDS',
       description: 'Process-local source-rate window.',
-      defaultValue: '10',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_SOURCE_RATE_PERIOD_SECONDS,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -229,7 +244,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_MAX_SOURCE_KEYS',
       description: 'Maximum source keys retained by the process-local limiter.',
-      defaultValue: '10000',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_SOURCE_KEYS,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -238,7 +254,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
     {
       name: 'TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS',
       description: 'Interval between terminal-record cleanup passes.',
-      defaultValue: '86400',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -248,7 +265,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
       name: 'TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER',
       description:
         'Forwarded client-address header trusted from configured proxies.',
-      defaultValue: 'x-forwarded-for',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER,
       required: false,
       runtimes: bunRuntime,
       secret: false,
@@ -258,7 +276,8 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
       name: 'TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS',
       description:
         'Comma-separated networks allowed to supply the client header.',
-      defaultValue: '',
+      defaultValue:
+        BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS,
       required: false,
       runtimes: bunRuntime,
       secret: false,

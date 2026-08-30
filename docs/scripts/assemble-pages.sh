@@ -66,7 +66,6 @@ if [[ -n "$release_tag" || -n "$release_directory" || -n "$latest_directory" ]];
     mkdir -- "$version_target"
     cp -a -- "$release_directory/." "$version_target/"
   fi
-  pages_replace_directory "$latest_directory" "$history_directory/latest"
 fi
 
 mapfile -t versions < <(
@@ -76,6 +75,9 @@ mapfile -t versions < <(
     || true
 )
 latest_version="${versions[0]:-}"
+if [[ -n "$release_tag" && "$release_tag" == "$latest_version" ]]; then
+  pages_replace_directory "$latest_directory" "$history_directory/latest"
+fi
 node -e '
   const [target, latest, ...versions] = process.argv.slice(1);
   require("node:fs").writeFileSync(
