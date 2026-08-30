@@ -25,7 +25,7 @@ updates:
       prefix: chore
       include: scope
   - package-ecosystem: docker
-    directory: /
+    directory: /apps/push-gateway
     schedule:
       interval: weekly
     ignore:

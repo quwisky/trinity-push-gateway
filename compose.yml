@@ -3,6 +3,7 @@ services:
     image: ghcr.io/quwisky/trinity-push-gateway:${TRINITY_PUSH_GATEWAY_VERSION:-latest}
     build:
       context: .
+      dockerfile: apps/push-gateway/Dockerfile
     init: true
     restart: unless-stopped
     read_only: true
@@ -13,20 +14,21 @@ services:
     pids_limit: 64
     stop_grace_period: 30s
     ports:
-      - 127.0.0.1:${GATEWAY_PORT:-3000}:3000
+      - 127.0.0.1:${TRINITY_PUSH_GATEWAY_HOST_PORT:-3000}:${TRINITY_PUSH_GATEWAY_PORT:-3000}
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=16m
     volumes:
       - gateway-data:/data
     environment:
-      ANDROID_APP_ID: ${ANDROID_APP_ID:?set ANDROID_APP_ID}
-      CLIENT_IP_HEADER: ${CLIENT_IP_HEADER:-x-forwarded-for}
-      FCM_CLIENT_EMAIL_FILE: /run/secrets/fcm_client_email
-      FCM_PRIVATE_KEY_FILE: /run/secrets/fcm_private_key
-      FCM_PROJECT_ID_FILE: /run/secrets/fcm_project_id
-      FINGERPRINT_KEY_FILE: /run/secrets/fingerprint_key
-      IOS_APP_ID: ${IOS_APP_ID:?set IOS_APP_ID}
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
+      TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: ${TRINITY_PUSH_GATEWAY_ANDROID_APP_ID:?set TRINITY_PUSH_GATEWAY_ANDROID_APP_ID}
+      TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER: ${TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER:-x-forwarded-for}
+      TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL_FILE: /run/secrets/fcm_client_email
+      TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY_FILE: /run/secrets/fcm_private_key
+      TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID_FILE: /run/secrets/fcm_project_id
+      TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY_FILE: /run/secrets/fingerprint_key
+      TRINITY_PUSH_GATEWAY_IOS_APP_ID: ${TRINITY_PUSH_GATEWAY_IOS_APP_ID:?set TRINITY_PUSH_GATEWAY_IOS_APP_ID}
+      TRINITY_PUSH_GATEWAY_PORT: ${TRINITY_PUSH_GATEWAY_PORT:-3000}
+      TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS: ${TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS:-}
     secrets:
       - fcm_client_email
       - fcm_private_key
@@ -38,10 +40,10 @@ volumes:
 
 secrets:
   fcm_client_email:
-    file: ${FCM_CLIENT_EMAIL_FILE:-./secrets/fcm_client_email}
+    file: ${TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL_FILE:-./secrets/fcm_client_email}
   fcm_private_key:
-    file: ${FCM_PRIVATE_KEY_FILE:-./secrets/fcm_private_key}
+    file: ${TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY_FILE:-./secrets/fcm_private_key}
   fcm_project_id:
-    file: ${FCM_PROJECT_ID_FILE:-./secrets/fcm_project_id}
+    file: ${TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID_FILE:-./secrets/fcm_project_id}
   fingerprint_key:
-    file: ${FINGERPRINT_KEY_FILE:-./secrets/fingerprint_key}
+    file: ${TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY_FILE:-./secrets/fingerprint_key}

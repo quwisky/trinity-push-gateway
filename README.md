@@ -26,32 +26,33 @@ Requirements: Node 24 and Corepack. Bun 1.4.0 is additionally required for the s
 ```sh
 corepack enable
 pnpm install --frozen-lockfile
-cp .dev.vars.example .dev.vars
-pnpm exec wrangler d1 migrations apply DB --local
-pnpm dev
+cp apps/push-gateway/.dev.vars.example apps/push-gateway/.dev.vars
+pnpm nx run push-gateway:migrate-local
+pnpm nx run push-gateway:dev
 ```
 
-Replace every placeholder in `.dev.vars`. The file is ignored by Git. Check readiness at `http://localhost:8787/health`.
+Replace every placeholder in `apps/push-gateway/.dev.vars`. The file is ignored by Git. Check readiness at `http://localhost:8787/health`.
 
 Run the complete repository gate with:
 
 ```sh
-pnpm check
-pnpm check:bun
+pnpm nx format:check --all
+pnpm nx run push-gateway:check
+pnpm nx run push-gateway:check-bun
 ```
 
 The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits and rejects runtime dependencies outside the exact `jose` and Valibot allowlist.
 
-Local commits are protected by Husky: lint-staged applies ESLint and Prettier before the full typecheck and test suite, and Commitlint validates Conventional Commit messages. See [the contribution guide](CONTRIBUTING.md) for the pull-request and release contract.
+Local commits are protected by Husky: lint-staged applies the uncached Nx lint fixer and Prettier before the full typecheck and test suite, and Commitlint validates Conventional Commit messages. See [the contribution guide](CONTRIBUTING.md) for the pull-request and release contract.
 
 ## Configuration
 
-Cloudflare non-secret limits and the two exact app IDs live in `wrangler.jsonc`; self-hosted values use validated environment configuration. These four values support direct or `_FILE` configuration under Bun:
+Cloudflare non-secret limits and the two exact app IDs live in `apps/push-gateway/wrangler.jsonc`; self-hosted values use validated environment configuration. Every runtime setting uses the `TRINITY_PUSH_GATEWAY_` namespace. These four values support direct or `_FILE` configuration under Bun:
 
-- `FCM_CLIENT_EMAIL`
-- `FCM_PRIVATE_KEY`
-- `FCM_PROJECT_ID`
-- `FINGERPRINT_KEY`, an independent random value of at least 32 bytes
+- `TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL`
+- `TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY`
+- `TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID`
+- `TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY`, an independent random value of at least 32 bytes
 
 The default limits are 64 KiB per request, 49 client installations per Matrix request, 20,000 delivery candidates per UTC day, a two-minute in-progress lease, and 24-hour terminal retention. Limit configuration is fail-closed: missing or invalid values make `/health` return `503` and prevent notification processing.
 
@@ -70,6 +71,10 @@ Successful changes on `master` create or refresh a Release Please pull request. 
 - [Architecture decisions](docs/adr/)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
+
+## Workspace
+
+Nx 23 orchestrates the root-managed pnpm workspace. Official Nx plugins infer project-scoped ESLint and run-mode Vitest targets; runtime-specific targets remain explicit, and CI runs only tasks affected by each change. The implemented backend is the `push-gateway` project under `apps/push-gateway`; `apps/push-gateway-ui` only reserves the name and location of a future Angular administration interface for self-hosted Gateway Operators. It contains no client implementation or Nx project yet.
 
 ## License
 

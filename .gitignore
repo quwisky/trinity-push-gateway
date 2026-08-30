@@ -10,3 +10,8 @@ secrets/
 backups/
 *.sqlite*
 *.log
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+apps/push-gateway/worker-configuration.d.ts
+vitest.config.*.timestamp*

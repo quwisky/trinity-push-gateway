@@ -14,7 +14,7 @@ For the supported Docker deployment with Bun and SQLite, use the separate [self-
 
 ## 1. Select the production hostname
 
-Replace development-only routing in `wrangler.jsonc` before production:
+Replace development-only routing in `apps/push-gateway/wrangler.jsonc` before production:
 
 ```json
 "workers_dev": false,
@@ -34,20 +34,20 @@ Use a hostname in a zone managed by the target Cloudflare account. Cloudflare cr
 corepack enable
 pnpm install --frozen-lockfile
 pnpm exec wrangler login
-pnpm exec wrangler d1 migrations apply DB --remote
+pnpm nx run push-gateway:migrate-remote
 ```
 
-Wrangler's automatic resource provisioning creates the configured D1 database when needed. Review and commit the resulting `database_id` change if Wrangler writes it into `wrangler.jsonc`.
+Wrangler's automatic resource provisioning creates the configured D1 database when needed. Review and commit the resulting `database_id` change if Wrangler writes it into `apps/push-gateway/wrangler.jsonc`. The local binding is named `TRINITY_PUSH_GATEWAY_DB`; the remote database remains named `trinity-push-gateway`.
 
 ## 3. Add Worker secrets
 
-Generate `FINGERPRINT_KEY` independently; do not reuse a Firebase secret.
+Generate `TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY` independently; do not reuse a Firebase secret.
 
 ```sh
-pnpm exec wrangler secret put FCM_CLIENT_EMAIL
-pnpm exec wrangler secret put FCM_PRIVATE_KEY
-pnpm exec wrangler secret put FCM_PROJECT_ID
-pnpm exec wrangler secret put FINGERPRINT_KEY
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL --config apps/push-gateway/wrangler.jsonc
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY --config apps/push-gateway/wrangler.jsonc
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID --config apps/push-gateway/wrangler.jsonc
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY --config apps/push-gateway/wrangler.jsonc
 ```
 
 Paste values only into Wrangler's prompt. For the private key, preserve the complete PEM including its header and footer.
@@ -55,8 +55,9 @@ Paste values only into Wrangler's prompt. For the private key, preserve the comp
 ## 4. Validate and deploy
 
 ```sh
-pnpm check
-pnpm deploy
+pnpm nx format:check --all
+pnpm nx run push-gateway:check
+pnpm nx run push-gateway:deploy
 ```
 
 Then verify:
@@ -77,7 +78,7 @@ Do not point Matrix pushers at the production hostname until the D1 migration an
 
 - Inspect aggregate events in Cloudflare Workers observability. Logs deliberately exclude Push Keys, Matrix IDs, account routes, content, and credentials.
 - Monitor `429`, `502`, and `503` response rates. `429` indicates source or daily safety limits; `502` is a retryable provider failure; `503` is configuration, dependency, or concurrent-delivery unavailability.
-- Rotate the Google service-account key and `FINGERPRINT_KEY` through Wrangler secrets. Rotating the fingerprint key resets event retry suppression, so schedule it during a low-volume period.
+- Rotate the Google service-account key and `TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY` through Wrangler secrets. Rotating the fingerprint key resets event retry suppression, so schedule it during a low-volume period.
 - Apply future D1 migrations before deploying code that requires them.
 - Use immutable `vX.Y.Z` Git tags for releases and retain the preceding Worker version for rollback.
 - Keep the repository-scoped `RELEASE_PLEASE_TOKEN` secret current. It requires only Contents, Issues, and Pull requests write access so generated release pull requests can run CI.

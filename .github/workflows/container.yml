@@ -11,30 +11,100 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 env:
   IMAGE_NAME: ghcr.io/quwisky/trinity-push-gateway
 
 jobs:
-  container:
-    name: container
+  affected:
+    name: Detect affected projects
     if: inputs.release_tag == ''
+    outputs:
+      push_gateway: ${{ steps.projects.outputs.push_gateway }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set affected SHAs
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+        with:
+          main-branch-name: master
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: pnpm
+          node-version-file: .nvmrc
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Detect affected projects
+        id: projects
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          affected_projects="$(
+            pnpm nx show projects \
+              --affected \
+              --base="$NX_BASE" \
+              --head="$NX_HEAD"
+          )"
+          if grep --fixed-strings --line-regexp --quiet \
+            'push-gateway' <<<"$affected_projects"; then
+            printf 'push_gateway=true\n' >> "$GITHUB_OUTPUT"
+            printf '%s\n' 'push-gateway is affected; container validation is required.'
+          else
+            printf 'push_gateway=false\n' >> "$GITHUB_OUTPUT"
+            printf '%s\n' 'push-gateway is not affected; container validation is a no-op.'
+          fi
+
+  container:
+    name: container
+    if: always() && inputs.release_tag == ''
+    needs: affected
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Require successful affected detection
+        if: needs.affected.result != 'success'
+        run: |
+          printf '%s\n' 'Affected-project detection failed; container validation cannot continue.'
+          exit 1
+      - name: Report unaffected gateway
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway != 'true'
+        run: printf '%s\n' 'push-gateway is not affected; no container build is required.'
+      - name: Check out repository
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Docker Buildx
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: Build AMD64 image
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
+          file: apps/push-gateway/Dockerfile
           load: true
           platforms: linux/amd64
           tags: trinity-push-gateway:check
       - name: Report unpacked and check compressed image size
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
         run: |
           unpacked_bytes=$(docker image inspect trinity-push-gateway:check --format '{{.Size}}')
           docker save trinity-push-gateway:check | gzip -1 > "$RUNNER_TEMP/gateway-image.tar.gz"
@@ -43,6 +113,9 @@ jobs:
           echo "Compressed image: $compressed_bytes bytes"
           test "$compressed_bytes" -le 157286400
       - name: Smoke test container health
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
         run: |
           docker run --detach --name gateway-smoke \
             --cap-drop ALL \
@@ -51,12 +124,12 @@ jobs:
             --publish 127.0.0.1:3000:3000 \
             --security-opt no-new-privileges \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            --env ANDROID_APP_ID=example.android \
-            --env IOS_APP_ID=example.ios \
-            --env FCM_CLIENT_EMAIL=gateway@example.test \
-            --env FCM_PRIVATE_KEY=test-private-key \
-            --env FCM_PROJECT_ID=example-project \
-            --env FINGERPRINT_KEY=test-fingerprint-key-32-bytes-long \
+            --env TRINITY_PUSH_GATEWAY_ANDROID_APP_ID=example.android \
+            --env TRINITY_PUSH_GATEWAY_IOS_APP_ID=example.ios \
+            --env TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL=gateway@example.test \
+            --env TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY=test-private-key \
+            --env TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID=example-project \
+            --env TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY=test-fingerprint-key-32-bytes-long \
             --mount type=volume,destination=/data \
             trinity-push-gateway:check
           trap 'docker rm --force gateway-smoke' EXIT
@@ -71,18 +144,39 @@ jobs:
 
   publication-dry-run:
     name: publication graph (no push)
-    if: inputs.release_tag == ''
+    if: always() && inputs.release_tag == ''
+    needs: affected
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
+      - name: Require successful affected detection
+        if: needs.affected.result != 'success'
+        run: |
+          printf '%s\n' 'Affected-project detection failed; publication validation cannot continue.'
+          exit 1
+      - name: Report unaffected gateway
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway != 'true'
+        run: printf '%s\n' 'push-gateway is not affected; no publication graph is required.'
       - name: Check out repository
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Docker Buildx
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: Build the attested multi-platform publication graph without pushing
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
+          file: apps/push-gateway/Dockerfile
           outputs: type=oci,dest=${{ runner.temp }}/gateway-multiarch.tar
           platforms: linux/amd64,linux/arm64
           provenance: mode=max
@@ -143,6 +237,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
+          file: apps/push-gateway/Dockerfile
           platforms: linux/amd64,linux/arm64
           provenance: mode=max
           push: true

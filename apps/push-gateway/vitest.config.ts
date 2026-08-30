@@ -8,10 +8,11 @@ export default defineConfig({
     cloudflareTest(async () => ({
       miniflare: {
         bindings: {
-          FCM_CLIENT_EMAIL: 'gateway@example.test',
-          FCM_PRIVATE_KEY: 'test-private-key',
-          FCM_PROJECT_ID: 'test-project',
-          FINGERPRINT_KEY: 'test-fingerprint-key-32-bytes-long!',
+          TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL: 'gateway@example.test',
+          TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY: 'test-private-key',
+          TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID: 'test-project',
+          TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY:
+            'test-fingerprint-key-32-bytes-long!',
           TEST_MIGRATIONS: await readD1Migrations(
             path.join(import.meta.dirname, 'migrations'),
           ),
@@ -26,6 +27,7 @@ export default defineConfig({
     include: ['test/*.spec.ts'],
     coverage: {
       provider: 'istanbul',
+      reportsDirectory: '../../coverage/apps/push-gateway',
       reporter: ['text', 'json-summary'],
       thresholds: {
         branches: 80,

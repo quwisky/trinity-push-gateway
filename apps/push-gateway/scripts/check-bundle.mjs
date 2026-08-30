@@ -6,8 +6,11 @@ const gzipAsync = promisify(gzip);
 const maximumRawBytes = 64 * 1024 * 1024;
 const maximumGzipBytes = 3 * 1024 * 1024;
 const allowedDependencyNames = ['jose', 'valibot'];
-const bundle = new URL('../dist/index.js', import.meta.url);
-const packageFile = new URL('../package.json', import.meta.url);
+const bundle = new URL(
+  '../../../dist/apps/push-gateway/worker/index.js',
+  import.meta.url,
+);
+const packageFile = new URL('../../../package.json', import.meta.url);
 const [bundleBytes, { size }, packageJson] = await Promise.all([
   readFile(bundle),
   stat(bundle),

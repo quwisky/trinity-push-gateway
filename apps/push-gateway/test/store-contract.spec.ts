@@ -9,9 +9,9 @@ import {
 
 describe('D1 gateway store contract', () => {
   beforeEach(async () => {
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM delivery_records'),
-      env.DB.prepare('DELETE FROM daily_budgets'),
+    await env.TRINITY_PUSH_GATEWAY_DB.batch([
+      env.TRINITY_PUSH_GATEWAY_DB.prepare('DELETE FROM delivery_records'),
+      env.TRINITY_PUSH_GATEWAY_DB.prepare('DELETE FROM daily_budgets'),
     ]);
   });
 
@@ -29,13 +29,13 @@ describe('D1 gateway store contract', () => {
   it('fails closed when its adapter cannot write', async () => {
     const store = cloudflareRuntime(env).store;
     await exerciseUnavailableStoreContract(store, async (operation) => {
-      await env.DB.exec(
+      await env.TRINITY_PUSH_GATEWAY_DB.exec(
         'ALTER TABLE daily_budgets RENAME TO unavailable_daily_budgets',
       );
       try {
         return await operation();
       } finally {
-        await env.DB.exec(
+        await env.TRINITY_PUSH_GATEWAY_DB.exec(
           'ALTER TABLE unavailable_daily_budgets RENAME TO daily_budgets',
         );
       }
@@ -43,11 +43,13 @@ describe('D1 gateway store contract', () => {
   });
 
   it('reports an incomplete schema as unready', async () => {
-    await env.DB.exec('DROP INDEX delivery_records_expiry_idx');
+    await env.TRINITY_PUSH_GATEWAY_DB.exec(
+      'DROP INDEX delivery_records_expiry_idx',
+    );
     try {
       await expect(cloudflareRuntime(env).store.ready()).resolves.toBe(false);
     } finally {
-      await env.DB.exec(
+      await env.TRINITY_PUSH_GATEWAY_DB.exec(
         'CREATE INDEX delivery_records_expiry_idx ON delivery_records (expires_at)',
       );
     }

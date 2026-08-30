@@ -13,14 +13,14 @@ function createTestConfig(): ReturnType<typeof loadBunConfiguration> {
   const directory = mkdtempSync(path.join(tmpdir(), 'trinity-server-'));
   directories.push(directory);
   return loadBunConfiguration({
-    ANDROID_APP_ID: 'example.android',
-    DATABASE_PATH: path.join(directory, 'gateway.sqlite'),
-    FCM_CLIENT_EMAIL: 'gateway@example.test',
-    FCM_PRIVATE_KEY: 'private-key',
-    FCM_PROJECT_ID: 'example-project',
-    FINGERPRINT_KEY: 'f'.repeat(32),
-    HOST: '127.0.0.1',
-    IOS_APP_ID: 'example.ios',
+    TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: 'example.android',
+    TRINITY_PUSH_GATEWAY_DATABASE_PATH: path.join(directory, 'gateway.sqlite'),
+    TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL: 'gateway@example.test',
+    TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY: 'private-key',
+    TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID: 'example-project',
+    TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY: 'f'.repeat(32),
+    TRINITY_PUSH_GATEWAY_HOST: '127.0.0.1',
+    TRINITY_PUSH_GATEWAY_IOS_APP_ID: 'example.ios',
   });
 }
 

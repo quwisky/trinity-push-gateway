@@ -1,0 +1,46 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "trinity-push-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-30",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "limits": {
+    "cpu_ms": 10,
+    "subrequests": 50,
+  },
+  "vars": {
+    "TRINITY_PUSH_GATEWAY_ANDROID_APP_ID": "ovh.qwky.trinity.android",
+    "TRINITY_PUSH_GATEWAY_IOS_APP_ID": "ovh.qwky.trinity.ios",
+    "TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES": "65536",
+    "TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS": "20000",
+    "TRINITY_PUSH_GATEWAY_MAX_DEVICES": "49",
+    "TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS": "120",
+    "TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS": "30",
+    "TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS": "86400",
+    "TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS": "10",
+  },
+  "d1_databases": [
+    {
+      "binding": "TRINITY_PUSH_GATEWAY_DB",
+      "database_name": "trinity-push-gateway",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 300,
+        "period": 10,
+      },
+    },
+  ],
+  "triggers": {
+    "crons": ["0 3 * * *"],
+  },
+}

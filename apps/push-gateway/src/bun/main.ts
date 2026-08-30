@@ -9,7 +9,7 @@ function log(event: Readonly<Record<string, unknown>>): void {
 
 const config = loadBunConfiguration(process.env);
 const migrations = readMigrations(
-  process.env.MIGRATIONS_PATH ?? '/app/migrations',
+  process.env.TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH ?? '/app/migrations',
 );
 const command = process.argv[2] ?? 'serve';
 

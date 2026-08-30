@@ -120,7 +120,7 @@ export function cloudflareRuntime(env: Env): {
   readonly store: GatewayStore;
 } {
   return {
-    limiter: cloudflareLimiter(env.SOURCE_RATE_LIMITER),
-    store: d1Store(env.DB),
+    limiter: cloudflareLimiter(env.TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMITER),
+    store: d1Store(env.TRINITY_PUSH_GATEWAY_DB),
   };
 }
