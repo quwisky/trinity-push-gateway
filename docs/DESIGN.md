@@ -90,11 +90,11 @@ The Worker uses Cloudflare's built-in logs and observability without an external
 
 The standalone repository is `https://github.com/quwisky/trinity-push-gateway`. Its default branch is `master`.
 
-The implementation uses pnpm 11, Node 24, strict TypeScript, Cloudflare's module Worker format, direct `fetch`, native Web Crypto, D1 bindings, `jose` for service-account JWT signing, and Valibot for structured external-boundary validation. Runtime dependencies are exactly pinned and allowlisted; Firebase Admin, Google Auth, Node compatibility layers, routers, ORMs, retry libraries, and external logging SDKs remain excluded. Development uses Vitest, ESLint, Prettier, Wrangler, Conventional Commits, Keep a Changelog, Dependabot, and GitHub Actions with immutable action pins.
+The implementation uses pnpm 11, Node 24, strict TypeScript, Cloudflare's module Worker format, direct `fetch`, native Web Crypto, D1 bindings, `jose` for service-account JWT signing, and Valibot for structured external-boundary validation. Runtime dependencies are exactly pinned and allowlisted; Firebase Admin, Google Auth, Node compatibility layers, routers, ORMs, retry libraries, and external logging SDKs remain excluded. Development uses Vitest, ESLint, Prettier, Wrangler, Commitlint, Husky, lint-staged, Dependabot, and GitHub Actions with immutable action pins.
 
 Cloudflare resources and configuration are managed through Wrangler. Firebase project setup, platform registration, APNs credentials, and least-privilege service-account creation remain documented operator steps. Secrets are injected interactively and never stored in Git.
 
-The project uses Apache-2.0, semantic versions, an `Unreleased` changelog section, and immutable `vX.Y.Z` tags. Production uses a stable custom hostname on a Cloudflare-managed domain; `workers.dev` is development-only.
+The project uses Apache-2.0 and semantic versions. Release Please derives versions from Conventional Commits and maintains one reviewable release pull request; only squash-merging that pull request updates the generated changelog and package version and creates an immutable `vX.Y.Z` tag plus GitHub Release. npm publication, prerelease channels, and automatic Worker deployment are excluded. Production uses a stable custom hostname on a Cloudflare-managed domain; `workers.dev` is development-only.
 
 ## Companion client handoff
 
@@ -109,4 +109,4 @@ Mobile-client development is explicitly outside this repository and implementati
 
 Automated coverage includes validation, payload mapping, OAuth signing, FCM error classification, redaction, D1 integration, Matrix contract fixtures, multi-account behavior, mixed outcomes, concurrent duplicates, Cloudflare Free-plan bundle limits, and the exact runtime dependency allowlist. External services are mocked in CI.
 
-Gateway completion additionally requires a deployed-Worker smoke test when credentials and a target FCM installation are available, plus a documented client contract and handoff checklist for the separate mobile task. Real-device notification presentation, tapping, account routing, and badge behavior are deferred to that task. Documentation and the changelog are updated before final validation. No credentials or proof artifacts enter version control.
+Gateway completion additionally requires a deployed-Worker smoke test when credentials and a target FCM installation are available, plus a documented client contract and handoff checklist for the separate mobile task. Real-device notification presentation, tapping, account routing, and badge behavior are deferred to that task. Documentation is updated before final validation; `CHANGELOG.md` is generated only by the release pull request. No credentials or proof artifacts enter version control.

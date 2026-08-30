@@ -1,6 +1,7 @@
 import { createExecutionContext, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { version as gatewayVersion } from '../package.json';
 import type { FcmDelivery } from '../src/fcm';
 import type { Env } from '../src/env';
 import worker, { createGateway } from '../src/index';
@@ -26,7 +27,7 @@ describe('gateway HTTP boundary', () => {
     );
     await expect(response.json()).resolves.toEqual({
       status: 'ok',
-      version: '0.1.0',
+      version: gatewayVersion,
     });
   });
 
@@ -46,7 +47,7 @@ describe('gateway HTTP boundary', () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       status: 'error',
-      version: '0.1.0',
+      version: gatewayVersion,
     });
   });
 
@@ -65,7 +66,7 @@ describe('gateway HTTP boundary', () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       status: 'error',
-      version: '0.1.0',
+      version: gatewayVersion,
     });
   });
 

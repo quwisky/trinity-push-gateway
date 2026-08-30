@@ -16,6 +16,8 @@ import {
   unknown as unknownValue,
 } from 'valibot';
 
+import { version as gatewayVersion } from '../package.json';
+
 import { createFcmClient } from './fcm';
 import type {
   DeliveryPlatform,
@@ -374,7 +376,7 @@ export function createGateway(
         return Response.json(
           {
             status: config === undefined ? 'error' : 'ok',
-            version: '0.1.0',
+            version: gatewayVersion,
           },
           { headers: JSON_HEADERS, status: config === undefined ? 503 : 200 },
         );
