@@ -44,9 +44,11 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: pnpm exec commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
       - name: Check repository
-        run: pnpm check
+        run: |
+          pnpm nx format:check --all
+          pnpm nx run push-gateway:check
       - name: Check Bun runtime
-        run: pnpm check:bun
+        run: pnpm nx run push-gateway:check-bun
 
   release:
     name: Open or publish release

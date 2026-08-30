@@ -1,16 +1,16 @@
 import { createExecutionContext, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { version as gatewayVersion } from '../package.json';
+import { version as gatewayVersion } from '../../../package.json';
 import type { FcmDelivery } from '../src/fcm';
 import type { Env } from '../src/cloudflare-env';
 import worker, { createGateway } from '../src/index';
 
 describe('gateway HTTP boundary', () => {
   beforeEach(async () => {
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM delivery_records'),
-      env.DB.prepare('DELETE FROM daily_budgets'),
+    await env.TRINITY_PUSH_GATEWAY_DB.batch([
+      env.TRINITY_PUSH_GATEWAY_DB.prepare('DELETE FROM delivery_records'),
+      env.TRINITY_PUSH_GATEWAY_DB.prepare('DELETE FROM daily_budgets'),
     ]);
   });
 
@@ -34,8 +34,8 @@ describe('gateway HTTP boundary', () => {
   it('reports not ready when required secrets are absent', async () => {
     const unconfiguredEnv = {
       ...env,
-      FCM_PRIVATE_KEY: '',
-      FINGERPRINT_KEY: '',
+      TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY: '',
+      TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY: '',
     } satisfies Env;
 
     const response = await worker.fetch(
@@ -54,7 +54,7 @@ describe('gateway HTTP boundary', () => {
   it('reports not ready when a numeric limit is malformed', async () => {
     const invalidEnv = {
       ...env,
-      MAX_DEVICES: 'unlimited',
+      TRINITY_PUSH_GATEWAY_MAX_DEVICES: 'unlimited',
     } satisfies Env;
 
     const response = await worker.fetch(
@@ -142,8 +142,8 @@ describe('gateway HTTP boundary', () => {
       }),
       {
         ...env,
-        REQUEST_DEADLINE_SECONDS: '2',
-        UPSTREAM_TIMEOUT_SECONDS: '1',
+        TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS: '2',
+        TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: '1',
       },
       createExecutionContext(),
     );
@@ -579,7 +579,7 @@ describe('gateway HTTP boundary', () => {
     });
     const limitedEnv = {
       ...env,
-      MAX_DAILY_ATTEMPTS: '1',
+      TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS: '1',
     } satisfies Env;
     const body = JSON.stringify({
       notification: {
@@ -628,7 +628,7 @@ describe('gateway HTTP boundary', () => {
   it('rate limits a noisy homeserver before reading its request body', async () => {
     const limitedEnv = {
       ...env,
-      SOURCE_RATE_LIMITER: {
+      TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMITER: {
         async limit() {
           return { success: false };
         },

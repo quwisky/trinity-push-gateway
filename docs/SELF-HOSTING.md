@@ -21,7 +21,7 @@ Copy `.env.self-host.example` to an ignored environment file and set both app ID
 - `fcm_project_id`
 - `fingerprint_key`, containing an independent value of at least 32 bytes
 
-The supplied Compose service mounts these values through Docker secrets and starts Bun with automatic `.env` loading disabled. Direct `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `FCM_PROJECT_ID`, and `FINGERPRINT_KEY` values remain available for controlled development. Setting a direct value and its `_FILE` alternative together is an error.
+The supplied Compose service mounts these values through Docker secrets and starts Bun with automatic `.env` loading disabled. Direct `TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL`, `TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY`, `TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID`, and `TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY` values remain available for controlled development. Setting a direct value and its `_FILE` alternative together is an error. All runtime inputs use the `TRINITY_PUSH_GATEWAY_` namespace; unprefixed legacy names are rejected.
 
 ## Start and verify
 
@@ -42,7 +42,7 @@ Health validates configuration, storage access, and the current schema without c
 
 ## TLS and source addresses
 
-Compose binds plain HTTP to `127.0.0.1:3000`; place Caddy, nginx, Traefik, or an equivalent TLS proxy in front of it. The proxy must replace untrusted forwarded-address input.
+Compose binds plain HTTP to `127.0.0.1:3000` by default; `TRINITY_PUSH_GATEWAY_HOST_PORT` changes the loopback port while `TRINITY_PUSH_GATEWAY_PORT` changes the Bun listener and container target port. Place Caddy, nginx, Traefik, or an equivalent TLS proxy in front of it. The proxy must replace untrusted forwarded-address input.
 
 For a host proxy, a minimal Caddy route is:
 
@@ -63,28 +63,33 @@ location / {
 
 For Traefik or another proxy on the same Docker network, remove the host `ports` mapping, expose port 3000 only to that network, and configure the proxy's trusted forwarded-header networks.
 
-By default the gateway rate-limits the direct peer. To use a forwarded address, set every direct proxy network in `TRUSTED_PROXY_CIDRS` and choose `CLIENT_IP_HEADER=x-forwarded-for` or `cf-connecting-ip`. Invalid, ambiguous, or entirely trusted chains share the fail-closed `unknown-source` key.
+By default the gateway rate-limits the direct peer. To use a forwarded address, set every direct proxy network in `TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS` and choose `TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER=x-forwarded-for` or `cf-connecting-ip`. Invalid, ambiguous, or entirely trusted chains share the fail-closed `unknown-source` key.
 
 ## Runtime configuration
 
 The Bun deployment defaults to:
 
-| Setting                      |                Default |
-| ---------------------------- | ---------------------: |
-| `HOST`                       |              `0.0.0.0` |
-| `PORT`                       |                 `3000` |
-| `DATABASE_PATH`              | `/data/gateway.sqlite` |
-| `MAX_BODY_BYTES`             |                `65536` |
-| `MAX_DEVICES`                |                   `49` |
-| `MAX_DAILY_ATTEMPTS`         |                `20000` |
-| `PENDING_LEASE_SECONDS`      |                  `120` |
-| `TERMINAL_RETENTION_SECONDS` |                `86400` |
-| `UPSTREAM_TIMEOUT_SECONDS`   |                   `10` |
-| `REQUEST_DEADLINE_SECONDS`   |                   `30` |
-| `SOURCE_RATE_LIMIT`          |                  `300` |
-| `SOURCE_RATE_PERIOD_SECONDS` |                   `10` |
-| `MAX_SOURCE_KEYS`            |                `10000` |
-| `CLEANUP_INTERVAL_SECONDS`   |                `86400` |
+| Setting                                           |                Default |
+| ------------------------------------------------- | ---------------------: |
+| `TRINITY_PUSH_GATEWAY_HOST`                       |              `0.0.0.0` |
+| `TRINITY_PUSH_GATEWAY_PORT`                       |                 `3000` |
+| `TRINITY_PUSH_GATEWAY_DATABASE_PATH`              | `/data/gateway.sqlite` |
+| `TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH`            |      `/app/migrations` |
+| `TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES`             |                `65536` |
+| `TRINITY_PUSH_GATEWAY_MAX_DEVICES`                |                   `49` |
+| `TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS`         |                `20000` |
+| `TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS`      |                  `120` |
+| `TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS` |                `86400` |
+| `TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS`   |                   `10` |
+| `TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS`   |                   `30` |
+| `TRINITY_PUSH_GATEWAY_SOURCE_RATE_LIMIT`          |                  `300` |
+| `TRINITY_PUSH_GATEWAY_SOURCE_RATE_PERIOD_SECONDS` |                   `10` |
+| `TRINITY_PUSH_GATEWAY_MAX_SOURCE_KEYS`            |                `10000` |
+| `TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS`   |                `86400` |
+| `TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER`           |      `x-forwarded-for` |
+| `TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS`        |                  empty |
+
+Compose additionally defaults `TRINITY_PUSH_GATEWAY_HOST_PORT` to `3000`. It is a host-side publication setting and is not read by the Bun process.
 
 The short source limiter is process-local and may reset on restart. The SQLite daily budget remains authoritative. SQLite uses strict bindings, WAL, full synchronous durability, foreign keys, and a five-second busy timeout. Keep the database, `-wal`, and `-shm` files together on local storage.
 

@@ -10,9 +10,12 @@ Install Node 24, Bun 1.4.0, and dependencies with `pnpm install --frozen-lockfil
 Run the complete repository gate before opening a pull request:
 
 ```sh
-pnpm check
-pnpm check:bun
+pnpm nx format:check --all
+pnpm nx run push-gateway:check
+pnpm nx run push-gateway:check-bun
 ```
+
+Use explicit Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, and `pnpm nx run push-gateway:dev`. Nx uses only its local cache; deployment, migration, development-server, release, and Docker-daemon operations are never cached.
 
 ## Commits and pull requests
 

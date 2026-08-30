@@ -16,8 +16,13 @@ import {
   unknown as unknownValue,
 } from 'valibot';
 
-import { version as gatewayVersion } from '../package.json';
+import { version as gatewayVersion } from '../../../package.json';
 
+import {
+  runtimeConfig,
+  type ConfigurationEnvironment,
+  type RuntimeConfig,
+} from './config';
 import { createFcmClient } from './fcm';
 import type {
   DeliveryPlatform,
@@ -25,9 +30,6 @@ import type {
   FcmDelivery,
   FcmOutcome,
 } from './fcm';
-import type { ConfigurationEnvironment } from './env';
-import { runtimeConfig } from './config';
-import type { RuntimeConfig } from './config';
 import type { GatewayStore, SourceLimiter } from './ports';
 
 const JSON_HEADERS = {
@@ -281,10 +283,10 @@ function platformFor(
   appId: string,
   env: ConfigurationEnvironment,
 ): DeliveryPlatform | undefined {
-  if (appId === env.ANDROID_APP_ID) {
+  if (appId === env.TRINITY_PUSH_GATEWAY_ANDROID_APP_ID) {
     return 'android';
   }
-  if (appId === env.IOS_APP_ID) {
+  if (appId === env.TRINITY_PUSH_GATEWAY_IOS_APP_ID) {
     return 'ios';
   }
   return undefined;
@@ -336,11 +338,11 @@ function configuredFcmClient(
   timeoutMs: number,
 ): FcmClient {
   return createFcmClient({
-    clientEmail: env.FCM_CLIENT_EMAIL,
+    clientEmail: env.TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL,
     fetch,
     now,
-    privateKey: env.FCM_PRIVATE_KEY,
-    projectId: env.FCM_PROJECT_ID,
+    privateKey: env.TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY,
+    projectId: env.TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID,
     timeoutMs,
   });
 }
@@ -377,7 +379,7 @@ async function processDelivery(
             eventId: delivery.eventId,
             pushKey: delivery.pushKey,
           },
-          env.FINGERPRINT_KEY,
+          env.TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY,
           nowSeconds,
           config.pendingLeaseSeconds,
         )

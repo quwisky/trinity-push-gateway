@@ -12,6 +12,10 @@ _Avoid_: Push server, notification server, Sygnal
 The person or organization that controls a Push Gateway deployment, its app identifiers, and its Firebase project.
 _Avoid_: Host, administrator, Trinity
 
+**Push Gateway UI**:
+The reserved future administration application through which a Gateway Operator may manage a self-hosted Push Gateway. Its API, authentication, and implementation are not yet defined.
+_Avoid_: Trinity client, admin console
+
 **Notification Request**:
 A Matrix homeserver's request for one event notification or an update to unread counts, addressed to one or more client installations.
 _Avoid_: Push, event, message

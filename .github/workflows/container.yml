@@ -31,6 +31,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
+          file: apps/gateway/Dockerfile
           load: true
           platforms: linux/amd64
           tags: trinity-push-gateway:check
@@ -51,12 +52,12 @@ jobs:
             --publish 127.0.0.1:3000:3000 \
             --security-opt no-new-privileges \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            --env ANDROID_APP_ID=example.android \
-            --env IOS_APP_ID=example.ios \
-            --env FCM_CLIENT_EMAIL=gateway@example.test \
-            --env FCM_PRIVATE_KEY=test-private-key \
-            --env FCM_PROJECT_ID=example-project \
-            --env FINGERPRINT_KEY=test-fingerprint-key-32-bytes-long \
+            --env TRINITY_PUSH_GATEWAY_ANDROID_APP_ID=example.android \
+            --env TRINITY_PUSH_GATEWAY_IOS_APP_ID=example.ios \
+            --env TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL=gateway@example.test \
+            --env TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY=test-private-key \
+            --env TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID=example-project \
+            --env TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY=test-fingerprint-key-32-bytes-long \
             --mount type=volume,destination=/data \
             trinity-push-gateway:check
           trap 'docker rm --force gateway-smoke' EXIT
@@ -83,6 +84,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
+          file: apps/gateway/Dockerfile
           outputs: type=oci,dest=${{ runner.temp }}/gateway-multiarch.tar
           platforms: linux/amd64,linux/arm64
           provenance: mode=max
@@ -143,6 +145,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
+          file: apps/gateway/Dockerfile
           platforms: linux/amd64,linux/arm64
           provenance: mode=max
           push: true

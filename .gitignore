@@ -10,3 +10,7 @@ secrets/
 backups/
 *.sqlite*
 *.log
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+apps/gateway/worker-configuration.d.ts

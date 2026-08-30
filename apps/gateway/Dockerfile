@@ -10,8 +10,8 @@ FROM oven/bun:1.4.0-slim@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
-COPY src ./src
-RUN bun build src/bun/main.ts --target bun --outdir dist/bun
+COPY apps/gateway/src ./apps/gateway/src
+RUN bun build apps/gateway/src/bun/main.ts --target bun --outdir dist/apps/push-gateway/bun
 
 FROM oven/bun:1.4.0-slim@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS runtime
 LABEL org.opencontainers.image.description="Matrix-to-FCM push gateway" \
@@ -19,17 +19,17 @@ LABEL org.opencontainers.image.description="Matrix-to-FCM push gateway" \
       org.opencontainers.image.source="https://github.com/quwisky/trinity-push-gateway"
 WORKDIR /app
 RUN install -d -o bun -g bun /data /app/migrations
-COPY --from=build --chown=bun:bun /app/dist/bun/main.js /app/main.js
-COPY --chown=bun:bun migrations /app/migrations
-ENV DATABASE_PATH=/data/gateway.sqlite \
-    HOST=0.0.0.0 \
-    MIGRATIONS_PATH=/app/migrations \
-    PORT=3000
+COPY --from=build --chown=bun:bun /app/dist/apps/push-gateway/bun/main.js /app/main.js
+COPY --chown=bun:bun apps/gateway/migrations /app/migrations
+ENV TRINITY_PUSH_GATEWAY_DATABASE_PATH=/data/gateway.sqlite \
+    TRINITY_PUSH_GATEWAY_HOST=0.0.0.0 \
+    TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH=/app/migrations \
+    TRINITY_PUSH_GATEWAY_PORT=3000
 USER bun
 VOLUME ["/data"]
 EXPOSE 3000
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-  CMD ["bun", "--no-env-file", "-e", "const r=await fetch(`http://127.0.0.1:${process.env.PORT??3000}/health`);if(!r.ok)process.exit(1)"]
+  CMD ["bun", "--no-env-file", "-e", "const r=await fetch(`http://127.0.0.1:${process.env.TRINITY_PUSH_GATEWAY_PORT??3000}/health`);if(!r.ok)process.exit(1)"]
 ENTRYPOINT ["bun", "--no-env-file", "/app/main.js"]
 CMD ["serve"]

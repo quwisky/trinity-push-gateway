@@ -1,0 +1,124 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "push-gateway",
+  "projectType": "application",
+  "sourceRoot": "apps/gateway/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/push-gateway/worker"],
+      "options": {
+        "command": "wrangler deploy --dry-run --outdir ../../dist/apps/push-gateway/worker",
+        "cwd": "apps/gateway"
+      }
+    },
+    "build-bun": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/push-gateway/bun"],
+      "options": {
+        "command": "bun build src/bun/main.ts --target bun --outdir ../../dist/apps/push-gateway/bun",
+        "cwd": "apps/gateway"
+      }
+    },
+    "check": {
+      "executor": "nx:noop",
+      "cache": false,
+      "dependsOn": ["lint", "typecheck", "test-coverage", "check-bundle"]
+    },
+    "check-bun": {
+      "executor": "nx:noop",
+      "cache": false,
+      "dependsOn": ["typecheck-bun", "test-bun", "build-bun"]
+    },
+    "check-bundle": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/check-bundle.mjs",
+        "cwd": "apps/gateway"
+      }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "wrangler deploy",
+        "cwd": "apps/gateway"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "options": {
+        "command": "wrangler dev",
+        "cwd": "apps/gateway"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint apps/gateway"
+      }
+    },
+    "migrate-local": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "wrangler d1 migrations apply TRINITY_PUSH_GATEWAY_DB --local",
+        "cwd": "apps/gateway"
+      }
+    },
+    "migrate-remote": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "wrangler d1 migrations apply TRINITY_PUSH_GATEWAY_DB --remote",
+        "cwd": "apps/gateway"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run --config vitest.config.ts",
+        "cwd": "apps/gateway"
+      }
+    },
+    "test-bun": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test test/bun",
+        "cwd": "apps/gateway"
+      }
+    },
+    "test-coverage": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/coverage/apps/push-gateway"],
+      "options": {
+        "command": "vitest run --coverage --config vitest.config.ts",
+        "cwd": "apps/gateway"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
+        "cwd": "apps/gateway"
+      }
+    },
+    "typecheck-bun": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit --project tsconfig.bun.json",
+        "cwd": "apps/gateway"
+      }
+    },
+    "types": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "wrangler types",
+        "cwd": "apps/gateway"
+      }
+    }
+  }
+}

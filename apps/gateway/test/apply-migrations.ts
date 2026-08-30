@@ -13,5 +13,5 @@ declare global {
 }
 
 beforeAll(async () => {
-  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
+  await applyD1Migrations(env.TRINITY_PUSH_GATEWAY_DB, env.TEST_MIGRATIONS);
 });
