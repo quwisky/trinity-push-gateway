@@ -88,6 +88,12 @@ The Bun deployment defaults to:
 
 The short source limiter is process-local and may reset on restart. The SQLite daily budget remains authoritative. SQLite uses strict bindings, WAL, full synchronous durability, foreign keys, and a five-second busy timeout. Keep the database, `-wal`, and `-shm` files together on local storage.
 
+## Observed footprint
+
+A development measurement on x86-64 Linux with Bun 1.4.0 used 35.2 MiB RSS after startup and 48.7 MiB RSS after a concurrent burst of 50 SQLite-coordinated notification requests. The resulting database was 20 KiB with the schema and 50 terminal delivery records. The automated Bun suite requires the same 50-request burst to finish in under two seconds; the observed local run completed in under 100 ms.
+
+These figures are implementation evidence, not capacity guarantees. Allocator behavior, architecture, container accounting, traffic shape, retention, and Push Key size affect real memory and database growth. Operators should measure their own workload and alert on container memory, volume usage, `5xx` responses, and health failures.
+
 ## Backup and restore
 
 Create a consistent online snapshot in a new file:
@@ -100,7 +106,18 @@ docker compose --env-file .env.self-host run --rm \
 
 Prepare the host backup directory for UID/GID 1000 and copy verified snapshots off-host. The command refuses to overwrite a file and verifies SQLite integrity before reporting success.
 
-For an offline restore, stop the gateway, preserve the current volume, replace the database only from a verified snapshot, remove stale WAL and shared-memory files, and restart. `/health` must become ready before Matrix pushers resume traffic. Never copy only the main file from a live WAL database.
+For a cold backup, stop the serving container first, then run the same snapshot command as the only process with the volume mounted:
+
+```sh
+docker compose --env-file .env.self-host stop gateway
+docker compose --env-file .env.self-host run --rm --no-deps \
+  --volume "$PWD/backups:/backups" \
+  gateway backup "/backups/gateway-cold-$(date -u +%Y%m%dT%H%M%SZ).sqlite"
+```
+
+Keep the gateway stopped until the command finishes. This makes the documented `VACUUM INTO` snapshot a cold backup without copying a live WAL file set.
+
+For an offline restore, stop the gateway, preserve the current volume, replace the database only from a verified snapshot, and remove stale `gateway.sqlite-wal` and `gateway.sqlite-shm` files. Before resuming traffic, run `docker compose --env-file .env.self-host run --rm --no-deps gateway migrate`; opening the database executes `PRAGMA integrity_check`, then verifies or applies the expected migrations. Restart and require `/health` to become ready. Never copy only the main file from a live WAL database.
 
 ## Upgrade and rollback
 
@@ -109,7 +126,7 @@ For an offline restore, stop the gateway, preserve the current volume, replace t
 3. Run `docker compose pull` and `docker compose up --detach`.
 4. Wait for healthy status and inspect redacted startup/migration logs.
 
-Migrations are expand-first and preserve a one-version rollback path. To roll back, stop the new container, pin the immediately preceding stable image, recreate it, and verify health. The gateway refuses unknown newer schemas and never downgrades automatically.
+Migrations are expand-first and preserve a one-version rollback path. An additive migration that the preceding image can safely read declares `-- minimum-reader: <previous migration filename>` at the start of its SQL file. Incompatible migrations default to their own filename, so older images refuse them. To roll back, stop the new container, pin the immediately preceding stable image, recreate it, and verify health. The gateway refuses incompatible newer schemas and never downgrades automatically.
 
 ## Operations and troubleshooting
 
@@ -119,4 +136,5 @@ Migrations are expand-first and preserve a one-version rollback path. To roll ba
 - `503` means configuration, storage, schema, or concurrent delivery was unavailable.
 - A full disk, SQLite busy timeout, I/O error, or runtime storage failure fails requests explicitly; the gateway never bypasses delivery coordination or budgets.
 - Rotate configuration and credentials by recreating the container. There is no live reload or HTTP administration endpoint.
+- On shutdown, the gateway rejects new work and drains in-flight requests for up to 30 seconds. At the ceiling, or after a second termination signal, it closes SQLite and explicitly terminates; Compose uses the same 30-second grace period.
 - Do not use an automatic container updater. Back up, upgrade, and verify explicitly.

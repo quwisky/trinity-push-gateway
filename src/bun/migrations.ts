@@ -7,8 +7,15 @@ export function readMigrations(directory: string): readonly SqlMigration[] {
   return readdirSync(directory)
     .filter((name) => /^\d+_.+\.sql$/u.test(name))
     .sort()
-    .map((name) => ({
-      name,
-      sql: readFileSync(path.join(directory, name), 'utf8'),
-    }));
+    .map((name) => {
+      const sql = readFileSync(path.join(directory, name), 'utf8');
+      const minimumReader = /^-- minimum-reader: (\d+_.+\.sql)$/mu.exec(
+        sql,
+      )?.[1];
+      return {
+        ...(minimumReader === undefined ? {} : { minimumReader }),
+        name,
+        sql,
+      };
+    });
 }

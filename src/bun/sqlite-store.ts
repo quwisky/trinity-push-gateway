@@ -3,10 +3,22 @@ import { existsSync, rmSync } from 'node:fs';
 
 import { fingerprintFor } from '../fingerprint';
 import type { DeliveryClaim, DeliveryIdentity, GatewayStore } from '../ports';
+import {
+  BUDGET_COLUMNS,
+  DELIVERY_COLUMNS,
+  DELIVERY_EXPIRY_INDEX,
+  HEALTH_CHECK_DATE,
+} from '../schema';
 
 export type SqlMigration = {
+  readonly minimumReader?: string;
   readonly name: string;
   readonly sql: string;
+};
+
+type AppliedMigration = {
+  readonly minimum_reader: string;
+  readonly name: string;
 };
 
 type DeliveryRow = {
@@ -27,19 +39,26 @@ function applyMigrations(
 ): void {
   database.run(`CREATE TABLE IF NOT EXISTS gateway_migrations (
     name TEXT PRIMARY KEY,
-    applied_at TEXT NOT NULL
+    applied_at TEXT NOT NULL,
+    minimum_reader TEXT NOT NULL
   ) WITHOUT ROWID`);
   const applied = database
-    .query<{ readonly name: string }, []>(
-      'SELECT name FROM gateway_migrations ORDER BY name',
+    .query<AppliedMigration, []>(
+      `SELECT name, minimum_reader
+       FROM gateway_migrations
+       ORDER BY name`,
     )
-    .all()
-    .map(({ name }) => name);
+    .all();
   const expected = migrations.map(({ name }) => name).sort();
-  const unknown = applied.filter((name) => !expected.includes(name));
-  if (unknown.length > 0) {
+  const incompatible = applied.filter(
+    ({ name, minimum_reader }) =>
+      !expected.includes(name) && !expected.includes(minimum_reader),
+  );
+  if (incompatible.length > 0) {
     throw new Error(
-      `Database schema is newer than this gateway: ${unknown.join(', ')}`,
+      `Database schema is newer than this gateway: ${incompatible
+        .map(({ name }) => name)
+        .join(', ')}`,
     );
   }
 
@@ -48,14 +67,21 @@ function applyMigrations(
     for (const migration of [...migrations].sort((left, right) =>
       left.name.localeCompare(right.name),
     )) {
-      if (!applied.includes(migration.name)) {
+      if (!applied.some(({ name }) => name === migration.name)) {
+        const minimumReader = migration.minimumReader ?? migration.name;
+        if (!expected.includes(minimumReader)) {
+          throw new Error(
+            `Migration ${migration.name} names an unknown minimum reader: ${minimumReader}`,
+          );
+        }
         database.run(migration.sql);
         database
           .query(
-            `INSERT INTO gateway_migrations (name, applied_at)
-             VALUES (?1, ?2)`,
+            `INSERT INTO gateway_migrations
+               (name, applied_at, minimum_reader)
+             VALUES (?1, ?2, ?3)`,
           )
-          .run(migration.name, new Date().toISOString());
+          .run(migration.name, new Date().toISOString(), minimumReader);
       }
     }
     database.run('COMMIT');
@@ -75,7 +101,10 @@ function assertIntegrity(database: Database): void {
 }
 
 export class SqliteGatewayStore implements GatewayStore {
-  private constructor(private readonly database: Database) {}
+  private constructor(
+    private readonly database: Database,
+    private readonly expectedMigrations: readonly string[],
+  ) {}
 
   static open(
     databasePath: string,
@@ -86,7 +115,10 @@ export class SqliteGatewayStore implements GatewayStore {
       configure(database);
       applyMigrations(database, migrations);
       assertIntegrity(database);
-      return new SqliteGatewayStore(database);
+      return new SqliteGatewayStore(
+        database,
+        migrations.map(({ name }) => name).sort(),
+      );
     } catch (error) {
       database.close(true);
       throw error;
@@ -96,6 +128,7 @@ export class SqliteGatewayStore implements GatewayStore {
   static openReadOnly(databasePath: string): SqliteGatewayStore {
     return new SqliteGatewayStore(
       new Database(databasePath, { readonly: true, strict: true }),
+      [],
     );
   }
 
@@ -215,16 +248,68 @@ export class SqliteGatewayStore implements GatewayStore {
 
   ready(): Promise<boolean> {
     try {
-      const tables = this.database
-        .query<{ readonly count: number }, []>(
+      const deliveryColumns = this.database
+        .query<{ readonly name: string }, []>(
+          "SELECT name FROM pragma_table_info('delivery_records') ORDER BY cid",
+        )
+        .all()
+        .map(({ name }) => name);
+      const budgetColumns = this.database
+        .query<{ readonly name: string }, []>(
+          "SELECT name FROM pragma_table_info('daily_budgets') ORDER BY cid",
+        )
+        .all()
+        .map(({ name }) => name);
+      const applied = this.database
+        .query<AppliedMigration, []>(
+          'SELECT name, minimum_reader FROM gateway_migrations ORDER BY name',
+        )
+        .all();
+      const hasExpectedMigrations = this.expectedMigrations.every((name) =>
+        applied.some((migration) => migration.name === name),
+      );
+      const hasOnlyCompatibleMigrations = applied.every(
+        ({ name, minimum_reader }) =>
+          this.expectedMigrations.includes(name) ||
+          this.expectedMigrations.includes(minimum_reader),
+      );
+      const index = this.database
+        .query<{ readonly count: number }, [string]>(
           `SELECT COUNT(*) AS count
            FROM sqlite_master
-           WHERE type = 'table'
-             AND name IN ('daily_budgets', 'delivery_records', 'gateway_migrations')`,
+           WHERE type = 'index'
+             AND name = ?1`,
         )
-        .get();
-      return Promise.resolve(tables?.count === 3);
+        .get(DELIVERY_EXPIRY_INDEX);
+      if (
+        !DELIVERY_COLUMNS.every((name) => deliveryColumns.includes(name)) ||
+        !BUDGET_COLUMNS.every((name) => budgetColumns.includes(name)) ||
+        !hasExpectedMigrations ||
+        !hasOnlyCompatibleMigrations ||
+        index?.count !== 1
+      ) {
+        return Promise.resolve(false);
+      }
+
+      this.database.run('BEGIN IMMEDIATE');
+      try {
+        this.database
+          .query(
+            `INSERT INTO daily_budgets (utc_date, attempts)
+             VALUES (?1, 0)
+             ON CONFLICT (utc_date) DO UPDATE SET attempts = excluded.attempts`,
+          )
+          .run(HEALTH_CHECK_DATE);
+      } finally {
+        this.database.run('ROLLBACK');
+      }
+      return Promise.resolve(true);
     } catch {
+      try {
+        this.database.run('ROLLBACK');
+      } catch {
+        // The readiness transaction may not have started.
+      }
       return Promise.resolve(false);
     }
   }

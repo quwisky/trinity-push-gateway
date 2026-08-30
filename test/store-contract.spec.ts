@@ -2,7 +2,10 @@ import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { cloudflareRuntime } from '../src/cloudflare-runtime';
-import { exerciseStoreContract } from './support/store-contract';
+import {
+  exerciseStoreContract,
+  exerciseUnavailableStoreContract,
+} from './support/store-contract';
 
 describe('D1 gateway store contract', () => {
   beforeEach(async () => {
@@ -18,6 +21,35 @@ describe('D1 gateway store contract', () => {
     ).resolves.toEqual({
       budget: [true, false, true],
       claims: ['acquired', 'pending', 'acquired', 'rejected', 'acquired'],
+      concurrentBudgetReservations: 1,
+      concurrentClaims: ['acquired', 'pending', 'pending', 'pending'],
     });
+  });
+
+  it('fails closed when its adapter cannot write', async () => {
+    const store = cloudflareRuntime(env).store;
+    await exerciseUnavailableStoreContract(store, async (operation) => {
+      await env.DB.exec(
+        'ALTER TABLE daily_budgets RENAME TO unavailable_daily_budgets',
+      );
+      try {
+        return await operation();
+      } finally {
+        await env.DB.exec(
+          'ALTER TABLE unavailable_daily_budgets RENAME TO daily_budgets',
+        );
+      }
+    });
+  });
+
+  it('reports an incomplete schema as unready', async () => {
+    await env.DB.exec('DROP INDEX delivery_records_expiry_idx');
+    try {
+      await expect(cloudflareRuntime(env).store.ready()).resolves.toBe(false);
+    } finally {
+      await env.DB.exec(
+        'CREATE INDEX delivery_records_expiry_idx ON delivery_records (expires_at)',
+      );
+    }
   });
 });

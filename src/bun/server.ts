@@ -1,5 +1,6 @@
 import type { Server } from 'bun';
 
+import type { FcmClient } from '../fcm';
 import {
   createRuntimeGateway,
   gatewayStorageUnavailableResponse,
@@ -14,8 +15,12 @@ import type { SqlMigration } from './sqlite-store';
 type RuntimeEvent = Readonly<Record<string, unknown>>;
 
 type StartOptions = {
+  readonly fcmClient?: FcmClient;
   readonly installSignalHandlers?: boolean;
   readonly log?: (event: RuntimeEvent) => void;
+  readonly now?: () => number;
+  readonly shutdownGraceMs?: number;
+  readonly terminate?: (exitCode: number) => void;
 };
 
 export type RunningBunGateway = {
@@ -33,15 +38,26 @@ export async function startBunGateway(
     ((event) => {
       console.info(JSON.stringify(event));
     });
+  const now = options.now ?? Date.now;
   const store = SqliteGatewayStore.open(config.databasePath, migrations);
   const limiter = createMemorySourceLimiter({
     limit: config.sourceLimit,
     maxKeys: config.maxSourceKeys,
-    now: Date.now,
+    now,
     periodSeconds: config.sourcePeriodSeconds,
   });
-  const gateway = createRuntimeGateway({ log, now: Date.now });
+  const gateway = createRuntimeGateway({
+    ...(options.fcmClient === undefined
+      ? {}
+      : { fcmClient: options.fcmClient }),
+    log,
+    now,
+  });
   const directAddresses = new WeakMap<Request, string>();
+  const drainWaiters = new Set<() => void>();
+  const forcedShutdown = Promise.withResolvers<boolean>();
+  let activeRequests = 0;
+  let shuttingDown = false;
   const runtimeEnvironment: GatewayRuntimeEnvironment = {
     ...config.environment,
     limiter,
@@ -57,7 +73,7 @@ export async function startBunGateway(
   };
 
   try {
-    await gateway.cleanup(runtimeEnvironment, Date.now());
+    await gateway.cleanup(runtimeEnvironment, now());
   } catch (error) {
     store.close();
     throw error;
@@ -65,6 +81,10 @@ export async function startBunGateway(
 
   const server: Server<undefined> = Bun.serve({
     async fetch(request, bunServer): Promise<Response> {
+      if (shuttingDown) {
+        return gatewayStorageUnavailableResponse();
+      }
+      activeRequests += 1;
       const directAddress = bunServer.requestIP(request)?.address;
       if (directAddress !== undefined) {
         directAddresses.set(request, directAddress);
@@ -76,6 +96,13 @@ export async function startBunGateway(
         return gatewayStorageUnavailableResponse();
       } finally {
         directAddresses.delete(request);
+        activeRequests -= 1;
+        if (activeRequests === 0) {
+          for (const resolve of drainWaiters) {
+            resolve();
+          }
+          drainWaiters.clear();
+        }
       }
     },
     hostname: config.host,
@@ -84,32 +111,63 @@ export async function startBunGateway(
   });
 
   const cleanupTimer = setInterval(() => {
-    void gateway.cleanup(runtimeEnvironment, Date.now()).catch(() => {
+    void gateway.cleanup(runtimeEnvironment, now()).catch(() => {
       log({ event: 'cleanup_failed', outcome: 'retryable' });
     });
   }, config.cleanupIntervalSeconds * 1000);
   cleanupTimer.unref();
 
   let stopped = false;
-  let stopping = false;
+  let stopRequest: Promise<void> | undefined;
   const stop = async (force = false): Promise<void> => {
     if (stopped) {
       return;
     }
-    if (stopping) {
+    if (stopRequest !== undefined) {
       if (force) {
-        await server.stop(true);
+        forcedShutdown.resolve(true);
       }
-      return;
+      return stopRequest;
     }
-    stopping = true;
-    clearInterval(cleanupTimer);
-    await server.stop(force);
-    store.close();
-    stopped = true;
-    process.off('SIGINT', handleSignal);
-    process.off('SIGTERM', handleSignal);
-    log({ event: 'gateway_stopped' });
+    stopRequest = (async () => {
+      clearInterval(cleanupTimer);
+      shuttingDown = true;
+      let forceServerStop = force;
+      if (!force && activeRequests > 0) {
+        let graceTimer: ReturnType<typeof setTimeout> | undefined;
+        const drained = new Promise<boolean>((resolve) => {
+          drainWaiters.add(() => {
+            resolve(true);
+          });
+        });
+        const graceExpired = new Promise<boolean>((resolve) => {
+          graceTimer = setTimeout(() => {
+            resolve(false);
+          }, options.shutdownGraceMs ?? 30_000);
+        });
+        const drainedCleanly = await Promise.race([
+          drained,
+          graceExpired,
+          forcedShutdown.promise.then(() => false),
+        ]);
+        forceServerStop = !drainedCleanly;
+        clearTimeout(graceTimer);
+        drainWaiters.clear();
+      }
+      const serverStop = server.stop(true);
+      if (!forceServerStop) {
+        await serverStop;
+      }
+      store.close();
+      stopped = true;
+      process.off('SIGINT', handleSignal);
+      process.off('SIGTERM', handleSignal);
+      log({ event: 'gateway_stopped' });
+      if (forceServerStop) {
+        (options.terminate ?? process.exit)(0);
+      }
+    })();
+    return stopRequest;
   };
   let signalCount = 0;
   const handleSignal = (): void => {

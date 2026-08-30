@@ -120,6 +120,38 @@ describe('gateway HTTP boundary', () => {
     });
   });
 
+  it('starts the complete notification deadline at request entry', async () => {
+    let clockReads = 0;
+    let deliveryCalls = 0;
+    const gateway = createGateway({
+      fcmClient: {
+        async send() {
+          deliveryCalls += 1;
+          return { kind: 'delivered' };
+        },
+      },
+      now() {
+        clockReads += 1;
+        return clockReads === 1 ? 0 : 3_000;
+      },
+    });
+    const response = await gateway.fetch(
+      new Request('https://gateway.test/_matrix/push/v1/notify', {
+        body: JSON.stringify({ notification: { devices: [] } }),
+        method: 'POST',
+      }),
+      {
+        ...env,
+        REQUEST_DEADLINE_SECONDS: '2',
+        UPSTREAM_TIMEOUT_SECONDS: '1',
+      },
+      createExecutionContext(),
+    );
+
+    expect(response.status).toBe(502);
+    expect(deliveryCalls).toBe(0);
+  });
+
   it('accepts a notification request with no client installations', async () => {
     const response = await worker.fetch(
       new Request('https://gateway.test/_matrix/push/v1/notify', {
