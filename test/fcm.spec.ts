@@ -10,7 +10,10 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-async function createPrivateKeyPem(): Promise<string> {
+async function createSigningKey(): Promise<{
+  privateKeyPem: string;
+  publicKey: CryptoKey;
+}> {
   const keyPair = await crypto.subtle.generateKey(
     {
       hash: 'SHA-256',
@@ -24,13 +27,26 @@ async function createPrivateKeyPem(): Promise<string> {
   const privateKey = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
   const base64 = bytesToBase64(new Uint8Array(privateKey));
   const lines = base64.match(/.{1,64}/g) ?? [];
-  return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`;
+  return {
+    privateKeyPem: `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`,
+    publicKey: keyPair.publicKey,
+  };
+}
+
+async function createPrivateKeyPem(): Promise<string> {
+  return (await createSigningKey()).privateKeyPem;
 }
 
 function decodeJwtPart(encoded: string): unknown {
   const base64 = encoded.replaceAll('-', '+').replaceAll('_', '/');
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
   return JSON.parse(atob(padded));
+}
+
+function decodeBase64Url(encoded: string): Uint8Array<ArrayBuffer> {
+  const base64 = encoded.replaceAll('-', '+').replaceAll('_', '/');
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
 describe('FCM adapter', () => {
@@ -79,6 +95,7 @@ describe('FCM adapter', () => {
   });
 
   it('authorizes and sends a private Android event delivery', async () => {
+    const signingKey = await createSigningKey();
     const requests: Request<unknown, unknown>[] = [];
     const fetcher: typeof fetch = async (input, init) => {
       const request = new Request(input, init);
@@ -99,7 +116,7 @@ describe('FCM adapter', () => {
       clientEmail: 'gateway@example.test',
       fetch: fetcher,
       now: () => 2_000_000_000_000,
-      privateKey: await createPrivateKeyPem(),
+      privateKey: signingKey.privateKeyPem,
       projectId: 'test-project',
     });
 
@@ -137,6 +154,14 @@ describe('FCM adapter', () => {
       iss: 'gateway@example.test',
       scope: 'https://www.googleapis.com/auth/firebase.messaging',
     });
+    await expect(
+      crypto.subtle.verify(
+        'RSASSA-PKCS1-v1_5',
+        signingKey.publicKey,
+        decodeBase64Url(jwtParts[2]!),
+        new TextEncoder().encode(`${jwtParts[0]}.${jwtParts[1]}`),
+      ),
+    ).resolves.toBe(true);
 
     expect(requests[1]!.url).toBe(
       'https://fcm.googleapis.com/v1/projects/test-project/messages:send',
@@ -309,6 +334,152 @@ describe('FCM adapter', () => {
       reason: 'unavailable',
       retryAfterSeconds: 120,
     });
+  });
+
+  it('converts an HTTP-date Retry-After value to seconds', async () => {
+    const now = 2_000_000_000_000;
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(
+        typeof input === 'string' ? input : new Request(input).url,
+      );
+      if (url.origin === 'https://oauth2.googleapis.com') {
+        return Response.json({
+          access_token: 'access-token',
+          expires_in: 3600,
+        });
+      }
+      return Response.json(
+        { error: { code: 503, status: 'UNAVAILABLE' } },
+        {
+          headers: { 'retry-after': new Date(now + 120_000).toUTCString() },
+          status: 503,
+        },
+      );
+    };
+    const client = createFcmClient({
+      clientEmail: 'gateway@example.test',
+      fetch: fetcher,
+      now: () => now,
+      privateKey: await createPrivateKeyPem(),
+      projectId: 'test-project',
+    });
+
+    await expect(
+      client.send({
+        accountRoute: 'account-route',
+        kind: 'counts',
+        missedCalls: 0,
+        platform: 'android',
+        priority: 'low',
+        pushKey: 'fcm-registration',
+        sound: false,
+        unread: 1,
+      }),
+    ).resolves.toEqual({
+      kind: 'transient',
+      reason: 'unavailable',
+      retryAfterSeconds: 120,
+    });
+  });
+
+  it('treats a malformed successful FCM response as retryable', async () => {
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(
+        typeof input === 'string' ? input : new Request(input).url,
+      );
+      return url.origin === 'https://oauth2.googleapis.com'
+        ? Response.json({ access_token: 'access-token', expires_in: 3600 })
+        : Response.json({ unexpected: true });
+    };
+    const client = createFcmClient({
+      clientEmail: 'gateway@example.test',
+      fetch: fetcher,
+      now: () => 2_000_000_000_000,
+      privateKey: await createPrivateKeyPem(),
+      projectId: 'test-project',
+    });
+
+    await expect(
+      client.send({
+        accountRoute: 'account-route',
+        kind: 'counts',
+        missedCalls: 0,
+        platform: 'android',
+        priority: 'low',
+        pushKey: 'fcm-registration',
+        sound: false,
+        unread: 1,
+      }),
+    ).resolves.toEqual({ kind: 'transient', reason: 'unavailable' });
+  });
+
+  it('treats a malformed OAuth response as retryable', async () => {
+    let messageRequests = 0;
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(
+        typeof input === 'string' ? input : new Request(input).url,
+      );
+      if (url.origin === 'https://oauth2.googleapis.com') {
+        return Response.json({
+          access_token: 'access-token',
+          expires_in: '3600',
+        });
+      }
+      messageRequests += 1;
+      return Response.json({ name: 'must-not-send' });
+    };
+    const client = createFcmClient({
+      clientEmail: 'gateway@example.test',
+      fetch: fetcher,
+      now: () => 2_000_000_000_000,
+      privateKey: await createPrivateKeyPem(),
+      projectId: 'test-project',
+    });
+
+    await expect(
+      client.send({
+        accountRoute: 'account-route',
+        kind: 'counts',
+        missedCalls: 0,
+        platform: 'android',
+        priority: 'low',
+        pushKey: 'fcm-registration',
+        sound: false,
+        unread: 1,
+      }),
+    ).resolves.toEqual({ kind: 'transient', reason: 'unavailable' });
+    expect(messageRequests).toBe(0);
+  });
+
+  it('tolerates unknown fields in a successful FCM response', async () => {
+    const fetcher: typeof fetch = async (input) => {
+      const url = new URL(
+        typeof input === 'string' ? input : new Request(input).url,
+      );
+      return url.origin === 'https://oauth2.googleapis.com'
+        ? Response.json({ access_token: 'access-token', expires_in: 3600 })
+        : Response.json({ future_field: true, name: 'message-1' });
+    };
+    const client = createFcmClient({
+      clientEmail: 'gateway@example.test',
+      fetch: fetcher,
+      now: () => 2_000_000_000_000,
+      privateKey: await createPrivateKeyPem(),
+      projectId: 'test-project',
+    });
+
+    await expect(
+      client.send({
+        accountRoute: 'account-route',
+        kind: 'counts',
+        missedCalls: 0,
+        platform: 'android',
+        priority: 'low',
+        pushKey: 'fcm-registration',
+        sound: false,
+        unread: 1,
+      }),
+    ).resolves.toEqual({ kind: 'delivered' });
   });
 
   it('refreshes OAuth credentials after an authentication failure', async () => {

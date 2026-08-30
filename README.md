@@ -5,14 +5,14 @@ A small, privacy-preserving [Matrix Push Gateway](https://spec.matrix.org/latest
 - `ovh.qwky.trinity.android`
 - `ovh.qwky.trinity.ios`
 
-The Worker has no runtime dependencies. It sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
+The Worker has two focused runtime dependencies: `jose` for standards-conformant service-account JWT signing and Valibot for untrusted boundary validation. It sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
 
 ## What it provides
 
 - `POST /_matrix/push/v1/notify`
 - `GET /health`
 - Android data-only delivery and iOS generic localized fallback delivery
-- FCM OAuth with native Web Crypto and isolate-local token caching
+- FCM OAuth with `jose`, native Web Crypto, and isolate-local token caching
 - D1-backed event retry suppression with expiring leases
 - Source rate limiting, a daily delivery safety budget, and six-request FCM waves
 - Daily cleanup, structured redacted logs, and strict configuration readiness
@@ -38,6 +38,8 @@ Run the complete repository gate with:
 ```sh
 pnpm check
 ```
+
+The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits and rejects runtime dependencies outside the exact `jose` and Valibot allowlist.
 
 ## Configuration
 

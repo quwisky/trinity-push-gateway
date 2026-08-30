@@ -1,5 +1,37 @@
+import { importPKCS8 } from 'jose/key/import';
+import { SignJWT } from 'jose/jwt/sign';
+import {
+  array,
+  looseObject,
+  minValue,
+  number,
+  optional,
+  pipe,
+  safeInteger,
+  safeParse,
+  string,
+} from 'valibot';
+
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const OAUTH_URL = 'https://oauth2.googleapis.com/token';
+
+const OAUTH_RESPONSE_SCHEMA = looseObject({
+  access_token: string(),
+  expires_in: pipe(number(), safeInteger(), minValue(1)),
+});
+const FCM_SUCCESS_RESPONSE_SCHEMA = looseObject({ name: string() });
+const FCM_ERROR_RESPONSE_SCHEMA = looseObject({
+  error: looseObject({
+    details: optional(
+      array(
+        looseObject({
+          '@type': optional(string()),
+          errorCode: optional(string()),
+        }),
+      ),
+    ),
+  }),
+});
 
 export type DeliveryPriority = 'high' | 'low';
 export type DeliveryPlatform = 'android' | 'ios';
@@ -54,78 +86,32 @@ type AccessToken = {
   readonly value: string;
 };
 
-function base64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary)
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replace(/=+$/u, '');
-}
-
-function encodeJson(value: Readonly<Record<string, unknown>>): string {
-  return base64Url(new TextEncoder().encode(JSON.stringify(value)));
-}
-
-function pemToBytes(pem: string): ArrayBuffer {
-  const base64 = pem
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replaceAll(/\s/gu, '');
-  const binary = atob(base64);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0)).buffer;
-}
-
 async function signJwt(
   clientEmail: string,
   privateKeyPem: string,
   now: number,
 ): Promise<string> {
   const issuedAt = Math.floor(now / 1000);
-  const header = encodeJson({ alg: 'RS256', typ: 'JWT' });
-  const claims = encodeJson({
-    aud: OAUTH_URL,
-    exp: issuedAt + 3600,
-    iat: issuedAt,
-    iss: clientEmail,
-    scope: FCM_SCOPE,
-  });
-  const unsigned = `${header}.${claims}`;
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    pemToBytes(privateKeyPem),
-    { hash: 'SHA-256', name: 'RSASSA-PKCS1-v1_5' },
-    false,
-    ['sign'],
-  );
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(unsigned),
-  );
-  return `${unsigned}.${base64Url(new Uint8Array(signature))}`;
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  const key = await importPKCS8(privateKeyPem, 'RS256');
+  return new SignJWT({ scope: FCM_SCOPE })
+    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+    .setIssuer(clientEmail)
+    .setAudience(OAUTH_URL)
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(issuedAt + 3600)
+    .sign(key);
 }
 
 function hasFcmErrorCode(value: unknown, expected: string): boolean {
-  if (!isRecord(value) || !isRecord(value.error)) {
-    return false;
-  }
-  const details = value.error.details;
+  const result = safeParse(FCM_ERROR_RESPONSE_SCHEMA, value);
   return (
-    Array.isArray(details) &&
-    details.some(
+    result.success &&
+    result.output.error.details?.some(
       (detail) =>
-        isRecord(detail) &&
         detail['@type'] ===
           'type.googleapis.com/google.firebase.fcm.v1.FcmError' &&
         detail.errorCode === expected,
-    )
+    ) === true
   );
 }
 
@@ -146,18 +132,31 @@ async function requestAccessToken(
     method: 'POST',
   });
   const body: unknown = await response.json();
-  if (
-    !response.ok ||
-    !isRecord(body) ||
-    typeof body.access_token !== 'string' ||
-    typeof body.expires_in !== 'number'
-  ) {
+  const parsed = safeParse(OAUTH_RESPONSE_SCHEMA, body);
+  if (!response.ok || !parsed.success) {
     throw new Error('FCM OAuth token request failed.');
   }
   return {
-    expiresAt: options.now() + body.expires_in * 1000,
-    value: body.access_token,
+    expiresAt: options.now() + parsed.output.expires_in * 1000,
+    value: parsed.output.access_token,
   };
+}
+
+function parseRetryAfter(
+  value: string | null,
+  now: number,
+): number | undefined {
+  if (value === null) {
+    return undefined;
+  }
+  if (/^\d+$/u.test(value)) {
+    const delay = Number(value);
+    return Number.isSafeInteger(delay) ? delay : undefined;
+  }
+  const retryAt = Date.parse(value);
+  return Number.isNaN(retryAt)
+    ? undefined
+    : Math.max(0, Math.ceil((retryAt - now) / 1000));
 }
 
 function deliveryData(delivery: FcmDelivery): Readonly<Record<string, string>> {
@@ -290,18 +289,20 @@ export function createFcmClient(options: FcmClientOptions): FcmClient {
         if (hasFcmErrorCode(body, 'INVALID_ARGUMENT')) {
           return { kind: 'rejected', reason: 'invalid-registration' };
         }
-        const retryAfter = response.headers.get('retry-after');
-        const retryAfterSeconds =
-          retryAfter === null ? undefined : Number.parseInt(retryAfter, 10);
+        const retryAfterSeconds = parseRetryAfter(
+          response.headers.get('retry-after'),
+          options.now(),
+        );
         return {
           kind: 'transient',
           reason: 'unavailable',
-          ...(retryAfterSeconds === undefined || Number.isNaN(retryAfterSeconds)
-            ? {}
-            : { retryAfterSeconds }),
+          ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
         };
       }
-      return { kind: 'delivered' };
+      const body: unknown = await response.json().catch(() => undefined);
+      return safeParse(FCM_SUCCESS_RESPONSE_SCHEMA, body).success
+        ? { kind: 'delivered' }
+        : { kind: 'transient', reason: 'unavailable' };
     },
   };
 }

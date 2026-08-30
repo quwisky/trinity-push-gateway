@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are applied to the latest release. Before the first release, they are applied to `main`.
+Security fixes are applied to the latest release. Before the first release, they are applied to `master`.
 
 ## Reporting a vulnerability
 

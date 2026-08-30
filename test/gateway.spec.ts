@@ -50,6 +50,25 @@ describe('gateway HTTP boundary', () => {
     });
   });
 
+  it('reports not ready when a numeric limit is malformed', async () => {
+    const invalidEnv = {
+      ...env,
+      MAX_DEVICES: 'unlimited',
+    } satisfies Env;
+
+    const response = await worker.fetch(
+      new Request('https://gateway.test/health'),
+      invalidEnv,
+      createExecutionContext(),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      status: 'error',
+      version: '0.1.0',
+    });
+  });
+
   it('uses the Matrix unrecognized error for an unsupported method', async () => {
     const response = await worker.fetch(
       new Request('https://gateway.test/_matrix/push/v1/notify'),
@@ -143,6 +162,55 @@ describe('gateway HTTP boundary', () => {
     await expect(response.json()).resolves.toEqual({
       rejected: ['invalid-route-token'],
     });
+  });
+
+  it('rejects an invalid installation without blocking a valid peer', async () => {
+    const deliveries: FcmDelivery[] = [];
+    const gateway = createGateway({
+      fcmClient: {
+        async send(delivery) {
+          deliveries.push(delivery);
+          return { kind: 'delivered' };
+        },
+      },
+      now: () => 2_000_000_000_000,
+    });
+    const response = await gateway.fetch(
+      new Request('https://gateway.test/_matrix/push/v1/notify', {
+        body: JSON.stringify({
+          notification: {
+            devices: [
+              {
+                app_id: 'ovh.qwky.trinity.android',
+                data: {
+                  format: 'event_id_only',
+                  trinity_account_id: 'valid-route',
+                  trinity_push_version: '1',
+                },
+                future_device_field: true,
+                pushkey: 'valid-token',
+              },
+              {
+                app_id: 'ovh.qwky.trinity.android',
+                data: { format: 'unsupported' },
+                pushkey: 'invalid-token',
+              },
+            ],
+            future_notification_field: true,
+          },
+        }),
+        method: 'POST',
+      }),
+      env,
+      createExecutionContext(),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      rejected: ['invalid-token'],
+    });
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.pushKey).toBe('valid-token');
   });
 
   it('translates a private Matrix event for the configured Android app', async () => {
