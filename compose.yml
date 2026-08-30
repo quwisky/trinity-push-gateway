@@ -3,7 +3,7 @@ services:
     image: ghcr.io/quwisky/trinity-push-gateway:${TRINITY_PUSH_GATEWAY_VERSION:-latest}
     build:
       context: .
-      dockerfile: apps/gateway/Dockerfile
+      dockerfile: apps/push-gateway/Dockerfile
     init: true
     restart: unless-stopped
     read_only: true

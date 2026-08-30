@@ -13,4 +13,4 @@ backups/
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
-apps/gateway/worker-configuration.d.ts
+apps/push-gateway/worker-configuration.d.ts

@@ -14,7 +14,7 @@ For the supported Docker deployment with Bun and SQLite, use the separate [self-
 
 ## 1. Select the production hostname
 
-Replace development-only routing in `apps/gateway/wrangler.jsonc` before production:
+Replace development-only routing in `apps/push-gateway/wrangler.jsonc` before production:
 
 ```json
 "workers_dev": false,
@@ -37,17 +37,17 @@ pnpm exec wrangler login
 pnpm nx run push-gateway:migrate-remote
 ```
 
-Wrangler's automatic resource provisioning creates the configured D1 database when needed. Review and commit the resulting `database_id` change if Wrangler writes it into `apps/gateway/wrangler.jsonc`. The local binding is named `TRINITY_PUSH_GATEWAY_DB`; the remote database remains named `trinity-push-gateway`.
+Wrangler's automatic resource provisioning creates the configured D1 database when needed. Review and commit the resulting `database_id` change if Wrangler writes it into `apps/push-gateway/wrangler.jsonc`. The local binding is named `TRINITY_PUSH_GATEWAY_DB`; the remote database remains named `trinity-push-gateway`.
 
 ## 3. Add Worker secrets
 
 Generate `TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY` independently; do not reuse a Firebase secret.
 
 ```sh
-pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL --config apps/gateway/wrangler.jsonc
-pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY --config apps/gateway/wrangler.jsonc
-pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID --config apps/gateway/wrangler.jsonc
-pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY --config apps/gateway/wrangler.jsonc
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL --config apps/push-gateway/wrangler.jsonc
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY --config apps/push-gateway/wrangler.jsonc
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID --config apps/push-gateway/wrangler.jsonc
+pnpm exec wrangler secret put TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY --config apps/push-gateway/wrangler.jsonc
 ```
 
 Paste values only into Wrangler's prompt. For the private key, preserve the complete PEM including its header and footer.

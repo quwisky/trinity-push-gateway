@@ -10,8 +10,8 @@ FROM oven/bun:1.4.0-slim@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
-COPY apps/gateway/src ./apps/gateway/src
-RUN bun build apps/gateway/src/bun/main.ts --target bun --outdir dist/apps/push-gateway/bun
+COPY apps/push-gateway/src ./apps/push-gateway/src
+RUN bun build apps/push-gateway/src/bun/main.ts --target bun --outdir dist/apps/push-gateway/bun
 
 FROM oven/bun:1.4.0-slim@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS runtime
 LABEL org.opencontainers.image.description="Matrix-to-FCM push gateway" \
@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.description="Matrix-to-FCM push gateway" \
 WORKDIR /app
 RUN install -d -o bun -g bun /data /app/migrations
 COPY --from=build --chown=bun:bun /app/dist/apps/push-gateway/bun/main.js /app/main.js
-COPY --chown=bun:bun apps/gateway/migrations /app/migrations
+COPY --chown=bun:bun apps/push-gateway/migrations /app/migrations
 ENV TRINITY_PUSH_GATEWAY_DATABASE_PATH=/data/gateway.sqlite \
     TRINITY_PUSH_GATEWAY_HOST=0.0.0.0 \
     TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH=/app/migrations \

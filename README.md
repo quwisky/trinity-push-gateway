@@ -26,12 +26,12 @@ Requirements: Node 24 and Corepack. Bun 1.4.0 is additionally required for the s
 ```sh
 corepack enable
 pnpm install --frozen-lockfile
-cp apps/gateway/.dev.vars.example apps/gateway/.dev.vars
+cp apps/push-gateway/.dev.vars.example apps/push-gateway/.dev.vars
 pnpm nx run push-gateway:migrate-local
 pnpm nx run push-gateway:dev
 ```
 
-Replace every placeholder in `apps/gateway/.dev.vars`. The file is ignored by Git. Check readiness at `http://localhost:8787/health`.
+Replace every placeholder in `apps/push-gateway/.dev.vars`. The file is ignored by Git. Check readiness at `http://localhost:8787/health`.
 
 Run the complete repository gate with:
 
@@ -47,7 +47,7 @@ Local commits are protected by Husky: lint-staged applies ESLint and Prettier be
 
 ## Configuration
 
-Cloudflare non-secret limits and the two exact app IDs live in `apps/gateway/wrangler.jsonc`; self-hosted values use validated environment configuration. Every runtime setting uses the `TRINITY_PUSH_GATEWAY_` namespace. These four values support direct or `_FILE` configuration under Bun:
+Cloudflare non-secret limits and the two exact app IDs live in `apps/push-gateway/wrangler.jsonc`; self-hosted values use validated environment configuration. Every runtime setting uses the `TRINITY_PUSH_GATEWAY_` namespace. These four values support direct or `_FILE` configuration under Bun:
 
 - `TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL`
 - `TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY`
@@ -74,7 +74,7 @@ Successful changes on `master` create or refresh a Release Please pull request. 
 
 ## Workspace
 
-Nx 23 orchestrates the root-managed pnpm workspace. The implemented backend is the `push-gateway` project under `apps/gateway`; `apps/push-gateway-ui` only reserves the name and location of a future Angular administration interface for self-hosted Gateway Operators. It contains no client implementation or Nx project yet.
+Nx 23 orchestrates the root-managed pnpm workspace. The implemented backend is the `push-gateway` project under `apps/push-gateway`; `apps/push-gateway-ui` only reserves the name and location of a future Angular administration interface for self-hosted Gateway Operators. It contains no client implementation or Nx project yet.
 
 ## License
 

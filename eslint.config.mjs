@@ -11,8 +11,8 @@ export default tseslint.config(
       'commitlint.config.mjs',
       'eslint.config.mjs',
       'lint-staged.config.mjs',
-      'apps/gateway/scripts/**/*.mjs',
-      'apps/gateway/worker-configuration.d.ts',
+      'apps/push-gateway/scripts/**/*.mjs',
+      'apps/push-gateway/worker-configuration.d.ts',
     ],
   },
   eslint.configs.recommended,
@@ -23,9 +23,9 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         project: [
-          './apps/gateway/tsconfig.json',
-          './apps/gateway/tsconfig.bun.json',
-          './apps/gateway/tsconfig.test.json',
+          './apps/push-gateway/tsconfig.json',
+          './apps/push-gateway/tsconfig.bun.json',
+          './apps/push-gateway/tsconfig.test.json',
         ],
         tsconfigRootDir: import.meta.dirname,
       },
@@ -40,7 +40,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/gateway/test/**/*.ts'],
+    files: ['apps/push-gateway/test/**/*.ts'],
     rules: {
       '@typescript-eslint/consistent-type-definitions': 'off',
       '@typescript-eslint/no-deprecated': 'off',
