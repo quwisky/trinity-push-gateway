@@ -1,5 +1,3 @@
-import { catalogDefaults } from './types';
-
 export const COMPOSE_CONFIGURATION_DEFINITIONS = Object.freeze([
   {
     name: 'TRINITY_PUSH_GATEWAY_HOST_PORT',
@@ -19,7 +17,3 @@ export const COMPOSE_CONFIGURATION_DEFINITIONS = Object.freeze([
     constraint: 'Pin an immutable vX.Y.Z tag or digest in production.',
   },
 ] as const);
-
-export const COMPOSE_CONFIGURATION_DEFAULTS = catalogDefaults(
-  COMPOSE_CONFIGURATION_DEFINITIONS,
-);

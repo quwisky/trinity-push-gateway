@@ -3,11 +3,10 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'bun:test';
 
 import {
-  GATEWAY_CONFIGURATION_REFERENCE,
-  loadAdministrationConfiguration,
   PUSH_GATEWAY_CONFIGURATION_CATALOG,
   type GatewayConfigurationName,
 } from '../../../src/configuration-catalog';
+import { loadAdministrationConfiguration } from '../../../src/configuration-catalog/administration';
 
 const expectedNames = [
   'TRINITY_PUSH_GATEWAY_ANDROID_APP_ID',
@@ -81,15 +80,35 @@ function sha256(value: string): string {
 
 describe('authoritative Push Gateway configuration catalog', () => {
   it('owns every supported setting exactly once', () => {
-    const names = GATEWAY_CONFIGURATION_REFERENCE.map(({ name }) => name);
+    const names = PUSH_GATEWAY_CONFIGURATION_CATALOG.references().map(
+      ({ name }) => name,
+    );
 
     expect(names).toEqual([...expectedNames]);
     expect(new Set(names).size).toBe(expectedNames.length);
     for (const name of expectedNames) {
-      expect(PUSH_GATEWAY_CONFIGURATION_CATALOG.reference(name).name).toBe(
+      expect(PUSH_GATEWAY_CONFIGURATION_CATALOG.reference(name)?.name).toBe(
         name,
       );
     }
+    expect(PUSH_GATEWAY_CONFIGURATION_CATALOG.reference('UNKNOWN')).toBe(
+      undefined,
+    );
+  });
+
+  it('lists only settings accepted by a selected runtime', () => {
+    const cloudflare =
+      PUSH_GATEWAY_CONFIGURATION_CATALOG.references('cloudflare');
+    const compose = PUSH_GATEWAY_CONFIGURATION_CATALOG.references('compose');
+
+    expect(cloudflare).toHaveLength(13);
+    expect(
+      cloudflare.every((entry) => entry.runtimes.includes('cloudflare')),
+    ).toBe(true);
+    expect(compose.map(({ name }) => name)).toEqual([
+      'TRINITY_PUSH_GATEWAY_HOST_PORT',
+      'TRINITY_PUSH_GATEWAY_VERSION',
+    ]);
   });
 
   it('does not read or project administration secrets while disabled', () => {

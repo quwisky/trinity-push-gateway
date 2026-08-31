@@ -4,8 +4,7 @@ import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { ADMIN_POLICY_DEFAULTS } from '../../../src/configuration-defaults';
-import type { AdminConfiguration } from '../../../src/bun/admin/config';
+import { loadAdminConfiguration } from '../../../src/bun/admin/config';
 import {
   AdminOperations,
   type OperationBackend,
@@ -32,25 +31,31 @@ async function harness(backend: OperationBackend): Promise<
   const gatewayDatabasePath = path.join(directory, 'gateway.sqlite');
   await Bun.write(gatewayDatabasePath, 'gateway');
   const store = SqliteAdminStore.open(file, ADMIN_MIGRATIONS);
-  const configuration: AdminConfiguration = {
-    assetsPath: path.join(directory, 'assets'),
-    backupDirectory: path.join(directory, 'backups'),
-    backupLimitBytes: 1024 * 1024,
-    backupLimitCount: 24,
-    databasePath: file,
-    migrationsPath: path.join(directory, 'migrations'),
-    oidcClientId: 'client',
-    oidcClientSecret: { source: 'env', value: 'secret' },
-    oidcGroupClaim: 'groups',
-    oidcIssuer: 'https://issuer.example',
-    oidcRequiredGroup: 'operators',
-    oidcScopes: ['openid'],
-    oidcTokenEndpointAuthMethod: 'client_secret_basic',
-    policy: ADMIN_POLICY_DEFAULTS,
-    policyFingerprint: 'policy',
-    publicOrigin: 'https://gateway.example',
-    sessionSecret: { source: 'env', value: 'x'.repeat(32) },
-  };
+  const loadedConfiguration = loadAdminConfiguration({
+    TRINITY_PUSH_GATEWAY_ADMIN_ASSETS_PATH: path.join(directory, 'assets'),
+    TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_DIRECTORY: path.join(
+      directory,
+      'backups',
+    ),
+    TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_LIMIT_BYTES: String(1024 * 1024),
+    TRINITY_PUSH_GATEWAY_ADMIN_DATABASE_PATH: file,
+    TRINITY_PUSH_GATEWAY_ADMIN_ENABLED: 'true',
+    TRINITY_PUSH_GATEWAY_ADMIN_MIGRATIONS_PATH: path.join(
+      directory,
+      'migrations',
+    ),
+    TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_ID: 'client',
+    TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET: 'secret',
+    TRINITY_PUSH_GATEWAY_ADMIN_OIDC_ISSUER: 'https://issuer.example',
+    TRINITY_PUSH_GATEWAY_ADMIN_OIDC_REQUIRED_GROUP: 'operators',
+    TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES: 'openid',
+    TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN: 'https://gateway.example',
+    TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET: 'x'.repeat(32),
+  });
+  if (loadedConfiguration.kind !== 'enabled') {
+    throw new Error('The operations fixture must have valid configuration.');
+  }
+  const configuration = loadedConfiguration.configuration;
   const actor = { issuer: 'https://issuer.example', subject: 'operator-1' };
   await store.establishSession(actor, {
     id: 'operations-session-0001',

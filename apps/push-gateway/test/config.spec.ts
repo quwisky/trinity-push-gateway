@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  runtimeConfig,
-  type ConfigurationEnvironment,
-  type ConfigurationEnvironmentName,
-} from '../src/config';
+import { runtimeConfig, type ConfigurationEnvironment } from '../src/config';
 
 function validEnvironment(): ConfigurationEnvironment {
   return {
@@ -32,7 +28,7 @@ const numericEnvironmentNames = [
   'TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS',
   'TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS',
   'TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS',
-] as const satisfies readonly ConfigurationEnvironmentName[];
+] as const satisfies readonly (keyof ConfigurationEnvironment)[];
 
 describe('runtime configuration boundary', () => {
   it('returns only normalized numeric limits and tolerates unknown settings', () => {

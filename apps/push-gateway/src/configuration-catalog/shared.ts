@@ -115,9 +115,6 @@ export const SHARED_CONFIGURATION_DEFINITIONS = Object.freeze([
   },
 ] as const);
 
-export type ConfigurationEnvironmentName =
-  (typeof SHARED_CONFIGURATION_DEFINITIONS)[number]['name'];
-
 const NON_EMPTY_STRING_SCHEMA = z.string().check(z.minLength(1));
 const POSITIVE_INTEGER_STRING_SCHEMA = z.string().check(z.regex(/^[1-9]\d*$/u));
 const CONFIGURATION_ENVIRONMENT_SCHEMAS = {
@@ -140,12 +137,15 @@ const ENV_SCHEMA = z.looseObject(CONFIGURATION_ENVIRONMENT_SCHEMAS);
 
 export type SharedConfigurationEnvironment = z.output<typeof ENV_SCHEMA>;
 
-export const CONFIGURATION_ENVIRONMENT_NAMES = Object.freeze(
-  SHARED_CONFIGURATION_DEFINITIONS.map(({ name }) => name),
-);
-export const SHARED_CONFIGURATION_DEFAULTS = catalogDefaults(
+const SHARED_CONFIGURATION_DEFAULTS = catalogDefaults(
   SHARED_CONFIGURATION_DEFINITIONS,
 );
+
+export function sharedConfigurationDefault<
+  Name extends keyof typeof SHARED_CONFIGURATION_DEFAULTS,
+>(name: Name): (typeof SHARED_CONFIGURATION_DEFAULTS)[Name] {
+  return SHARED_CONFIGURATION_DEFAULTS[name];
+}
 
 export type RuntimeConfig = Readonly<{
   maxBodyBytes: number;

@@ -7,9 +7,7 @@ import {
 } from '../../configuration-catalog/administration';
 
 export {
-  ADMIN_CONFIGURATION_ENVIRONMENT_NAMES,
   type AdminConfiguration,
-  type AdminConfigurationEnvironmentName,
   type AdminConfigurationState,
   type AdministrationPolicy,
   type AdminSecret,

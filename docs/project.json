@@ -10,8 +10,8 @@
       "inputs": [
         "default",
         "{workspaceRoot}/CHANGELOG.md",
-        "{workspaceRoot}/apps/push-gateway/src/config-reference.ts",
-        "{workspaceRoot}/apps/push-gateway/src/config.ts"
+        "{workspaceRoot}/apps/push-gateway/src/configuration-catalog.ts",
+        "{workspaceRoot}/apps/push-gateway/src/configuration-catalog/**/*.ts"
       ],
       "outputs": ["{workspaceRoot}/dist/docs/push-gateway-docs"],
       "options": {

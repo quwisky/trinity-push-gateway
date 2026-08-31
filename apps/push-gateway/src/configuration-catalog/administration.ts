@@ -2,7 +2,6 @@ import * as z from 'zod/mini';
 
 import {
   catalogDefaults,
-  catalogNames,
   resolveCatalogSecret,
   type CatalogSecret,
   type ConfigurationEnvironment,
@@ -175,16 +174,11 @@ export const ADMINISTRATION_CONFIGURATION_DEFINITIONS = Object.freeze([
   },
 ] as const);
 
-export const ADMIN_CONFIGURATION_DEFAULTS = catalogDefaults(
+const ADMIN_CONFIGURATION_DEFAULTS = catalogDefaults(
   ADMINISTRATION_CONFIGURATION_DEFINITIONS,
 );
-export const ADMIN_CONFIGURATION_ENVIRONMENT_NAMES = catalogNames(
-  ADMINISTRATION_CONFIGURATION_DEFINITIONS,
-);
-export type AdminConfigurationEnvironmentName =
-  (typeof ADMINISTRATION_CONFIGURATION_DEFINITIONS)[number]['name'];
 
-export const ADMIN_POLICY_DEFAULTS = Object.freeze({
+const ADMIN_POLICY_DEFAULTS = Object.freeze({
   auditRetentionDays: 90,
   backupCooldownSeconds: 3_600,
   backupDeadlineSeconds: 120,

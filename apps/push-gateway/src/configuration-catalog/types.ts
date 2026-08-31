@@ -87,9 +87,3 @@ export function catalogDefaults<
     ),
   ) as CatalogDefaults<Entries>;
 }
-
-export function catalogNames<
-  const Entries extends readonly ConfigurationCatalogReference<string>[],
->(entries: Entries): readonly Entries[number]['name'][] {
-  return Object.freeze(entries.map(({ name }) => name));
-}
