@@ -52,6 +52,45 @@ afterEach(() => {
 });
 
 describe('Bun HTTP runtime', () => {
+  it('does not initialize administration when the listening port is unavailable', async () => {
+    const config = createTestConfig();
+    const occupied = Bun.serve({
+      fetch: () => new Response('occupied'),
+      hostname: config.host,
+      port: 0,
+    });
+    const occupiedPort = occupied.port;
+    if (occupiedPort === undefined) {
+      throw new Error('Test server did not report its listening port.');
+    }
+    const logs: Readonly<Record<string, unknown>>[] = [];
+    let rejected = false;
+    try {
+      await startBunGateway(
+        {
+          ...config,
+          administration: { kind: 'invalid' },
+          port: occupiedPort,
+        },
+        canonicalMigrations,
+        {
+          installSignalHandlers: false,
+          log: (event) => logs.push(event),
+        },
+      );
+    } catch {
+      rejected = true;
+    } finally {
+      await occupied.stop(true);
+    }
+
+    expect(rejected).toBe(true);
+    expect(logs).not.toContainEqual({
+      event: 'admin_configuration_invalid',
+      outcome: 'unavailable',
+    });
+  });
+
   it('migrates before listening and serves the shared health and Matrix contracts', async () => {
     const config = createTestConfig();
     const runtime = await startBunGateway(

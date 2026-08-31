@@ -18,13 +18,20 @@ import {
 import * as z from 'zod/mini';
 
 const IDENTITY_CLAIMS_SCHEMA = z.looseObject({
-  aud: z.union([z.string(), z.array(z.string())]),
-  email: z.optional(z.string().check(z.maxLength(320))),
-  iss: z.string(),
-  name: z.optional(z.string().check(z.maxLength(256))),
-  sub: z.string().check(z.minLength(1), z.maxLength(256)),
+  aud: z.union([
+    z.string().check(z.minLength(1), z.maxLength(512)),
+    z
+      .array(z.string().check(z.minLength(1), z.maxLength(512)))
+      .check(z.maxLength(16)),
+  ]),
+  email: z.optional(z.email().check(z.maxLength(320))),
+  iss: z.string().check(z.minLength(1), z.maxLength(2048)),
+  name: z.optional(z.string().check(z.minLength(1), z.maxLength(256))),
+  sub: z.string().check(z.minLength(1), z.maxLength(512)),
 });
-const GROUPS_SCHEMA = z.array(z.string().check(z.maxLength(256)));
+const GROUPS_SCHEMA = z
+  .array(z.string().check(z.minLength(1), z.maxLength(256)))
+  .check(z.maxLength(256));
 
 export const OPERATOR_AUTH_PATHS = {
   callback: '/admin/auth/callback',
@@ -43,8 +50,12 @@ export type OidcLoginAttemptStore = {
   readonly consume: (
     stateDigest: string,
     nowSeconds: number,
+    cookieDigest?: string,
   ) => Promise<OidcLoginAttempt | undefined>;
-  readonly save: (attempt: OidcLoginAttempt) => Promise<void>;
+  readonly save: (
+    attempt: OidcLoginAttempt,
+    cookieDigest?: string,
+  ) => Promise<void>;
 };
 
 export type OidcClientSettings = {
@@ -63,10 +74,11 @@ type OidcAuthenticatorOptions = {
 };
 
 export type OidcAuthenticator = {
-  readonly beginLogin: () => Promise<URL>;
+  readonly beginLogin: (cookieDigest?: string) => Promise<URL>;
   readonly buildProviderLogoutUrl: () => URL | undefined;
   readonly completeLogin: (
     callbackUrl: URL,
+    cookieDigest?: string,
   ) => Promise<OperatorIdentityProjection>;
 };
 
@@ -100,6 +112,7 @@ function isLoopback(url: URL): boolean {
   return (
     url.hostname === '127.0.0.1' ||
     url.hostname === '::1' ||
+    url.hostname === '[::1]' ||
     url.hostname === 'localhost'
   );
 }
@@ -220,17 +233,20 @@ export async function createOidcAuthenticator(
     options.nowSeconds ?? (() => Math.floor(Date.now() / 1000));
 
   return {
-    async beginLogin(): Promise<URL> {
+    async beginLogin(cookieDigest): Promise<URL> {
       const codeVerifier = randomPKCECodeVerifier();
       const nonce = randomNonce();
       const state = randomState();
       const codeChallenge = await calculatePKCECodeChallenge(codeVerifier);
-      await attempts.save({
-        codeVerifier,
-        expiresAt: nowSeconds() + 5 * 60,
-        nonce,
-        stateDigest: digestState(state),
-      });
+      await attempts.save(
+        {
+          codeVerifier,
+          expiresAt: nowSeconds() + 5 * 60,
+          nonce,
+          stateDigest: digestState(state),
+        },
+        cookieDigest,
+      );
       return buildAuthorizationUrl(configuration, {
         client_id: settings.clientId,
         code_challenge: codeChallenge,
@@ -242,7 +258,10 @@ export async function createOidcAuthenticator(
         state,
       });
     },
-    async completeLogin(callbackUrl): Promise<OperatorIdentityProjection> {
+    async completeLogin(
+      callbackUrl,
+      cookieDigest,
+    ): Promise<OperatorIdentityProjection> {
       if (
         callbackUrl.origin !== configuredCallback.origin ||
         callbackUrl.pathname !== configuredCallback.pathname ||
@@ -257,7 +276,11 @@ export async function createOidcAuthenticator(
         throw new OidcAuthenticationError('login_state_invalid');
       }
       const now = nowSeconds();
-      const attempt = await attempts.consume(digestState(state), now);
+      const attempt = await attempts.consume(
+        digestState(state),
+        now,
+        cookieDigest,
+      );
       if (attempt === undefined || now >= attempt.expiresAt) {
         throw new OidcAuthenticationError('login_state_invalid');
       }

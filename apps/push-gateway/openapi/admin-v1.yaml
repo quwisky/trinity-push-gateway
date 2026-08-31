@@ -71,9 +71,10 @@ paths:
         - Overview
       summary: Get the operational overview
       description: |-
-        Returns current readiness, storage use, fixed 24-hour aggregates, and
-        the most recent bounded-operation summaries. The response contains no
-        per-request or per-Client Installation data.
+        Returns last-observed delivery readiness, current administration
+        request readiness, storage use, fixed 24-hour aggregates, and the most
+        recent bounded-operation summaries. The overview never probes delivery
+        storage and contains no per-request or per-Client Installation data.
       operationId: getOverview
       responses:
         '200':
@@ -814,10 +815,15 @@ components:
           $ref: '#/components/schemas/SafeCount'
         gatewayReady:
           type: boolean
-          description: Whether the delivery-critical gateway is ready.
+          description: |-
+            Delivery readiness last observed by the independent runtime during
+            public health or delivery storage work. The overview does not probe
+            gateway.sqlite.
         administrationReady:
           type: boolean
-          description: Whether the isolated administration subsystem is ready.
+          description: |-
+            Whether the current authenticated request reached the isolated
+            administration subsystem successfully.
         requestsLast24Hours:
           $ref: '#/components/schemas/RequestOutcomeCounts'
         fcmAttemptsLast24Hours:

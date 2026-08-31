@@ -5,7 +5,7 @@ A small, privacy-preserving [Matrix Push Gateway](https://spec.matrix.org/latest
 - `ovh.qwky.trinity.android`
 - `ovh.qwky.trinity.ios`
 
-The Worker has three focused runtime dependencies: `drizzle-orm` for typed D1 and SQLite queries, `jose` for standards-conformant service-account JWT signing, and Zod Mini for untrusted boundary validation. Self-hosted Bun additionally uses `openid-client` behind a Bun-only Operator-authentication module; the Worker source graph excludes it. The gateway sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
+The Worker has three focused runtime dependencies: `drizzle-orm` for typed D1 and SQLite queries, `jose` for standards-conformant service-account JWT signing, and Zod Mini for untrusted boundary validation. Self-hosted Bun additionally uses Hono for its isolated administration router and `openid-client` for Operator authentication; the Worker source graph excludes both. The gateway sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
 
 ## What it provides
 
@@ -16,6 +16,8 @@ The Worker has three focused runtime dependencies: `drizzle-orm` for typed D1 an
 - D1- or SQLite-backed event retry suppression with expiring leases
 - Source rate limiting, a daily delivery safety budget, and six-request FCM waves
 - Daily cleanup, structured redacted logs, and strict configuration readiness
+- An optional, disabled-by-default Angular administration shell and Hono BFF for
+  self-hosted Bun, backed by a separate Operator-session database
 
 This repository does not contain Trinity client development. Client registration and notification handling are defined only as a handoff in [the client contract](docs/integration/matrix.md).
 
@@ -39,10 +41,11 @@ Run the complete repository gate with:
 pnpm nx format:check --all
 pnpm nx run push-gateway:check
 pnpm nx run push-gateway:check-bun
+pnpm nx run push-gateway-ui:check
 pnpm nx run push-gateway-docs:check
 ```
 
-The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits, proves the Worker import graph remains on Drizzle ORM, `jose`, and Zod, and separately measures the exact Bun-only `openid-client` selection. Better Auth and its CLI are rejected from every dependency set.
+The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits, proves the Worker import graph remains on Drizzle ORM, `jose`, and Zod, and separately verifies the Bun-only Hono/`openid-client` selection plus the Angular browser security contract. Better Auth and its CLI are rejected from every dependency set.
 
 Local commits are protected by Husky: lint-staged applies the uncached Nx lint fixer and Prettier before the full typecheck and test suite, and Commitlint validates Conventional Commit messages. See [the contribution guide](CONTRIBUTING.md) for the pull-request and release contract.
 
@@ -56,6 +59,14 @@ Cloudflare non-secret limits and the two exact app IDs live in `apps/push-gatewa
 - `TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY`, an independent random value of at least 32 bytes
 
 The default limits are 64 KiB per request, 49 client installations per Matrix request, 20,000 delivery candidates per UTC day, a two-minute in-progress lease, and 24-hour terminal retention. Limit configuration is fail-closed: missing or invalid values make `/health` return `503` and prevent notification processing.
+
+The Bun administration surface is an explicit opt-in through
+`TRINITY_PUSH_GATEWAY_ADMIN_ENABLED=true`. While it is disabled, all other
+administration values are ignored and `/admin/*` returns `404`. Invalid enabled
+configuration makes only `/admin/*` unavailable; Matrix notification delivery
+and public `/health` remain independent. See the
+[configuration reference](docs/reference/configuration.md) for the complete
+typed contract.
 
 ## Deployment
 
@@ -75,7 +86,7 @@ Successful changes on `master` create or refresh a Release Please pull request. 
 
 ## Workspace
 
-Nx 23 orchestrates the root-managed pnpm workspace. Official Nx plugins infer project-scoped ESLint and run-mode Vitest targets; runtime-specific targets remain explicit, and CI runs only tasks affected by each change. The implemented backend is the `push-gateway` project under `apps/push-gateway`; `apps/push-gateway-ui` only reserves the name and location of a future Angular administration interface for self-hosted Gateway Operators. It contains no client implementation or Nx project yet.
+Nx 23 orchestrates the root-managed pnpm workspace. Official Nx plugins infer project-scoped ESLint and run-mode Vitest targets; runtime-specific targets remain explicit, and CI runs only tasks affected by each change. The `push-gateway` project under `apps/push-gateway` contains the Worker and Bun backend, including the isolated Bun administration BFF. `apps/push-gateway-ui` is the separate Angular Nx application for self-hosted Gateway Operators; it is not a Trinity mobile-client application.
 
 The `push-gateway-docs` project uses the existing `docs/` tree. Run `pnpm nx run push-gateway-docs:serve` for local authoring, or `pnpm nx run push-gateway-docs:check` for its complete static-site contract.
 

@@ -93,6 +93,35 @@ Compose additionally defaults `TRINITY_PUSH_GATEWAY_HOST_PORT` to `3000`. It is 
 
 The short source limiter is process-local and may reset on restart. The SQLite daily budget remains authoritative. SQLite uses strict bindings, WAL, full synchronous durability, foreign keys, and a five-second busy timeout. Keep the database, `-wal`, and `-shm` files together on local storage.
 
+## Optional administration foundation
+
+The Bun runtime contains a same-origin Angular shell and Hono BFF under
+`/admin/`. It is disabled by default: with
+`TRINITY_PUSH_GATEWAY_ADMIN_ENABLED=false`, every other administration setting
+is ignored and `/admin/*` returns `404`. The Cloudflare Worker neither imports
+nor serves this surface.
+
+When enabled with complete valid configuration, Operator identities, opaque
+sessions, one-use OIDC attempts, and audit primitives use a separate
+`/data/admin.sqlite` database. An invalid configuration or an administration
+database, migration, authentication, or asset failure returns a generic `503`
+only below `/admin/*`; Matrix requests and public `/health` continue to use the
+independent delivery path and `gateway.sqlite` database. The public origin must
+be exact HTTPS, except for loopback HTTP during development. The complete
+setting contract is in the [configuration reference](/reference/configuration).
+Container assembly and provider-specific onboarding are intentionally outside
+this foundation section.
+
+The runtime rejects symlink, hardlink, and SQLite `-wal` or `-shm` aliases of
+the delivery database before applying administration migrations. Online
+administration writes wait no more than 50 ms for a lock, and periodic cleanup
+removes at most 100 expired rows from each administration table per tick. A
+blocked or failed cleanup makes only the administration surface unavailable.
+
+The Bun entry point also exposes `session-purge`, which revokes every Operator
+session and refuses to run unless administration is enabled with valid
+configuration. It does not provide a local or break-glass login.
+
 ## Observed footprint
 
 A development measurement on x86-64 Linux with Bun 1.4.0 used 35.2 MiB RSS after startup and 48.7 MiB RSS after a concurrent burst of 50 SQLite-coordinated notification requests. The resulting database was 20 KiB with the schema and 50 terminal delivery records. The automated Bun suite requires the same 50-request burst to finish in under two seconds; the observed local run completed in under 100 ms.
@@ -140,6 +169,6 @@ Migrations are expand-first and preserve a one-version rollback path. An additiv
 - `502` means OAuth or FCM was unavailable or timed out.
 - `503` means configuration, storage, schema, or concurrent delivery was unavailable.
 - A full disk, SQLite busy timeout, I/O error, or runtime storage failure fails requests explicitly; the gateway never bypasses delivery coordination or budgets.
-- Rotate configuration and credentials by recreating the container. There is no live reload or HTTP administration endpoint.
+- Rotate delivery configuration and credentials by recreating the container. There is no live reload; the optional administration surface reports safe configuration but does not mutate it.
 - On shutdown, the gateway rejects new work and drains in-flight requests for up to 30 seconds. At the ceiling, or after a second termination signal, it closes SQLite and explicitly terminates; Compose uses the same 30-second grace period.
 - Do not use an automatic container updater. Back up, upgrade, and verify explicitly.

@@ -13,8 +13,6 @@ import {
   viewChild,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCheck } from '@ng-icons/lucide';
 import { BrnCheckbox } from '@spartan-ng/brain/checkbox';
 import { BrnFieldControlDescribedBy } from '@spartan-ng/brain/field';
 import { ChangeFn, TouchFn } from '@spartan-ng/brain/forms';
@@ -29,9 +27,8 @@ const HLM_CHECKBOX_VALUE_ACCESSOR = {
 
 @Component({
   selector: 'hlm-checkbox',
-  imports: [BrnCheckbox, NgIcon],
+  imports: [BrnCheckbox],
   providers: [HLM_CHECKBOX_VALUE_ACCESSOR],
-  viewProviders: [provideIcons({ lucideCheck })],
   hostDirectives: [BrnFieldControlDescribedBy],
   host: {
     class: 'contents peer',
@@ -58,7 +55,18 @@ const HLM_CHECKBOX_VALUE_ACCESSOR = {
         <span
           class="spartan-checkbox-indicator flex items-center justify-center text-current transition-none"
         >
-          <ng-icon name="lucideCheck" aria-hidden="true" />
+          <svg
+            class="size-3.5"
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="m20 6-11 11-5-5" />
+          </svg>
         </span>
       }
     </brn-checkbox>

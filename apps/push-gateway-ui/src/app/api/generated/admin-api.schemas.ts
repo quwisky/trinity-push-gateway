@@ -165,9 +165,16 @@ export interface Overview {
    */
   version: string;
   uptimeSeconds: SafeCount;
-  /** Whether the delivery-critical gateway is ready. */
+  /**
+   * Delivery readiness last observed by the independent runtime during
+   * public health or delivery storage work. The overview does not probe
+   * gateway.sqlite.
+   */
   gatewayReady: boolean;
-  /** Whether the isolated administration subsystem is ready. */
+  /**
+   * Whether the current authenticated request reached the isolated
+   * administration subsystem successfully.
+   */
   administrationReady: boolean;
   requestsLast24Hours: RequestOutcomeCounts;
   fcmAttemptsLast24Hours: FcmPlatformTotals;

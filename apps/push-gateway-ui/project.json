@@ -54,7 +54,15 @@
             }
           ],
           "extractLicenses": true,
-          "optimization": true,
+          "optimization": {
+            "scripts": true,
+            "styles": {
+              "inlineCritical": false,
+              "minify": true,
+              "removeSpecialComments": true
+            },
+            "fonts": false
+          },
           "outputHashing": "all",
           "sourceMap": false,
           "statsJson": true
@@ -104,7 +112,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsc --noEmit --project tsconfig.app.json && tsc --noEmit --project tsconfig.spec.json",
+        "command": "tsc --noEmit --project tsconfig.app.json && tsc --noEmit --project tsconfig.spec.json && tsc --noEmit --project tsconfig.e2e.json",
         "cwd": "apps/push-gateway-ui"
       }
     },
@@ -147,6 +155,20 @@
         "cwd": "apps/push-gateway-ui"
       }
     },
+    "browser-security": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build"],
+      "outputs": ["{workspaceRoot}/test-output/test-results/push-gateway-ui"],
+      "options": {
+        "commands": [
+          "pnpm exec prettier --check apps/push-gateway-ui/playwright.config.ts apps/push-gateway-ui/e2e/admin-security.spec.ts",
+          "pnpm exec tsc --noEmit --project apps/push-gateway-ui/tsconfig.e2e.json",
+          "pnpm exec playwright test --config apps/push-gateway-ui/playwright.config.ts"
+        ],
+        "parallel": false
+      }
+    },
     "check": {
       "executor": "nx:noop",
       "cache": false,
@@ -156,7 +178,8 @@
         "test-coverage",
         "check-api",
         "check-source",
-        "check-bundle"
+        "check-bundle",
+        "browser-security"
       ]
     },
     "serve-static": {

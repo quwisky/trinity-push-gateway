@@ -11,8 +11,6 @@ import {
   output,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideChevronDown } from '@ng-icons/lucide';
 import { BrnFieldControl, provideBrnLabelable } from '@spartan-ng/brain/field';
 import { ChangeFn, TouchFn } from '@spartan-ng/brain/forms';
 import { ClassValue } from 'clsx';
@@ -26,10 +24,8 @@ const HLM_NATIVE_SELECT_VALUE_ACCESSOR = {
 
 @Component({
   selector: 'hlm-native-select',
-  imports: [NgIcon],
   providers: [
     HLM_NATIVE_SELECT_VALUE_ACCESSOR,
-    provideIcons({ lucideChevronDown }),
     provideBrnLabelable(HlmNativeSelect),
   ],
   hostDirectives: [BrnFieldControl],
@@ -52,12 +48,19 @@ const HLM_NATIVE_SELECT_VALUE_ACCESSOR = {
     >
       <ng-content />
     </select>
-    <ng-icon
-      name="lucideChevronDown"
-      class="spartan-native-select-icon pointer-events-none absolute select-none"
+    <svg
+      class="spartan-native-select-icon pointer-events-none absolute size-4 select-none"
       aria-hidden="true"
       data-slot="native-select-icon"
-    />
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

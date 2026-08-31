@@ -14,9 +14,10 @@ import type { Overview } from '../admin-api.schemas';
 export class OverviewService {
   private readonly http = inject(HttpClient);
   /**
-   * Returns current readiness, storage use, fixed 24-hour aggregates, and
-   * the most recent bounded-operation summaries. The response contains no
-   * per-request or per-Client Installation data.
+   * Returns last-observed delivery readiness, current administration
+   * request readiness, storage use, fixed 24-hour aggregates, and the most
+   * recent bounded-operation summaries. The overview never probes delivery
+   * storage and contains no per-request or per-Client Installation data.
    * @summary Get the operational overview
    */
 

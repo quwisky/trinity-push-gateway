@@ -35,6 +35,9 @@ const devDependencies = packageJson.devDependencies ?? {};
 if (dependencies['openid-client'] !== '6.8.7') {
   throw new Error('The selected OIDC dependency must be openid-client 6.8.7.');
 }
+if (dependencies.hono !== '4.13.5') {
+  throw new Error('The Bun administration router must use Hono 4.13.5.');
+}
 if (devDependencies['oidc-provider'] !== '9.11.3') {
   throw new Error('The OIDC contract provider must be pinned to 9.11.3.');
 }
@@ -78,6 +81,17 @@ const bunInputs = Object.keys(bunMetadata.inputs ?? {}).sort();
 if (!bunInputs.some((input) => input.endsWith('src/bun/main.ts'))) {
   throw new Error('The production Bun metafile is missing its entry point.');
 }
+for (const required of [
+  'hono@4.13.5',
+  'src/bun/admin/app.ts',
+  'src/bun/admin/assets.ts',
+  'src/bun/admin/runtime.ts',
+  'src/bun/admin/store.ts',
+]) {
+  if (!bunInputs.some((input) => input.includes(required))) {
+    throw new Error(`Production Bun bundle is missing ${required}.`);
+  }
+}
 const forbiddenBunInputs = bunInputs.filter((input) =>
   /better-auth|oidc-provider|(?:^|[/\\])test(?:[/\\]|$)|test-oidc-provider/u.test(
     input,
@@ -95,7 +109,7 @@ const [gzipBytes, bunGzipBytes] = await Promise.all([
 ]);
 console.info(
   `Selected OIDC module: ${size} raw bytes; ${gzipBytes.byteLength} gzip bytes; ` +
-    `${inputs.length} source inputs. Unwired Bun gateway baseline: ` +
+    `${inputs.length} source inputs. Wired Bun gateway: ` +
     `${bunStat.size} raw bytes; ${bunGzipBytes.byteLength} gzip bytes; ` +
     `${bunInputs.length} production inputs.`,
 );
