@@ -101,9 +101,13 @@ async function login(browser, identity, allowed) {
       await page.screenshot({ fullPage: true, path: screenshotPath });
     }
 
-    const cookies = await context.cookies(`${gatewayOrigin}/admin/`);
-    const xsrf = cookies.find(({ name }) => name === 'TRINITY_ADMIN_XSRF');
-    requireCondition(xsrf !== undefined, 'XSRF cookie is missing.');
+    const xsrfToken = await page.evaluate(() =>
+      document.cookie
+        .split('; ')
+        .find((cookie) => cookie.startsWith('TRINITY_ADMIN_XSRF='))
+        ?.slice('TRINITY_ADMIN_XSRF='.length),
+    );
+    requireCondition(xsrfToken !== undefined, 'XSRF cookie is missing.');
     await page.evaluate(
       async ({ origin, token }) => {
         await fetch(`${origin}/admin/auth/logout`, {
@@ -114,7 +118,7 @@ async function login(browser, identity, allowed) {
           redirect: 'manual',
         });
       },
-      { origin: gatewayOrigin, token: xsrf.value },
+      { origin: gatewayOrigin, token: xsrfToken },
     );
     const revokedStatus = await page.evaluate(
       async (origin) => (await fetch(`${origin}/admin/api/v1/session`)).status,
