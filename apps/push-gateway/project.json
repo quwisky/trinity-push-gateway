@@ -23,7 +23,13 @@
     "check": {
       "executor": "nx:noop",
       "cache": false,
-      "dependsOn": ["lint", "typecheck", "test-coverage", "check-bundle"]
+      "dependsOn": [
+        "lint",
+        "typecheck",
+        "test-coverage",
+        "check-bundle",
+        "check-openapi"
+      ]
     },
     "check-bun": {
       "executor": "nx:noop",
@@ -34,6 +40,15 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "node scripts/check-bundle.mjs",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "check-openapi": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "{workspaceRoot}/redocly.yaml"],
+      "options": {
+        "command": "redocly lint --config ../../redocly.yaml admin@v1",
         "cwd": "apps/push-gateway"
       }
     },

@@ -1,7 +1,7 @@
 # Architecture decision records
 
 Decision records explain the constraints behind the gateway's deliberately
-narrow runtime, privacy, delivery, release, and repository boundaries.
+narrow runtime, privacy, delivery, operator, release, and repository boundaries.
 
 1. [Narrow single-tenant gateway](./0001-narrow-single-tenant-gateway)
 2. [Public Matrix endpoint](./0002-public-matrix-endpoint)
@@ -24,3 +24,6 @@ narrow runtime, privacy, delivery, release, and repository boundaries.
 19. [Keep the self-hosted operational boundary narrow](./0019-keep-the-self-hosted-operational-boundary-narrow)
 20. [Organize future applications with Nx](./0020-organize-future-applications-with-nx)
 21. [Publish versioned user documentation](./0021-publish-versioned-user-documentation)
+22. [Use Zod at untrusted boundaries](./0022-use-zod-at-untrusted-boundaries)
+23. [Use Drizzle within runtime-specific storage adapters](./0023-use-drizzle-within-runtime-specific-storage-adapters)
+24. [Add an isolated self-hosted Push Gateway UI](./0024-add-an-isolated-self-hosted-push-gateway-ui)

@@ -13,8 +13,24 @@ The person or organization that controls a Push Gateway deployment, its app iden
 _Avoid_: Host, administrator, Trinity
 
 **Push Gateway UI**:
-The reserved future administration application through which a Gateway Operator may manage a self-hosted Push Gateway. Its API, authentication, and implementation are not yet defined.
+The optional interface through which Gateway Operators observe and operate a self-hosted Push Gateway.
 _Avoid_: Trinity client, admin console
+
+**Operator Identity**:
+The identity by which a Gateway Operator is recognized when using a Push Gateway UI.
+_Avoid_: Administrator, UI user
+
+**Operator Session**:
+A bounded period during which a Push Gateway UI recognizes an Operator Identity as able to act.
+_Avoid_: Login, UI session
+
+**Operator Action**:
+An operation requested by an Operator Identity through a Push Gateway UI.
+_Avoid_: Administrator action, UI command
+
+**Operator Audit Entry**:
+The historical record of an Operator Action or security-relevant gateway occurrence, its outcome, and the Operator Identity responsible when one exists.
+_Avoid_: Activity log, audit event
 
 **Notification Request**:
 A Matrix homeserver's request for one event notification or an update to unread counts, addressed to one or more client installations.
