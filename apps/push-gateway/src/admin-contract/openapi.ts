@@ -9,6 +9,48 @@ export type JsonObject = {
 export type JsonValue =
   boolean | JsonObject | JsonValue[] | null | number | string;
 
+function isJsonObject(value: JsonValue): value is JsonObject {
+  return value !== null && !Array.isArray(value) && typeof value === 'object';
+}
+
+function collapseNullableType(document: JsonObject): JsonObject {
+  const alternatives = document.anyOf;
+  if (!Array.isArray(alternatives) || alternatives.length !== 2) {
+    return document;
+  }
+  const nullAlternative = alternatives.find(
+    (alternative): alternative is JsonObject =>
+      isJsonObject(alternative) &&
+      alternative.type === 'null' &&
+      Object.keys(alternative).length === 1,
+  );
+  const valueAlternative = alternatives.find(
+    (alternative): alternative is JsonObject =>
+      isJsonObject(alternative) &&
+      typeof alternative.type === 'string' &&
+      alternative.type !== 'null',
+  );
+  if (
+    nullAlternative === undefined ||
+    valueAlternative === undefined ||
+    typeof valueAlternative.type !== 'string'
+  ) {
+    return document;
+  }
+
+  const outer = Object.fromEntries(
+    Object.entries(document).filter(([key]) => key !== 'anyOf'),
+  );
+  const valueConstraints = Object.fromEntries(
+    Object.entries(valueAlternative).filter(([key]) => key !== 'type'),
+  );
+  return {
+    type: [valueAlternative.type, 'null'],
+    ...valueConstraints,
+    ...outer,
+  };
+}
+
 function componentReferences(
   value: JsonValue,
   supportedComponents: ReadonlySet<string>,
@@ -22,19 +64,21 @@ function componentReferences(
     return value;
   }
 
-  return Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => {
-      if (key !== '$ref' || typeof entry !== 'string') {
-        return [key, componentReferences(entry, supportedComponents)];
-      }
-      const definition = /^#\/\$defs\/(.+)$/u.exec(entry)?.[1];
-      if (definition === undefined || !supportedComponents.has(definition)) {
-        throw new Error(
-          `Unsupported administration schema reference: ${entry}`,
-        );
-      }
-      return [key, `#/components/schemas/${definition}`];
-    }),
+  return collapseNullableType(
+    Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => {
+        if (key !== '$ref' || typeof entry !== 'string') {
+          return [key, componentReferences(entry, supportedComponents)];
+        }
+        const definition = /^#\/\$defs\/(.+)$/u.exec(entry)?.[1];
+        if (definition === undefined || !supportedComponents.has(definition)) {
+          throw new Error(
+            `Unsupported administration schema reference: ${entry}`,
+          );
+        }
+        return [key, `#/components/schemas/${definition}`];
+      }),
+    ),
   );
 }
 

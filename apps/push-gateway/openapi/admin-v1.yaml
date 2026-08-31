@@ -392,31 +392,29 @@ components:
         Opaque host-only, Secure, HttpOnly, SameSite=Strict Operator Session
         cookie. Its value is never returned in an API document.
   parameters:
+    # BEGIN GENERATED METRICS PARAMETERS
     MetricsFrom:
-      name: from
-      in: query
+      name: 'from'
+      in: 'query'
       required: false
-      description: |-
-        Inclusive UTC start of the metrics range. `from` and `to` must either
-        both be omitted or both be supplied. The maximum range is 30 days.
+      description: 'Inclusive UTC start of the metrics range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 30 days.'
       schema:
         $ref: '#/components/schemas/UtcTimestamp'
     MetricsTo:
-      name: to
-      in: query
+      name: 'to'
+      in: 'query'
       required: false
-      description: |-
-        Exclusive UTC end of the metrics range. `from` and `to` must either both
-        be omitted or both be supplied. The maximum range is 30 days.
+      description: 'Exclusive UTC end of the metrics range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 30 days.'
       schema:
         $ref: '#/components/schemas/UtcTimestamp'
     MetricsInterval:
-      name: interval
-      in: query
+      name: 'interval'
+      in: 'query'
       required: false
-      description: UTC aggregation interval. Defaults to `hour`.
+      description: 'UTC aggregation interval. Defaults to `hour`.'
       schema:
         $ref: '#/components/schemas/MetricsInterval'
+    # END GENERATED METRICS PARAMETERS
     AuditCursor:
       name: cursor
       in: query
@@ -585,11 +583,6 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
-    SafeCount:
-      type: integer
-      minimum: 0
-      maximum: 9007199254740991
-      description: Non-negative JSON safe integer.
     # BEGIN GENERATED OPERATOR SESSION CONTRACT
     UtcTimestamp:
       type: 'string'
@@ -671,15 +664,14 @@ components:
         - 'sessions'
       additionalProperties: false
     # END GENERATED OPERATOR SESSION CONTRACT
+    # BEGIN GENERATED OVERVIEW METRICS CONTRACT
+    SafeCount:
+      type: 'integer'
+      minimum: 0
+      maximum: 9007199254740991
+      description: 'Non-negative JSON safe integer.'
     RequestOutcomeCounts:
-      type: object
-      additionalProperties: false
-      required:
-        - processed
-        - invalid
-        - rateLimited
-        - safetyBudgetExhausted
-        - storageUnavailable
+      type: 'object'
       properties:
         processed:
           $ref: '#/components/schemas/SafeCount'
@@ -691,17 +683,16 @@ components:
           $ref: '#/components/schemas/SafeCount'
         storageUnavailable:
           $ref: '#/components/schemas/SafeCount'
-      description: |-
-        Mutually exclusive Notification Request outcomes. Counts contain no
-        request, Matrix, Push Key, Account Route, or Client Installation labels.
-    FcmOutcomeCounts:
-      type: object
-      additionalProperties: false
       required:
-        - attempted
-        - accepted
-        - permanentlyRejected
-        - transientFailure
+        - 'processed'
+        - 'invalid'
+        - 'rateLimited'
+        - 'safetyBudgetExhausted'
+        - 'storageUnavailable'
+      additionalProperties: false
+      description: 'Mutually exclusive Notification Request outcomes. Counts contain no request, Matrix, Push Key, Account Route, or Client Installation labels.'
+    FcmOutcomeCounts:
+      type: 'object'
       properties:
         attempted:
           $ref: '#/components/schemas/SafeCount'
@@ -711,35 +702,45 @@ components:
           $ref: '#/components/schemas/SafeCount'
         transientFailure:
           $ref: '#/components/schemas/SafeCount'
-      description: |-
-        Outcomes for actual FCM network calls only. `attempted` equals the sum
-        of the three mutually exclusive outcomes. `accepted` means accepted by
-        FCM, not delivered to a Client Installation.
-    FcmPlatformTotals:
-      type: object
-      additionalProperties: false
       required:
-        - android
-        - ios
+        - 'attempted'
+        - 'accepted'
+        - 'permanentlyRejected'
+        - 'transientFailure'
+      additionalProperties: false
+      description: 'Outcomes for actual FCM network calls only. `attempted` equals the bounded sum of the three mutually exclusive outcomes. `accepted` means accepted by FCM, not delivered to a Client Installation.'
+    FcmPlatformTotals:
+      type: 'object'
       properties:
         android:
           $ref: '#/components/schemas/FcmOutcomeCounts'
         ios:
           $ref: '#/components/schemas/FcmOutcomeCounts'
-    OperationSummaryOutcome:
-      type: string
-      enum:
-        - succeeded
-        - failed
-        - outcome_unknown
-    OperationSummary:
-      type: object
-      additionalProperties: false
       required:
-        - startedAt
-        - completedAt
-        - outcome
-        - cooldownEndsAt
+        - 'android'
+        - 'ios'
+      additionalProperties: false
+    OperationSummaryOutcome:
+      type: 'string'
+      enum:
+        - 'succeeded'
+        - 'failed'
+        - 'outcome_unknown'
+    OperationSummaryReason:
+      type: 'string'
+      enum:
+        - 'access_denied'
+        - 'audit_finalization_failed'
+        - 'backup_failed'
+        - 'backup_limit_exceeded'
+        - 'cleanup_failed'
+        - 'firebase_validation_failed'
+        - 'operation_timeout'
+        - 'request_rejected'
+        - 'unavailable'
+      description: 'Finite privacy-safe reason for an administration operation summary.'
+    OperationSummary:
+      type: 'object'
       properties:
         startedAt:
           $ref: '#/components/schemas/UtcTimestamp'
@@ -750,9 +751,188 @@ components:
         cooldownEndsAt:
           $ref: '#/components/schemas/UtcTimestamp'
         reason:
-          type: string
-          pattern: '^[a-z][a-z0-9_]{0,63}$'
-          description: Optional coarse safe reason code; never a raw external or process error.
+          $ref: '#/components/schemas/OperationSummaryReason'
+      required:
+        - 'startedAt'
+        - 'completedAt'
+        - 'outcome'
+        - 'cooldownEndsAt'
+      additionalProperties: false
+    DatabaseByteUsage:
+      type: 'object'
+      properties:
+        gateway:
+          $ref: '#/components/schemas/SafeCount'
+        administration:
+          $ref: '#/components/schemas/SafeCount'
+      required:
+        - 'gateway'
+        - 'administration'
+      additionalProperties: false
+      description: 'Current database file usage in bytes; no paths or filesystem details.'
+    Overview:
+      type: 'object'
+      properties:
+        observedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        version:
+          type: 'string'
+          minLength: 1
+          maxLength: 128
+          description: 'Running Push Gateway release version.'
+        uptimeSeconds:
+          $ref: '#/components/schemas/SafeCount'
+        gatewayReady:
+          type: 'boolean'
+          description: 'Delivery readiness last observed by the independent runtime during public health or delivery storage work. The overview does not probe gateway.sqlite.'
+        administrationReady:
+          type: 'boolean'
+          description: 'Whether the current authenticated request reached the isolated administration subsystem successfully.'
+        requestsLast24Hours:
+          $ref: '#/components/schemas/RequestOutcomeCounts'
+        fcmAttemptsLast24Hours:
+          $ref: '#/components/schemas/FcmPlatformTotals'
+        lastCleanup:
+          $ref: '#/components/schemas/OperationSummary'
+        lastBackup:
+          $ref: '#/components/schemas/OperationSummary'
+        lastFirebaseValidation:
+          $ref: '#/components/schemas/OperationSummary'
+        databaseBytes:
+          $ref: '#/components/schemas/DatabaseByteUsage'
+      required:
+        - 'observedAt'
+        - 'version'
+        - 'uptimeSeconds'
+        - 'gatewayReady'
+        - 'administrationReady'
+        - 'requestsLast24Hours'
+        - 'fcmAttemptsLast24Hours'
+        - 'databaseBytes'
+      additionalProperties: false
+    MetricsInterval:
+      type: 'string'
+      enum:
+        - 'hour'
+        - 'day'
+      default: 'hour'
+    RequestMetricBucket:
+      type: 'object'
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        outcomes:
+          $ref: '#/components/schemas/RequestOutcomeCounts'
+      required:
+        - 'from'
+        - 'to'
+        - 'outcomes'
+      additionalProperties: false
+    FcmPlatform:
+      type: 'string'
+      enum:
+        - 'android'
+        - 'ios'
+    FcmLatencyHistogram:
+      type: 'object'
+      properties:
+        under_100_ms:
+          $ref: '#/components/schemas/SafeCount'
+        100_to_249_ms:
+          $ref: '#/components/schemas/SafeCount'
+        250_to_499_ms:
+          $ref: '#/components/schemas/SafeCount'
+        500_to_999_ms:
+          $ref: '#/components/schemas/SafeCount'
+        1000_to_2499_ms:
+          $ref: '#/components/schemas/SafeCount'
+        2500_to_4999_ms:
+          $ref: '#/components/schemas/SafeCount'
+        5000_to_9999_ms:
+          $ref: '#/components/schemas/SafeCount'
+        10000_ms_or_more:
+          $ref: '#/components/schemas/SafeCount'
+      required:
+        - 'under_100_ms'
+        - '100_to_249_ms'
+        - '250_to_499_ms'
+        - '500_to_999_ms'
+        - '1000_to_2499_ms'
+        - '2500_to_4999_ms'
+        - '5000_to_9999_ms'
+        - '10000_ms_or_more'
+      additionalProperties: false
+      description: 'Fixed non-cumulative latency buckets for actual FCM calls.'
+    FcmLatencyMetrics:
+      type: 'object'
+      properties:
+        sampleCount:
+          $ref: '#/components/schemas/SafeCount'
+        histogram:
+          $ref: '#/components/schemas/FcmLatencyHistogram'
+        approxP95Ms:
+          type:
+            - 'integer'
+            - 'null'
+          minimum: 0
+          maximum: 10000
+          description: 'Approximate p95 using the upper bound of the first histogram bucket reaching 95 percent. `10000` represents the open-ended final bucket; `null` means there were no samples.'
+      required:
+        - 'sampleCount'
+        - 'histogram'
+        - 'approxP95Ms'
+      additionalProperties: false
+      description: 'Approximate latency derived only from fixed histogram buckets. No raw samples, per-request timings, arbitrary labels, or sums are returned.'
+    FcmMetricBucket:
+      type: 'object'
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        platform:
+          $ref: '#/components/schemas/FcmPlatform'
+        outcomes:
+          $ref: '#/components/schemas/FcmOutcomeCounts'
+        latency:
+          $ref: '#/components/schemas/FcmLatencyMetrics'
+      required:
+        - 'from'
+        - 'to'
+        - 'platform'
+        - 'outcomes'
+        - 'latency'
+      additionalProperties: false
+    Metrics:
+      type: 'object'
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        interval:
+          $ref: '#/components/schemas/MetricsInterval'
+        requestBuckets:
+          maxItems: 720
+          type: 'array'
+          items:
+            $ref: '#/components/schemas/RequestMetricBucket'
+        fcmBuckets:
+          maxItems: 1440
+          type: 'array'
+          items:
+            $ref: '#/components/schemas/FcmMetricBucket'
+      required:
+        - 'from'
+        - 'to'
+        - 'interval'
+        - 'requestBuckets'
+        - 'fcmBuckets'
+      additionalProperties: false
+      description: 'Aggregate UTC buckets covering the effective `[from,to)` range. Empty intervals may be omitted; all labels and outcomes are fixed by this schema.'
+    # END GENERATED OVERVIEW METRICS CONTRACT
     OperationResult:
       type: object
       additionalProperties: false
@@ -778,192 +958,6 @@ components:
           type: string
           pattern: '^[a-z][a-z0-9_]{0,63}$'
           description: Optional coarse safe reason code; never a raw external or process error.
-    DatabaseByteUsage:
-      type: object
-      additionalProperties: false
-      required:
-        - gateway
-        - administration
-      properties:
-        gateway:
-          $ref: '#/components/schemas/SafeCount'
-        administration:
-          $ref: '#/components/schemas/SafeCount'
-      description: Current database file usage in bytes; no paths or filesystem details.
-    Overview:
-      type: object
-      additionalProperties: false
-      required:
-        - observedAt
-        - version
-        - uptimeSeconds
-        - gatewayReady
-        - administrationReady
-        - requestsLast24Hours
-        - fcmAttemptsLast24Hours
-        - databaseBytes
-      properties:
-        observedAt:
-          $ref: '#/components/schemas/UtcTimestamp'
-        version:
-          type: string
-          minLength: 1
-          maxLength: 128
-          description: Running Push Gateway release version.
-        uptimeSeconds:
-          $ref: '#/components/schemas/SafeCount'
-        gatewayReady:
-          type: boolean
-          description: |-
-            Delivery readiness last observed by the independent runtime during
-            public health or delivery storage work. The overview does not probe
-            gateway.sqlite.
-        administrationReady:
-          type: boolean
-          description: |-
-            Whether the current authenticated request reached the isolated
-            administration subsystem successfully.
-        requestsLast24Hours:
-          $ref: '#/components/schemas/RequestOutcomeCounts'
-        fcmAttemptsLast24Hours:
-          $ref: '#/components/schemas/FcmPlatformTotals'
-        lastCleanup:
-          $ref: '#/components/schemas/OperationSummary'
-        lastBackup:
-          $ref: '#/components/schemas/OperationSummary'
-        lastFirebaseValidation:
-          $ref: '#/components/schemas/OperationSummary'
-        databaseBytes:
-          $ref: '#/components/schemas/DatabaseByteUsage'
-    MetricsInterval:
-      type: string
-      enum:
-        - hour
-        - day
-      default: hour
-    Metrics:
-      type: object
-      additionalProperties: false
-      required:
-        - from
-        - to
-        - interval
-        - requestBuckets
-        - fcmBuckets
-      properties:
-        from:
-          $ref: '#/components/schemas/UtcTimestamp'
-        to:
-          $ref: '#/components/schemas/UtcTimestamp'
-        interval:
-          $ref: '#/components/schemas/MetricsInterval'
-        requestBuckets:
-          type: array
-          maxItems: 720
-          items:
-            $ref: '#/components/schemas/RequestMetricBucket'
-        fcmBuckets:
-          type: array
-          maxItems: 1440
-          items:
-            $ref: '#/components/schemas/FcmMetricBucket'
-      description: |-
-        Aggregate UTC buckets covering the effective `[from,to)` range. Empty
-        intervals may be omitted; all labels and outcomes are fixed by this schema.
-    RequestMetricBucket:
-      type: object
-      additionalProperties: false
-      required:
-        - from
-        - to
-        - outcomes
-      properties:
-        from:
-          $ref: '#/components/schemas/UtcTimestamp'
-        to:
-          $ref: '#/components/schemas/UtcTimestamp'
-        outcomes:
-          $ref: '#/components/schemas/RequestOutcomeCounts'
-    FcmPlatform:
-      type: string
-      enum:
-        - android
-        - ios
-    FcmMetricBucket:
-      type: object
-      additionalProperties: false
-      required:
-        - from
-        - to
-        - platform
-        - outcomes
-        - latency
-      properties:
-        from:
-          $ref: '#/components/schemas/UtcTimestamp'
-        to:
-          $ref: '#/components/schemas/UtcTimestamp'
-        platform:
-          $ref: '#/components/schemas/FcmPlatform'
-        outcomes:
-          $ref: '#/components/schemas/FcmOutcomeCounts'
-        latency:
-          $ref: '#/components/schemas/FcmLatencyMetrics'
-    FcmLatencyMetrics:
-      type: object
-      additionalProperties: false
-      required:
-        - sampleCount
-        - histogram
-        - approxP95Ms
-      properties:
-        sampleCount:
-          $ref: '#/components/schemas/SafeCount'
-        histogram:
-          $ref: '#/components/schemas/FcmLatencyHistogram'
-        approxP95Ms:
-          type:
-            - integer
-            - 'null'
-          minimum: 0
-          maximum: 10000
-          description: |-
-            Approximate p95 using the upper bound of the first histogram bucket
-            reaching 95 percent. `10000` represents the open-ended final bucket;
-            `null` means there were no samples.
-      description: |-
-        Approximate latency derived only from fixed histogram buckets. No raw
-        samples, per-request timings, arbitrary labels, or sums are returned.
-    FcmLatencyHistogram:
-      type: object
-      additionalProperties: false
-      required:
-        - under_100_ms
-        - 100_to_249_ms
-        - 250_to_499_ms
-        - 500_to_999_ms
-        - 1000_to_2499_ms
-        - 2500_to_4999_ms
-        - 5000_to_9999_ms
-        - 10000_ms_or_more
-      properties:
-        under_100_ms:
-          $ref: '#/components/schemas/SafeCount'
-        100_to_249_ms:
-          $ref: '#/components/schemas/SafeCount'
-        250_to_499_ms:
-          $ref: '#/components/schemas/SafeCount'
-        500_to_999_ms:
-          $ref: '#/components/schemas/SafeCount'
-        1000_to_2499_ms:
-          $ref: '#/components/schemas/SafeCount'
-        2500_to_4999_ms:
-          $ref: '#/components/schemas/SafeCount'
-        5000_to_9999_ms:
-          $ref: '#/components/schemas/SafeCount'
-        10000_ms_or_more:
-          $ref: '#/components/schemas/SafeCount'
-      description: Fixed non-cumulative latency buckets for actual FCM calls.
     # BEGIN GENERATED CONFIGURATION CONTRACT
     PositiveSafeInteger:
       type: 'integer'
