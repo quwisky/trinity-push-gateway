@@ -86,5 +86,23 @@ describe('Operator Action administration contract', () => {
       expect(JSON.stringify(problem)).not.toContain('sentinel');
       expect(JSON.stringify(problem)).not.toContain('/data/');
     }
+    expect(
+      ADMIN_PROBLEM_SCHEMA.safeParse({
+        ...adminProblem('invalid_request'),
+        status: 401,
+      }).success,
+    ).toBe(false);
+    expect(
+      ADMIN_PROBLEM_SCHEMA.safeParse({
+        ...adminProblem('invalid_request'),
+        title: 'Authentication required',
+      }).success,
+    ).toBe(false);
+    expect(
+      ADMIN_PROBLEM_SCHEMA.safeParse({
+        ...adminProblem('invalid_request'),
+        type: '/admin/problems/unauthenticated',
+      }).success,
+    ).toBe(false);
   });
 });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import {
+  adminProblemOpenApiResponses,
   operatorActionsOpenApiComponents,
   operatorAuditOpenApiParameters,
 } from '../../../src/admin-contract/operator-actions-openapi';
@@ -21,7 +24,6 @@ describe('Operator Action published contract', () => {
       'BackupIntegrity',
       'Backup',
       'BackupList',
-      'ProblemCode',
       'Problem',
     ]);
     expect(components).toMatchObject({
@@ -64,21 +66,6 @@ describe('Operator Action published contract', () => {
           name: { pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$' },
         },
       },
-      ProblemCode: {
-        enum: [
-          'unauthenticated',
-          'forbidden',
-          'invalid_request',
-          'csrf_failed',
-          'operation_in_progress',
-          'cooldown_active',
-          'operation_timeout',
-          'outcome_unknown',
-          'backup_limit_exceeded',
-          'admin_unavailable',
-          'not_found',
-        ],
-      },
     });
   });
 
@@ -92,5 +79,54 @@ describe('Operator Action published contract', () => {
     });
     expect(JSON.stringify(parameters.AuditFrom)).toContain('90 days');
     expect(JSON.stringify(parameters.AuditTo)).toContain('90 days');
+  });
+
+  it('projects exact problem tuples and documents every invalid action request', () => {
+    const responses = adminProblemOpenApiResponses();
+    expect(responses.InvalidRequest).toMatchObject({
+      content: {
+        'application/problem+json': {
+          schema: {
+            allOf: [
+              { $ref: '#/components/schemas/Problem' },
+              {
+                properties: {
+                  code: { const: 'invalid_request' },
+                  status: { const: 400 },
+                  title: { const: 'Invalid request' },
+                  type: { const: '/admin/problems/invalid_request' },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(
+      JSON.stringify(responses.MutationForbidden).match(
+        /"code":\{"const":"(?:forbidden|csrf_failed)"\}/gu,
+      ),
+    ).toHaveLength(2);
+
+    const openApi = readFileSync(
+      path.join(import.meta.dir, '../../../openapi/admin-v1.yaml'),
+      'utf8',
+    );
+    for (const [route, nextRoute] of [
+      ['/backups:', '/operations/cleanup:'],
+      ['/operations/cleanup:', '/operations/firebase-validation:'],
+      ['/operations/firebase-validation:', 'components:'],
+    ] as const) {
+      const operation = openApi.slice(
+        openApi.indexOf(`  ${route}`),
+        openApi.indexOf(`  ${nextRoute}`),
+      );
+      const expectedInvalidResponses = route === '/backups:' ? 2 : 1;
+      expect(
+        operation.match(
+          /'400':\n\s+\$ref: '#\/components\/responses\/InvalidRequest'/gu,
+        ),
+      ).toHaveLength(expectedInvalidResponses);
+    }
   });
 });

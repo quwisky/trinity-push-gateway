@@ -11,9 +11,11 @@ import {
 } from 'drizzle-orm/sqlite-core';
 
 import {
+  AUDIT_ENTRY_REASONS,
   AUDIT_ENTRY_KINDS,
   AUDIT_ENTRY_OUTCOMES,
   OPERATOR_ACTION_KINDS,
+  OPERATION_SUMMARY_REASONS,
 } from '../../admin-contract/operator-actions';
 
 export const DELIVERY_PLATFORMS = ['android', 'ios'] as const;
@@ -130,7 +132,7 @@ export const operatorAuditEntries = sqliteTable(
     subject: text('subject'),
     kind: text('kind', { enum: AUDIT_ENTRY_KINDS }).notNull(),
     outcome: text('outcome', { enum: AUDIT_ENTRY_OUTCOMES }).notNull(),
-    reason: text('reason'),
+    reason: text('reason', { enum: AUDIT_ENTRY_REASONS }),
   },
   (table) => [
     index('operator_audit_entries_occurred_idx').on(table.occurredAt, table.id),
@@ -175,11 +177,7 @@ export const operatorAuditEntries = sqliteTable(
     ),
     check(
       'operator_audit_entries_reason_check',
-      sql`${table.reason} IS NULL OR (
-        length(${table.reason}) BETWEEN 1 AND 64
-        AND substr(${table.reason}, 1, 1) GLOB '[a-z]'
-        AND ${table.reason} NOT GLOB '*[^a-z0-9_]*'
-      )`,
+      sql`${table.reason} IS NULL OR ${table.reason} IN ('access_denied', 'audit_finalization_failed', 'backup_failed', 'backup_limit_exceeded', 'cleanup_failed', 'firebase_validation_failed', 'operation_timeout', 'request_rejected', 'unavailable', 'absolute_expired', 'idle_expired', 'no_active_sessions', 'policy_changed', 'session_cap')`,
     ),
     check(
       'operator_audit_entries_values_check',
@@ -229,7 +227,7 @@ export const operationResults = sqliteTable(
     outcome: text('outcome', {
       enum: ['succeeded', 'failed', 'outcome_unknown'],
     }).notNull(),
-    reason: text('reason'),
+    reason: text('reason', { enum: OPERATION_SUMMARY_REASONS }),
   },
   (table) => [
     foreignKey({
@@ -243,11 +241,7 @@ export const operationResults = sqliteTable(
         AND length(${table.leaseId}) BETWEEN 16 AND 128
         AND ${table.completedAt} >= 0
         AND ${table.outcome} IN ('succeeded', 'failed', 'outcome_unknown')
-        AND (${table.reason} IS NULL OR (
-          length(${table.reason}) BETWEEN 1 AND 64
-          AND substr(${table.reason}, 1, 1) GLOB '[a-z]'
-          AND ${table.reason} NOT GLOB '*[^a-z0-9_]*'
-        ))`,
+        AND (${table.reason} IS NULL OR ${table.reason} IN ('access_denied', 'audit_finalization_failed', 'backup_failed', 'backup_limit_exceeded', 'cleanup_failed', 'firebase_validation_failed', 'operation_timeout', 'request_rejected', 'unavailable'))`,
     ),
   ],
 );

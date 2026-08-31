@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import * as z from 'zod/mini';
 
 import {
+  type AuditEntryReason,
   AUDIT_ENTRY_KIND_SCHEMA,
   AUDIT_ENTRY_OUTCOME_SCHEMA,
   AUDIT_QUERY_POLICY,
@@ -65,7 +66,7 @@ export type OperatorAuditEntryRecord = Readonly<{
   kind: AuditEntryKind;
   occurredAt: number;
   outcome: AuditEntryOutcome;
-  reason: string | null;
+  reason: AuditEntryReason | null;
   subject: string | null;
 }>;
 

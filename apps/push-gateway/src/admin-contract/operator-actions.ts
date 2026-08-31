@@ -122,6 +122,8 @@ export const AUDIT_ENTRY_REASON_SCHEMA = z
     id: 'AuditEntryReason',
   });
 
+export type AuditEntryReason = z.infer<typeof AUDIT_ENTRY_REASON_SCHEMA>;
+
 const OPERATOR_AUDIT_ENTRY_SCHEMA = z
   .strictObject({
     id: OPAQUE_ID_SCHEMA,
@@ -209,7 +211,7 @@ export const BACKUP_LIST_SCHEMA = z
 
 export type BackupList = z.infer<typeof BACKUP_LIST_SCHEMA>;
 
-const ADMIN_PROBLEM_CATALOG = Object.freeze({
+export const ADMIN_PROBLEM_CATALOG = Object.freeze({
   unauthenticated: {
     status: 401,
     title: 'Authentication required',
@@ -235,51 +237,54 @@ export const ADMIN_PROBLEM_CODES = Object.freeze(
   Object.keys(ADMIN_PROBLEM_CATALOG) as AdminProblemCode[],
 );
 
-const PROBLEM_CODE_SCHEMA = z
-  .enum(ADMIN_PROBLEM_CODES)
-  .register(ADMIN_CONTRACT_REGISTRY, { id: 'ProblemCode' });
+const PROBLEM_DETAIL_SCHEMA = z
+  .string()
+  .check(z.minLength(1), z.maxLength(512))
+  .register(ADMIN_CONTRACT_REGISTRY, {
+    description:
+      'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.',
+  });
+
+const PROBLEM_INSTANCE_SCHEMA = z
+  .string()
+  .check(z.maxLength(2048))
+  .register(ADMIN_CONTRACT_REGISTRY, {
+    description:
+      'Optional request-local problem URI containing no private identifier.',
+    format: 'uri-reference',
+  });
+
+// The inferred schema type retains the catalog literals used by the generated contract.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+const problemVariantSchema = <Code extends AdminProblemCode>(code: Code) => {
+  const definition = ADMIN_PROBLEM_CATALOG[code];
+  return z.strictObject({
+    type: z.literal(`/admin/problems/${code}`),
+    title: z.literal(definition.title),
+    status: z.literal(definition.status),
+    code: z.literal(code),
+    detail: z.optional(PROBLEM_DETAIL_SCHEMA),
+    instance: z.optional(PROBLEM_INSTANCE_SCHEMA),
+  });
+};
 
 export const ADMIN_PROBLEM_SCHEMA = z
-  .strictObject({
-    type: z
-      .string()
-      .check(z.maxLength(2048))
-      .register(ADMIN_CONTRACT_REGISTRY, {
-        description: 'Stable problem type URI for the code.',
-        format: 'uri-reference',
-      }),
-    title: z
-      .string()
-      .check(z.minLength(1), z.maxLength(128))
-      .register(ADMIN_CONTRACT_REGISTRY, {
-        description: 'Stable short title without request-specific data.',
-      }),
-    status: z
-      .number()
-      .check(z.int(), z.gte(400), z.lte(599))
-      .register(ADMIN_CONTRACT_REGISTRY, {
-        description: 'HTTP response status repeated in the document.',
-      }),
-    code: PROBLEM_CODE_SCHEMA,
-    detail: z.optional(
-      z
-        .string()
-        .check(z.minLength(1), z.maxLength(512))
-        .register(ADMIN_CONTRACT_REGISTRY, {
-          description:
-            'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.',
-        }),
-    ),
-    instance: z.optional(
-      z.string().check(z.maxLength(2048)).register(ADMIN_CONTRACT_REGISTRY, {
-        description:
-          'Optional request-local problem URI containing no private identifier.',
-        format: 'uri-reference',
-      }),
-    ),
-  })
+  .union([
+    problemVariantSchema('unauthenticated'),
+    problemVariantSchema('forbidden'),
+    problemVariantSchema('invalid_request'),
+    problemVariantSchema('csrf_failed'),
+    problemVariantSchema('operation_in_progress'),
+    problemVariantSchema('cooldown_active'),
+    problemVariantSchema('operation_timeout'),
+    problemVariantSchema('outcome_unknown'),
+    problemVariantSchema('backup_limit_exceeded'),
+    problemVariantSchema('admin_unavailable'),
+    problemVariantSchema('not_found'),
+  ])
   .register(ADMIN_CONTRACT_REGISTRY, {
-    description: 'RFC 9457-style problem details with a stable safe code.',
+    description:
+      'RFC 9457-style problem details constrained to the exact stable code, status, title, and type catalog.',
     id: 'Problem',
   });
 
@@ -287,10 +292,10 @@ export type AdminProblem = z.infer<typeof ADMIN_PROBLEM_SCHEMA>;
 
 export function adminProblem(code: AdminProblemCode): AdminProblem {
   const definition = ADMIN_PROBLEM_CATALOG[code];
-  return {
+  return ADMIN_PROBLEM_SCHEMA.parse({
     code,
     status: definition.status,
     title: definition.title,
     type: `/admin/problems/${code}`,
-  };
+  });
 }

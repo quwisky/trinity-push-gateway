@@ -10,6 +10,7 @@ import {
   AUDIT_QUERY_POLICY,
 } from '../src/admin-contract/operator-actions';
 import {
+  adminProblemOpenApiResponses,
   operatorActionsOpenApiComponents,
   operatorAuditOpenApiParameters,
 } from '../src/admin-contract/operator-actions-openapi';
@@ -36,6 +37,12 @@ type GeneratedContractBlock = Readonly<{
 }>;
 
 const GENERATED_CONTRACT_BLOCKS: readonly GeneratedContractBlock[] = [
+  {
+    content: adminProblemOpenApiResponses(),
+    endMarker: '    # END GENERATED ADMIN PROBLEM RESPONSES',
+    name: 'administration problem responses',
+    startMarker: '    # BEGIN GENERATED ADMIN PROBLEM RESPONSES',
+  },
   {
     content: metricsOpenApiParameters(),
     endMarker: '    # END GENERATED METRICS PARAMETERS',

@@ -258,6 +258,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BackupList'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -289,6 +291,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Backup'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -329,6 +333,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperationResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -368,6 +374,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperationResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -503,81 +511,271 @@ components:
         minimum: 0
         maximum: 86400
   responses:
+    # BEGIN GENERATED ADMIN PROBLEM RESPONSES
     InvalidRequest:
-      description: Request parameters are invalid (`invalid_request`).
+      description: 'Request parameters are invalid (`invalid_request`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/invalid_request'
+                  title:
+                    const: 'Invalid request'
+                  status:
+                    const: 400
+                  code:
+                    const: 'invalid_request'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     Unauthenticated:
-      description: The Operator Session is absent, invalid, revoked, or expired (`unauthenticated`).
+      description: 'The Operator Session is absent, invalid, revoked, or expired (`unauthenticated`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/unauthenticated'
+                  title:
+                    const: 'Authentication required'
+                  status:
+                    const: 401
+                  code:
+                    const: 'unauthenticated'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     Forbidden:
-      description: The authenticated Operator Identity is not permitted (`forbidden`).
+      description: 'The authenticated Operator Identity is not permitted (`forbidden`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/forbidden'
+                  title:
+                    const: 'Forbidden'
+                  status:
+                    const: 403
+                  code:
+                    const: 'forbidden'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     MutationForbidden:
-      description: |-
-        The authenticated Operator Identity is not permitted (`forbidden`), or
-        exact-Origin or XSRF validation failed (`csrf_failed`).
+      description: 'The Operator Identity is forbidden (`forbidden`), or exact-Origin or XSRF validation failed (`csrf_failed`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            oneOf:
+              - allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: 'object'
+                    properties:
+                      type:
+                        const: '/admin/problems/forbidden'
+                      title:
+                        const: 'Forbidden'
+                      status:
+                        const: 403
+                      code:
+                        const: 'forbidden'
+                    required:
+                      - 'type'
+                      - 'title'
+                      - 'status'
+                      - 'code'
+              - allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: 'object'
+                    properties:
+                      type:
+                        const: '/admin/problems/csrf_failed'
+                      title:
+                        const: 'Request validation failed'
+                      status:
+                        const: 403
+                      code:
+                        const: 'csrf_failed'
+                    required:
+                      - 'type'
+                      - 'title'
+                      - 'status'
+                      - 'code'
     NotFound:
-      description: The requested fixed resource does not exist (`not_found`).
+      description: 'The requested fixed resource does not exist (`not_found`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/not_found'
+                  title:
+                    const: 'Not found'
+                  status:
+                    const: 404
+                  code:
+                    const: 'not_found'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     OperationInProgress:
-      description: A mutually exclusive maintenance action is already running (`operation_in_progress`).
+      description: 'A mutually exclusive maintenance action is already running (`operation_in_progress`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/operation_in_progress'
+                  title:
+                    const: 'Operation already in progress'
+                  status:
+                    const: 409
+                  code:
+                    const: 'operation_in_progress'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     CooldownActive:
-      description: The action is still in its fixed cooldown (`cooldown_active`).
+      description: 'The action is still in its fixed cooldown (`cooldown_active`).'
       headers:
         Retry-After:
           $ref: '#/components/headers/RetryAfter'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/cooldown_active'
+                  title:
+                    const: 'Operation cooldown active'
+                  status:
+                    const: 429
+                  code:
+                    const: 'cooldown_active'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     OutcomeUnknown:
-      description: |-
-        The action executed but its final audit state could not be persisted;
-        clients must not retry automatically (`outcome_unknown`).
+      description: 'The action executed but its final audit state could not be persisted; clients must not retry automatically (`outcome_unknown`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/outcome_unknown'
+                  title:
+                    const: 'Operation outcome unknown'
+                  status:
+                    const: 500
+                  code:
+                    const: 'outcome_unknown'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     AdminUnavailable:
-      description: The isolated administration subsystem is unavailable (`admin_unavailable`).
+      description: 'The isolated administration subsystem is unavailable (`admin_unavailable`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/admin_unavailable'
+                  title:
+                    const: 'Administration unavailable'
+                  status:
+                    const: 503
+                  code:
+                    const: 'admin_unavailable'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     OperationTimeout:
-      description: The bounded action exceeded its fixed deadline (`operation_timeout`).
+      description: 'The bounded action exceeded its fixed deadline (`operation_timeout`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/operation_timeout'
+                  title:
+                    const: 'Operation timed out'
+                  status:
+                    const: 504
+                  code:
+                    const: 'operation_timeout'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     BackupLimitExceeded:
-      description: |-
-        The configured backup count or byte limit prevents another backup;
-        operator intervention is required (`backup_limit_exceeded`).
+      description: 'The configured backup count or byte limit prevents another backup; operator intervention is required (`backup_limit_exceeded`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/backup_limit_exceeded'
+                  title:
+                    const: 'Backup limit exceeded'
+                  status:
+                    const: 507
+                  code:
+                    const: 'backup_limit_exceeded'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
+    # END GENERATED ADMIN PROBLEM RESPONSES
   schemas:
     # BEGIN GENERATED OPERATOR SESSION CONTRACT
     UtcTimestamp:
@@ -1356,55 +1554,337 @@ components:
       required:
         - 'backups'
       additionalProperties: false
-    ProblemCode:
-      type: 'string'
-      enum:
-        - 'unauthenticated'
-        - 'forbidden'
-        - 'invalid_request'
-        - 'csrf_failed'
-        - 'operation_in_progress'
-        - 'cooldown_active'
-        - 'operation_timeout'
-        - 'outcome_unknown'
-        - 'backup_limit_exceeded'
-        - 'admin_unavailable'
-        - 'not_found'
     Problem:
-      type: 'object'
-      properties:
-        type:
-          type: 'string'
-          maxLength: 2048
-          description: 'Stable problem type URI for the code.'
-          format: 'uri-reference'
-        title:
-          type: 'string'
-          minLength: 1
-          maxLength: 128
-          description: 'Stable short title without request-specific data.'
-        status:
-          type: 'integer'
-          minimum: 400
-          maximum: 599
-          description: 'HTTP response status repeated in the document.'
-        code:
-          $ref: '#/components/schemas/ProblemCode'
-        detail:
-          type: 'string'
-          minLength: 1
-          maxLength: 512
-          description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
-        instance:
-          type: 'string'
-          maxLength: 2048
-          description: 'Optional request-local problem URI containing no private identifier.'
-          format: 'uri-reference'
-      required:
-        - 'type'
-        - 'title'
-        - 'status'
-        - 'code'
-      additionalProperties: false
-      description: 'RFC 9457-style problem details with a stable safe code.'
+      anyOf:
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/unauthenticated'
+            title:
+              type: 'string'
+              const: 'Authentication required'
+            status:
+              type: 'number'
+              const: 401
+            code:
+              type: 'string'
+              const: 'unauthenticated'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/forbidden'
+            title:
+              type: 'string'
+              const: 'Forbidden'
+            status:
+              type: 'number'
+              const: 403
+            code:
+              type: 'string'
+              const: 'forbidden'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/invalid_request'
+            title:
+              type: 'string'
+              const: 'Invalid request'
+            status:
+              type: 'number'
+              const: 400
+            code:
+              type: 'string'
+              const: 'invalid_request'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/csrf_failed'
+            title:
+              type: 'string'
+              const: 'Request validation failed'
+            status:
+              type: 'number'
+              const: 403
+            code:
+              type: 'string'
+              const: 'csrf_failed'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/operation_in_progress'
+            title:
+              type: 'string'
+              const: 'Operation already in progress'
+            status:
+              type: 'number'
+              const: 409
+            code:
+              type: 'string'
+              const: 'operation_in_progress'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/cooldown_active'
+            title:
+              type: 'string'
+              const: 'Operation cooldown active'
+            status:
+              type: 'number'
+              const: 429
+            code:
+              type: 'string'
+              const: 'cooldown_active'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/operation_timeout'
+            title:
+              type: 'string'
+              const: 'Operation timed out'
+            status:
+              type: 'number'
+              const: 504
+            code:
+              type: 'string'
+              const: 'operation_timeout'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/outcome_unknown'
+            title:
+              type: 'string'
+              const: 'Operation outcome unknown'
+            status:
+              type: 'number'
+              const: 500
+            code:
+              type: 'string'
+              const: 'outcome_unknown'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/backup_limit_exceeded'
+            title:
+              type: 'string'
+              const: 'Backup limit exceeded'
+            status:
+              type: 'number'
+              const: 507
+            code:
+              type: 'string'
+              const: 'backup_limit_exceeded'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/admin_unavailable'
+            title:
+              type: 'string'
+              const: 'Administration unavailable'
+            status:
+              type: 'number'
+              const: 503
+            code:
+              type: 'string'
+              const: 'admin_unavailable'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/not_found'
+            title:
+              type: 'string'
+              const: 'Not found'
+            status:
+              type: 'number'
+              const: 404
+            code:
+              type: 'string'
+              const: 'not_found'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+      description: 'RFC 9457-style problem details constrained to the exact stable code, status, title, and type catalog.'
     # END GENERATED OPERATOR ACTION CONTRACT

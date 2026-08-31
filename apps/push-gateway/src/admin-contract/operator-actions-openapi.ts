@@ -1,7 +1,9 @@
 import * as z from 'zod/mini';
 
 import {
+  ADMIN_PROBLEM_CATALOG,
   ADMIN_PROBLEM_SCHEMA,
+  type AdminProblemCode,
   AUDIT_QUERY_POLICY,
   BACKUP_LIST_SCHEMA,
   OPERATION_RESULT_SCHEMA,
@@ -21,7 +23,6 @@ const COMPONENT_ORDER = [
   'BackupIntegrity',
   'Backup',
   'BackupList',
-  'ProblemCode',
   'Problem',
 ] as const;
 
@@ -40,6 +41,111 @@ export function operatorActionsOpenApiComponents(): Readonly<
     COMPONENT_ORDER,
     ['UtcTimestamp', 'OpaqueId', 'OperatorIdentity', 'PositiveSafeInteger'],
   );
+}
+
+type AdminProblemResponseName =
+  | 'AdminUnavailable'
+  | 'BackupLimitExceeded'
+  | 'CooldownActive'
+  | 'Forbidden'
+  | 'InvalidRequest'
+  | 'MutationForbidden'
+  | 'NotFound'
+  | 'OperationInProgress'
+  | 'OperationTimeout'
+  | 'OutcomeUnknown'
+  | 'Unauthenticated';
+
+function exactProblemSchema(code: AdminProblemCode): JsonValue {
+  const definition = ADMIN_PROBLEM_CATALOG[code];
+  return {
+    allOf: [
+      { $ref: '#/components/schemas/Problem' },
+      {
+        type: 'object',
+        properties: {
+          type: { const: `/admin/problems/${code}` },
+          title: { const: definition.title },
+          status: { const: definition.status },
+          code: { const: code },
+        },
+        required: ['type', 'title', 'status', 'code'],
+      },
+    ],
+  };
+}
+
+function problemResponse(
+  description: string,
+  codes: readonly [AdminProblemCode, ...AdminProblemCode[]],
+  headers?: JsonValue,
+): JsonValue {
+  const firstSchema = exactProblemSchema(codes[0]);
+  const remainingSchemas = codes.slice(1).map(exactProblemSchema);
+  return {
+    description,
+    ...(headers === undefined ? {} : { headers }),
+    content: {
+      'application/problem+json': {
+        schema:
+          remainingSchemas.length === 0
+            ? firstSchema
+            : { oneOf: [firstSchema, ...remainingSchemas] },
+      },
+    },
+  };
+}
+
+export function adminProblemOpenApiResponses(): Readonly<
+  Record<AdminProblemResponseName, JsonValue>
+> {
+  return {
+    InvalidRequest: problemResponse(
+      'Request parameters are invalid (`invalid_request`).',
+      ['invalid_request'],
+    ),
+    Unauthenticated: problemResponse(
+      'The Operator Session is absent, invalid, revoked, or expired (`unauthenticated`).',
+      ['unauthenticated'],
+    ),
+    Forbidden: problemResponse(
+      'The authenticated Operator Identity is not permitted (`forbidden`).',
+      ['forbidden'],
+    ),
+    MutationForbidden: problemResponse(
+      'The Operator Identity is forbidden (`forbidden`), or exact-Origin or XSRF validation failed (`csrf_failed`).',
+      ['forbidden', 'csrf_failed'],
+    ),
+    NotFound: problemResponse(
+      'The requested fixed resource does not exist (`not_found`).',
+      ['not_found'],
+    ),
+    OperationInProgress: problemResponse(
+      'A mutually exclusive maintenance action is already running (`operation_in_progress`).',
+      ['operation_in_progress'],
+    ),
+    CooldownActive: problemResponse(
+      'The action is still in its fixed cooldown (`cooldown_active`).',
+      ['cooldown_active'],
+      { 'Retry-After': { $ref: '#/components/headers/RetryAfter' } },
+    ),
+    OutcomeUnknown: problemResponse(
+      'The action executed but its final audit state could not be persisted; clients must not retry automatically (`outcome_unknown`).',
+      ['outcome_unknown'],
+    ),
+    AdminUnavailable: problemResponse(
+      'The isolated administration subsystem is unavailable (`admin_unavailable`).',
+      ['admin_unavailable'],
+    ),
+    OperationTimeout: problemResponse(
+      'The bounded action exceeded its fixed deadline (`operation_timeout`).',
+      ['operation_timeout'],
+    ),
+    BackupLimitExceeded: problemResponse(
+      'The configured backup count or byte limit prevents another backup; operator intervention is required (`backup_limit_exceeded`).',
+      ['backup_limit_exceeded'],
+    ),
+  };
 }
 
 const maximumRangeDescription = `The maximum range is ${String(AUDIT_QUERY_POLICY.maximumRangeDays)} days.`;

@@ -127,7 +127,9 @@ const isAuditOutcome = (value: string): value is AuditEntryOutcome =>
           <p class="eyebrow">Privacy-safe history</p>
           <h2 id="audit-title">Operator Audit Entries</h2>
         </div>
-        <span class="status-pill">Maximum 90 days</span>
+        <span class="status-pill">
+          Maximum {{ auditPolicy.maximumRangeDays }} days
+        </span>
       </div>
 
       <form
@@ -224,6 +226,7 @@ export class SecurityPage {
   );
 
   protected readonly time = inject(TimeService);
+  protected readonly auditPolicy = AUDIT_QUERY_POLICY;
   protected readonly sessionResource =
     new RemoteResource<OperatorSessionList>();
   protected readonly auditResource =
