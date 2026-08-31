@@ -30,9 +30,18 @@ exact logout, outage isolation, evidence, and cleanup. Pocket ID alone uses an
 optional adapter hook to normalize its provider-hosted group-denial page;
 Authentik returns denied identities through the gateway callback directly.
 
-GitHub Actions and local runs invoke the same provider-specific Nx entry points.
-CI uploads each sanitized JSON result and browser screenshot directly as a
-workflow artifact; neither belongs in Git.
+GitHub Actions and local runs invoke the same generic Nx entry point. One
+provider matrix selects the real adapter and invokes the
+`push-gateway:provider-gate` target for both the run and its cleanup fallback.
+Selection and release aggregation are executable policies covered by fast
+tests; the workflow only supplies event data and job results. CI uploads each
+sanitized JSON result and browser screenshot directly as a workflow artifact;
+neither belongs in Git.
+
+A deterministic OIDC mock adapter exercises the complete lifecycle interface
+without Docker or browser startup. It proves orchestration, evidence, and
+fail-closed cleanup quickly, but it is deliberately excluded from the real
+adapter registry and cannot replace either Pocket ID or Authentik release gate.
 
 ## Run it locally
 
@@ -51,11 +60,13 @@ pnpm exec playwright install chromium
 Then run the lifecycle with a stable run ID:
 
 ```sh
-PROVIDER_GATE_RUN_ID=local-pocket-id \
-  pnpm nx run push-gateway:provider-gate-pocket-id --skipNxCache
+PROVIDER_GATE_PROVIDER=pocket-id \
+  PROVIDER_GATE_RUN_ID=local-pocket-id \
+  pnpm nx run push-gateway:provider-gate --skipNxCache
 
-PROVIDER_GATE_RUN_ID=local-authentik \
-  pnpm nx run push-gateway:provider-gate-authentik --skipNxCache
+PROVIDER_GATE_PROVIDER=authentik \
+  PROVIDER_GATE_RUN_ID=local-authentik \
+  pnpm nx run push-gateway:provider-gate --skipNxCache
 ```
 
 Evidence is written below the ignored `test-output/provider-gates/` directory.
@@ -63,11 +74,15 @@ The lifecycle cleans up after both success and failure. If the process is
 forcibly interrupted, reuse the same run ID with the cleanup entry point:
 
 ```sh
-PROVIDER_GATE_RUN_ID=local-pocket-id \
-  pnpm nx run push-gateway:provider-gate-pocket-id-cleanup --skipNxCache
+PROVIDER_GATE_OPERATION=cleanup \
+  PROVIDER_GATE_PROVIDER=pocket-id \
+  PROVIDER_GATE_RUN_ID=local-pocket-id \
+  pnpm nx run push-gateway:provider-gate --skipNxCache
 
-PROVIDER_GATE_RUN_ID=local-authentik \
-  pnpm nx run push-gateway:provider-gate-authentik-cleanup --skipNxCache
+PROVIDER_GATE_OPERATION=cleanup \
+  PROVIDER_GATE_PROVIDER=authentik \
+  PROVIDER_GATE_RUN_ID=local-authentik \
+  pnpm nx run push-gateway:provider-gate --skipNxCache
 ```
 
 `PROVIDER_GATE_WORK_DIRECTORY` and `PROVIDER_GATE_EVIDENCE_DIRECTORY` select

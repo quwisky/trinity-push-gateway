@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      authentik: ${{ steps.gates.outputs.authentik }}
       deterministic: ${{ steps.gates.outputs.deterministic }}
       image: ${{ steps.gates.outputs.image }}
-      pocket_id: ${{ steps.gates.outputs.pocket_id }}
+      plan: ${{ steps.gates.outputs.plan }}
+      provider_matrix: ${{ steps.gates.outputs.provider_matrix }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,53 +39,12 @@ jobs:
       - name: Select required gates
         id: gates
         env:
+          BASE_REF: ${{ github.base_ref }}
           EVENT_NAME: ${{ github.event_name }}
           MANUAL_PROVIDER: ${{ inputs.provider }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          deterministic=false
-          pocket_id=false
-          authentik=false
-
-          if [[ "$EVENT_NAME" == 'schedule' ]]; then
-            deterministic=true
-            pocket_id=true
-            authentik=true
-          elif [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
-            deterministic=true
-            [[ "$MANUAL_PROVIDER" == 'all' || "$MANUAL_PROVIDER" == 'pocket-id' ]] && pocket_id=true
-            [[ "$MANUAL_PROVIDER" == 'all' || "$MANUAL_PROVIDER" == 'authentik' ]] && authentik=true
-          else
-            changed="$RUNNER_TEMP/provider-changed-paths.txt"
-            git diff --name-only "$PR_BASE_SHA...$PR_HEAD_SHA" > "$changed"
-            if grep --extended-regexp --quiet \
-              '^(apps/push-gateway/|package\.json$|pnpm-lock\.yaml$|\.github/workflows/provider-compatibility\.yml$)' \
-              "$changed"; then
-              deterministic=true
-            fi
-            if grep --extended-regexp --quiet \
-              '^(apps/push-gateway/(provider-e2e/|src/bun/(admin|auth)/|scripts/test-oidc-provider\.mjs)|package\.json$|pnpm-lock\.yaml$|\.github/workflows/provider-compatibility\.yml$)' \
-              "$changed"; then
-              pocket_id=true
-            fi
-            if [[ "${{ github.base_ref }}" == 'master' ]] || grep --extended-regexp --quiet \
-              '^(apps/push-gateway/provider-e2e/|\.github/workflows/provider-compatibility\.yml$)' \
-              "$changed"; then
-              authentik=true
-            fi
-          fi
-
-          image=false
-          if [[ "$pocket_id" == true || "$authentik" == true ]]; then
-            image=true
-          fi
-          printf 'deterministic=%s\npocket_id=%s\nauthentik=%s\nimage=%s\n' \
-            "$deterministic" "$pocket_id" "$authentik" "$image" >> "$GITHUB_OUTPUT"
-          printf 'Selected gates: deterministic=%s pocket-id=%s authentik=%s image=%s\n' \
-            "$deterministic" "$pocket_id" "$authentik" "$image"
+        run: node apps/push-gateway/provider-e2e/provider-gate-workflow.mjs select
 
   deterministic:
     name: Deterministic OIDC provider
@@ -141,12 +100,20 @@ jobs:
           path: ${{ runner.temp }}/provider-image.tar.gz
           retention-days: 1
 
-  pocket_id:
-    name: Pocket ID ${{ github.sha }}
-    if: needs.classify.outputs.pocket_id == 'true'
+  providers:
+    name: ${{ matrix.displayName }} ${{ github.sha }}
+    if: needs.classify.outputs.image == 'true'
     needs: [classify, image]
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: ${{ matrix.timeoutMinutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.classify.outputs.provider_matrix) }}
+    env:
+      PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
+      PROVIDER_GATE_PROVIDER: ${{ matrix.id }}
+      PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -168,108 +135,41 @@ jobs:
           path: ${{ runner.temp }}/provider-image
       - name: Load assembled image
         run: gzip --decompress --stdout "$RUNNER_TEMP/provider-image/provider-image.tar.gz" | docker load
-      - name: Run the Pocket ID provider lifecycle
+      - name: Run the provider lifecycle
         env:
-          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/pocket-id-evidence
-          PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
-          PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
-          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/pocket-id-credentials
-        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate-pocket-id --skipNxCache
-      - name: Upload Pocket ID evidence
+          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/provider-evidence
+          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/provider-credentials
+        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate --skipNxCache
+      - name: Upload provider evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           if-no-files-found: error
-          name: pocket-id-provider-gate-${{ github.run_id }}
-          path: ${{ runner.temp }}/pocket-id-evidence
+          name: ${{ matrix.id }}-provider-gate-${{ github.run_id }}
+          path: ${{ runner.temp }}/provider-evidence
           retention-days: 14
-      - name: Clean Pocket ID gate
+      - name: Clean provider gate
         if: always()
         env:
-          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/pocket-id-evidence
-          PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
-          PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
-          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/pocket-id-credentials
-        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate-pocket-id-cleanup --skipNxCache
-
-  authentik:
-    name: Authentik ${{ github.sha }}
-    if: needs.classify.outputs.authentik == 'true'
-    needs: [classify, image]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - name: Install Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          cache: pnpm
-          node-version-file: .nvmrc
-      - name: Install browser gate dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
-      - name: Download assembled image
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: provider-image-${{ github.run_id }}
-          path: ${{ runner.temp }}/provider-image
-      - name: Load assembled image
-        run: gzip --decompress --stdout "$RUNNER_TEMP/provider-image/provider-image.tar.gz" | docker load
-      - name: Run the Authentik provider lifecycle
-        env:
-          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/authentik-evidence
-          PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
-          PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
-          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/authentik-credentials
-        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate-authentik --skipNxCache
-      - name: Upload Authentik evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          if-no-files-found: error
-          name: authentik-provider-gate-${{ github.run_id }}
-          path: ${{ runner.temp }}/authentik-evidence
-          retention-days: 14
-      - name: Clean Authentik gate
-        if: always()
-        env:
-          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/authentik-evidence
-          PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
-          PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
-          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/authentik-credentials
-        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate-authentik-cleanup --skipNxCache
+          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/provider-evidence
+          PROVIDER_GATE_OPERATION: cleanup
+          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/provider-credentials
+        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate --skipNxCache
 
   release-gates:
     name: release-gates
     if: always()
-    needs: [classify, deterministic, image, pocket_id, authentik]
+    needs: [classify, deterministic, image, providers]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Require every selected provider gate
         env:
-          AUTHENTIK_REQUIRED: ${{ needs.classify.outputs.authentik }}
-          AUTHENTIK_RESULT: ${{ needs.authentik.result }}
           CLASSIFY_RESULT: ${{ needs.classify.result }}
-          DETERMINISTIC_REQUIRED: ${{ needs.classify.outputs.deterministic }}
           DETERMINISTIC_RESULT: ${{ needs.deterministic.result }}
-          IMAGE_REQUIRED: ${{ needs.classify.outputs.image }}
           IMAGE_RESULT: ${{ needs.image.result }}
-          POCKET_ID_REQUIRED: ${{ needs.classify.outputs.pocket_id }}
-          POCKET_ID_RESULT: ${{ needs.pocket_id.result }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$CLASSIFY_RESULT" == 'success' ]]
-          for gate in DETERMINISTIC IMAGE POCKET_ID AUTHENTIK; do
-            required_name="${gate}_REQUIRED"
-            result_name="${gate}_RESULT"
-            if [[ "${!required_name}" == 'true' && "${!result_name}" != 'success' ]]; then
-              printf '%s gate was selected but finished as %s.\n' "$gate" "${!result_name}" >&2
-              exit 1
-            fi
-          done
-          printf '%s\n' 'Every selected provider and assembled-image gate passed.'
+          PROVIDERS_RESULT: ${{ needs.providers.result }}
+          PROVIDER_PLAN: ${{ needs.classify.outputs.plan }}
+        run: node apps/push-gateway/provider-e2e/provider-gate-workflow.mjs require
