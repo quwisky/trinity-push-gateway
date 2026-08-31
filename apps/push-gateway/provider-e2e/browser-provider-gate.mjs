@@ -46,35 +46,60 @@ async function login(browser, identity, allowed) {
       await page.goto(`${gatewayOrigin}/admin/auth/login`);
       await authenticateProvider(page, context, identity);
     }
-    await page.waitForURL((url) => url.origin === gatewayOrigin, {
-      timeout: 60_000,
-    });
+    await page.waitForURL(
+      (url) =>
+        url.origin === gatewayOrigin ||
+        (!allowed &&
+          state.provider === 'pocket-id' &&
+          url.origin === state.providerOrigin &&
+          url.pathname === '/interaction/error'),
+      { timeout: 60_000 },
+    );
+
+    if (
+      !allowed &&
+      page.url().startsWith(`${state.providerOrigin}/interaction/error`)
+    ) {
+      const denial = new URL(page.url());
+      requireCondition(
+        denial.searchParams.get('error')?.toLowerCase().includes('not allowed'),
+        `Pocket ID returned an unexpected denial: ${page.url()}.`,
+      );
+      await page.goto(`${gatewayOrigin}/admin/sign-in?reason=forbidden`);
+    }
 
     if (!allowed) {
+      await page
+        .getByRole('heading', { name: 'Trinity Push Gateway' })
+        .waitFor();
       requireCondition(
         page.url().startsWith(`${gatewayOrigin}/admin/sign-in?reason=`),
         `Denied identity reached unexpected URL ${page.url()}.`,
       );
-      const session = await context.request.get(
-        `${gatewayOrigin}/admin/api/v1/session`,
+      const sessionStatus = await page.evaluate(
+        async (origin) =>
+          (await fetch(`${origin}/admin/api/v1/session`)).status,
+        gatewayOrigin,
       );
       requireCondition(
-        session.status() === 401,
+        sessionStatus === 401,
         'Denied identity received a session.',
       );
       return;
     }
 
+    await page.getByRole('heading', { name: 'Overview' }).waitFor();
     requireCondition(
       page.url() === `${gatewayOrigin}/admin/overview`,
       `Allowed identity did not reach overview: ${page.url()}.`,
     );
-    const session = await context.request.get(
-      `${gatewayOrigin}/admin/api/v1/session`,
+    const sessionStatus = await page.evaluate(
+      async (origin) => (await fetch(`${origin}/admin/api/v1/session`)).status,
+      gatewayOrigin,
     );
     requireCondition(
-      session.ok(),
-      `Session contract returned ${session.status()}.`,
+      sessionStatus === 200,
+      `Session contract returned ${String(sessionStatus)}.`,
     );
 
     const external = [];
@@ -94,30 +119,30 @@ async function login(browser, identity, allowed) {
       await page.screenshot({ fullPage: true, path: screenshotPath });
     }
 
-    const cookies = await context.cookies(gatewayOrigin);
-    const xsrf = cookies.find(({ name }) => name === 'TRINITY_ADMIN_XSRF');
-    requireCondition(xsrf !== undefined, 'XSRF cookie is missing.');
-    const logout = await context.request.post(
-      `${gatewayOrigin}/admin/auth/logout`,
-      {
-        headers: {
-          origin: gatewayOrigin,
-          'x-xsrf-token': xsrf.value,
-        },
-        maxRedirects: 0,
+    const xsrfToken = await page.evaluate(() =>
+      document.cookie
+        .split('; ')
+        .find((cookie) => cookie.startsWith('TRINITY_ADMIN_XSRF='))
+        ?.slice('TRINITY_ADMIN_XSRF='.length),
+    );
+    requireCondition(xsrfToken !== undefined, 'XSRF cookie is missing.');
+    await page.evaluate(
+      async ({ origin, token }) => {
+        await fetch(`${origin}/admin/auth/logout`, {
+          headers: {
+            'x-xsrf-token': token,
+          },
+          method: 'POST',
+          redirect: 'manual',
+        });
       },
+      { origin: gatewayOrigin, token: xsrfToken },
     );
-    requireCondition(
-      logout.status() === 303,
-      `Logout returned ${logout.status()}.`,
+    const revokedStatus = await page.evaluate(
+      async (origin) => (await fetch(`${origin}/admin/api/v1/session`)).status,
+      gatewayOrigin,
     );
-    const revoked = await context.request.get(
-      `${gatewayOrigin}/admin/api/v1/session`,
-    );
-    requireCondition(
-      revoked.status() === 401,
-      'Logout did not revoke locally.',
-    );
+    requireCondition(revokedStatus === 401, 'Logout did not revoke locally.');
   } finally {
     await context.close();
   }
