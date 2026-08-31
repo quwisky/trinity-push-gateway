@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { createOperatorAuditEntryQuery } from '../../../src/bun/admin/audit-query';
 import { SqliteAdminStore } from '../../../src/bun/admin/store';
 import { readMigrations } from '../../../src/bun/migrations';
 
@@ -437,15 +438,86 @@ describe('isolated administration SQLite store', () => {
         reason: null,
       },
     ]);
+    const audit = createOperatorAuditEntryQuery({
+      cursorSecret: 'store-spec-cursor-secret-sentinel',
+      nowSeconds: () => 2_000,
+      storage: store,
+    }).query(
+      new URLSearchParams({
+        from: new Date(1_000_000).toISOString(),
+        limit: '10',
+        to: new Date(2_000_000).toISOString(),
+      }),
+    );
+    expect(audit.kind).toBe('page');
+    if (audit.kind !== 'page') {
+      throw new Error('Expected the Operator Audit Entry query to succeed.');
+    }
     expect(
-      store
-        .listAuditEntries({ from: 1_000, limit: 10, to: 2_000 })
-        .map(({ kind, outcome }) => ({ kind, outcome })),
+      audit.page.entries.map(({ kind, outcome }) => ({ kind, outcome })),
     ).toEqual([
       { kind: 'cleanup', outcome: 'succeeded' },
       { kind: 'cleanup', outcome: 'started' },
       { kind: 'login', outcome: 'succeeded' },
     ]);
+    store.close();
+  });
+
+  it('preserves filtered same-time page boundaries through SQLite', () => {
+    const { file, store } = openStore();
+    const writer = new Database(file, { strict: true });
+    const insert = writer.query<
+      Record<never, never>,
+      [string, number, string, string]
+    >(`INSERT INTO operator_audit_entries
+        (id, occurred_at, kind, outcome)
+       VALUES (?1, ?2, ?3, ?4)`);
+    for (const [id, kind, outcome] of [
+      ['audit-entry-0004', 'login', 'succeeded'],
+      ['audit-entry-0003', 'cleanup', 'failed'],
+      ['audit-entry-0002', 'login', 'succeeded'],
+      ['audit-entry-0001', 'login', 'succeeded'],
+    ] as const) {
+      insert.run(id, 1_500, kind, outcome);
+    }
+    const query = createOperatorAuditEntryQuery({
+      cursorSecret: 'sqlite-page-cursor-secret-sentinel',
+      nowSeconds: () => 2_000,
+      storage: store,
+    });
+    const parameters = {
+      from: new Date(1_000_000).toISOString(),
+      kind: 'login',
+      limit: '2',
+      outcome: 'succeeded',
+      to: new Date(2_000_000).toISOString(),
+    } as const;
+    const first = query.query(new URLSearchParams(parameters));
+    expect(first.kind).toBe('page');
+    if (first.kind !== 'page' || first.page.nextCursor === undefined) {
+      throw new Error('Expected a SQLite continuation cursor.');
+    }
+    expect(first.page.entries.map(({ id }) => id)).toEqual([
+      'audit-entry-0004',
+      'audit-entry-0002',
+    ]);
+
+    insert.run('audit-entry-0005', 1_500, 'login', 'succeeded');
+    const continuation = new URLSearchParams({
+      cursor: first.page.nextCursor,
+      ...parameters,
+    });
+    const second = query.query(continuation);
+    const replayed = query.query(continuation);
+
+    expect(second).toEqual(replayed);
+    expect(second).toMatchObject({
+      kind: 'page',
+      page: { entries: [{ id: 'audit-entry-0001' }] },
+    });
+    expect(JSON.stringify(second)).not.toContain('audit-entry-0005');
+    expect(JSON.stringify(second)).not.toContain('audit-entry-0003');
+    writer.close(true);
     store.close();
   });
 
