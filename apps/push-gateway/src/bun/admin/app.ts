@@ -500,62 +500,14 @@ function configurationProjection(
   options: AdminApplicationOptions,
   observedAt: string,
 ): unknown {
-  const environment = options.gatewayConfiguration.environment;
   return {
     administration: options.safeConfiguration.administration,
     credentials: {
-      firebaseClientEmail: {
-        configured: true,
-        source:
-          options.gatewayConfiguration.credentialSources.firebaseClientEmail,
-      },
-      firebasePrivateKey: {
-        configured: true,
-        source:
-          options.gatewayConfiguration.credentialSources.firebasePrivateKey,
-      },
-      firebaseProjectId: {
-        configured: true,
-        source:
-          options.gatewayConfiguration.credentialSources.firebaseProjectId,
-      },
-      fingerprintKey: {
-        configured: true,
-        source: options.gatewayConfiguration.credentialSources.fingerprintKey,
-      },
+      ...options.gatewayConfiguration.safe.credentials,
       oidcClientSecret: options.safeConfiguration.credentials.oidcClientSecret,
       sessionSecret: options.safeConfiguration.credentials.sessionSecret,
     },
-    gateway: {
-      androidApplicationId: environment.TRINITY_PUSH_GATEWAY_ANDROID_APP_ID,
-      cleanupIntervalSeconds:
-        options.gatewayConfiguration.cleanupIntervalSeconds,
-      firebaseProjectId: environment.TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID,
-      gatewayDatabasePath: options.gatewayConfiguration.databasePath,
-      iosApplicationId: environment.TRINITY_PUSH_GATEWAY_IOS_APP_ID,
-      maxBodyBytes: Number(environment.TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES),
-      maxClientInstallationsPerRequest: Number(
-        environment.TRINITY_PUSH_GATEWAY_MAX_DEVICES,
-      ),
-      maxDailyAttempts: Number(
-        environment.TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS,
-      ),
-      maxSourceKeys: options.gatewayConfiguration.maxSourceKeys,
-      pendingLeaseSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS,
-      ),
-      requestDeadlineSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS,
-      ),
-      sourceRateLimit: options.gatewayConfiguration.sourceLimit,
-      sourceRatePeriodSeconds: options.gatewayConfiguration.sourcePeriodSeconds,
-      terminalRetentionSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS,
-      ),
-      upstreamTimeoutSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS,
-      ),
-    },
+    gateway: options.gatewayConfiguration.safe.gateway,
     observedAt,
     version: gatewayVersion,
   };

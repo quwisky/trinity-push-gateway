@@ -35,9 +35,9 @@ const allowedWorkspaceDependencyNames = [
   ...gatewayRuntimeDependencyNames,
   ...browserRuntimeDependencyNames,
 ].sort();
-const expectedSourceCount = 103;
+const expectedSourceCount = 105;
 const expectedSourceGraph =
-  'f114f64628e2ac16a709ea20d5c6ae8c79429df1c79fb4fd33a78c3e9ec54d21';
+  '15af70bb61dfd013183e05ebc58bf57f804c4b5601ade6b0bd585c4843735928';
 const bundle = new URL(
   '../../../dist/apps/push-gateway/worker/index.js',
   import.meta.url,

@@ -61,7 +61,7 @@ const CONFIGURATION = {
 } as const satisfies Configuration;
 
 describe('ConfigurationPage', () => {
-  it('presents the catalog-backed enable flag and safe secret source', async () => {
+  it('presents the catalog-backed safe runtime projection', async () => {
     await TestBed.configureTestingModule({
       imports: [ConfigurationPage],
       providers: [
@@ -76,20 +76,21 @@ describe('ConfigurationPage', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    const rows = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr'),
-    );
+    const page = fixture.nativeElement as HTMLElement;
+    const rows = Array.from(page.querySelectorAll('tbody tr'));
     const sessionSecret = rows.find((row) =>
       row.textContent.includes('Operator Session secret'),
     );
     const administrationEnabled = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll(
-        '.configuration-list > div',
-      ),
+      page.querySelectorAll('.configuration-list > div'),
     ).find((row) => row.textContent.includes('Administration enabled'));
 
     expect(administrationEnabled?.textContent).toContain('true');
     expect(sessionSecret?.textContent).toContain('Yes');
     expect(sessionSecret?.textContent).toContain('File');
+    expect(page.textContent).toContain('ovh.qwky.trinity.android');
+    expect(page.textContent).toContain('/data/gateway.sqlite');
+    expect(page.textContent).toContain('https://identity.example/');
+    expect(page.textContent).not.toContain('oidc-client-secret');
   });
 });
