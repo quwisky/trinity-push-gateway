@@ -259,12 +259,21 @@ login_result="$(
     "$GATEWAY_ORIGIN/admin/auth/login"
 )"
 [[ "$login_result" == "200 $GATEWAY_ORIGIN/admin/overview" ]]
-grep --ignore-case --extended-regexp --quiet \
-  '^set-cookie: TRINITY_ADMIN_SESSION=.*; HttpOnly;.*SameSite=Strict;.*Secure' \
-  "$TEMP_DIRECTORY/login-headers.txt"
-grep --ignore-case --extended-regexp --quiet \
-  '^set-cookie: TRINITY_ADMIN_XSRF=.*SameSite=Strict;.*Secure' \
-  "$TEMP_DIRECTORY/login-headers.txt"
+session_cookie="$(
+  grep --ignore-case '^set-cookie: TRINITY_ADMIN_SESSION=' \
+    "$TEMP_DIRECTORY/login-headers.txt" | head -n 1
+)"
+xsrf_cookie="$(
+  grep --ignore-case '^set-cookie: TRINITY_ADMIN_XSRF=' \
+    "$TEMP_DIRECTORY/login-headers.txt" | head -n 1
+)"
+for attribute in 'Path=/' 'HttpOnly' 'Secure' 'SameSite=Strict'; do
+  grep --fixed-strings --ignore-case --quiet "$attribute" <<<"$session_cookie"
+done
+for attribute in 'Path=/admin' 'Secure' 'SameSite=Strict'; do
+  grep --fixed-strings --ignore-case --quiet "$attribute" <<<"$xsrf_cookie"
+done
+! grep --fixed-strings --ignore-case --quiet 'HttpOnly' <<<"$xsrf_cookie"
 container_status 200 GET "$GATEWAY_ORIGIN/admin/api/v1/session" \
   --cookie "$TEMP_DIRECTORY/cookies.txt"
 

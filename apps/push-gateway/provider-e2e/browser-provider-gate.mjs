@@ -101,7 +101,7 @@ async function login(browser, identity, allowed) {
       await page.screenshot({ fullPage: true, path: screenshotPath });
     }
 
-    const cookies = await context.cookies(gatewayOrigin);
+    const cookies = await context.cookies(`${gatewayOrigin}/admin/`);
     const xsrf = cookies.find(({ name }) => name === 'TRINITY_ADMIN_XSRF');
     requireCondition(xsrf !== undefined, 'XSRF cookie is missing.');
     await page.evaluate(
