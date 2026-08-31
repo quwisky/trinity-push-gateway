@@ -4,10 +4,12 @@ import {
   asc,
   desc,
   eq,
+  gte,
   gt,
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   or,
 } from 'drizzle-orm';
@@ -27,11 +29,15 @@ import {
 import type { SqlMigration } from '../sqlite-store';
 import {
   adminSchema,
+  fcmMetricsHourly,
   oidcLoginAttempts,
   operationLeases,
+  operationResults,
   operatorAuditEntries,
   operatorIdentities,
   operatorSessions,
+  requestMetricsHourly,
+  verifiedBackups,
   type AdminSchema,
 } from './schema';
 
@@ -97,6 +103,32 @@ export type AdminCleanupResult = {
   readonly operationLeases: number;
   readonly sessions: number;
 };
+
+export type AdminAuditEntry = typeof operatorAuditEntries.$inferSelect;
+export type AdminAuditFilter = Readonly<{
+  before?: Readonly<{ id: string; occurredAt: number }>;
+  from: number;
+  kind?: AdminAuditEntry['kind'];
+  limit: number;
+  outcome?: AdminAuditEntry['outcome'];
+  to: number;
+}>;
+export type AdminOperationKind = typeof operationLeases.$inferInsert.kind;
+export type AdminOperationOutcome =
+  typeof operationResults.$inferInsert.outcome;
+export type AdminOperationSummary = Readonly<{
+  acquiredAt: number;
+  completedAt: number;
+  cooldownEndsAt: number;
+  kind: AdminOperationKind;
+  outcome: AdminOperationOutcome;
+  reason: string | null;
+}>;
+export type AdminVerifiedBackup = typeof verifiedBackups.$inferSelect;
+export type BeginOperationResult =
+  | Readonly<{ kind: 'acquired'; leaseId: string }>
+  | Readonly<{ kind: 'busy' }>
+  | Readonly<{ kind: 'cooldown'; retryAfterSeconds: number }>;
 
 type OidcLoginAttemptWithCookie = OidcLoginAttempt & {
   readonly cookieDigest?: string;
@@ -588,33 +620,261 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
     return Promise.resolve(purge.immediate());
   }
 
+  metrics(
+    fromSeconds: number,
+    toSeconds: number,
+  ): Readonly<{
+    fcm: readonly (typeof fcmMetricsHourly.$inferSelect)[];
+    requests: readonly (typeof requestMetricsHourly.$inferSelect)[];
+  }> {
+    return {
+      fcm: this.queryDatabase
+        .select()
+        .from(fcmMetricsHourly)
+        .where(
+          and(
+            gte(fcmMetricsHourly.hour, fromSeconds),
+            lt(fcmMetricsHourly.hour, toSeconds),
+          ),
+        )
+        .orderBy(asc(fcmMetricsHourly.hour), asc(fcmMetricsHourly.platform))
+        .limit(1_440)
+        .all(),
+      requests: this.queryDatabase
+        .select()
+        .from(requestMetricsHourly)
+        .where(
+          and(
+            gte(requestMetricsHourly.hour, fromSeconds),
+            lt(requestMetricsHourly.hour, toSeconds),
+          ),
+        )
+        .orderBy(asc(requestMetricsHourly.hour))
+        .limit(720)
+        .all(),
+    };
+  }
+
+  listAuditEntries(filter: AdminAuditFilter): readonly AdminAuditEntry[] {
+    const conditions = [
+      gte(operatorAuditEntries.occurredAt, filter.from),
+      lt(operatorAuditEntries.occurredAt, filter.to),
+      ...(filter.kind === undefined
+        ? []
+        : [eq(operatorAuditEntries.kind, filter.kind)]),
+      ...(filter.outcome === undefined
+        ? []
+        : [eq(operatorAuditEntries.outcome, filter.outcome)]),
+      ...(filter.before === undefined
+        ? []
+        : [
+            or(
+              lt(operatorAuditEntries.occurredAt, filter.before.occurredAt),
+              and(
+                eq(operatorAuditEntries.occurredAt, filter.before.occurredAt),
+                lt(operatorAuditEntries.id, filter.before.id),
+              ),
+            ),
+          ]),
+    ];
+    return this.queryDatabase
+      .select()
+      .from(operatorAuditEntries)
+      .where(and(...conditions))
+      .orderBy(
+        desc(operatorAuditEntries.occurredAt),
+        desc(operatorAuditEntries.id),
+      )
+      .limit(Math.min(101, filter.limit + 1))
+      .all();
+  }
+
+  listBackups(): readonly AdminVerifiedBackup[] {
+    return this.queryDatabase
+      .select()
+      .from(verifiedBackups)
+      .orderBy(desc(verifiedBackups.createdAt), desc(verifiedBackups.id))
+      .limit(1_000)
+      .all();
+  }
+
+  operationSummaries(): readonly AdminOperationSummary[] {
+    return this.queryDatabase
+      .select({ lease: operationLeases, result: operationResults })
+      .from(operationLeases)
+      .innerJoin(
+        operationResults,
+        and(
+          eq(operationResults.kind, operationLeases.kind),
+          eq(operationResults.leaseId, operationLeases.leaseId),
+        ),
+      )
+      .all()
+      .map(({ lease, result }) => ({
+        acquiredAt: lease.acquiredAt,
+        completedAt: result.completedAt,
+        cooldownEndsAt: lease.cooldownEndsAt,
+        kind: lease.kind,
+        outcome: result.outcome,
+        reason: result.reason,
+      }));
+  }
+
+  beginOperation(
+    kind: AdminOperationKind,
+    actor: AdminOperatorIdentity,
+    nowSeconds: number,
+    deadlineSeconds: number,
+    cooldownSeconds: number,
+  ): BeginOperationResult {
+    const begin = this.database.transaction((): BeginOperationResult => {
+      const existing = this.queryDatabase
+        .select({ lease: operationLeases, result: operationResults })
+        .from(operationLeases)
+        .leftJoin(
+          operationResults,
+          eq(operationResults.kind, operationLeases.kind),
+        )
+        .all();
+      const conflicts =
+        kind === 'firebase_validation'
+          ? existing.filter(({ lease }) => lease.kind === kind)
+          : existing.filter(({ lease }) =>
+              ['cleanup', 'backup'].includes(lease.kind),
+            );
+      if (
+        conflicts.some(
+          ({ lease, result }) =>
+            lease.leaseExpiresAt > nowSeconds &&
+            result?.leaseId !== lease.leaseId,
+        )
+      ) {
+        return { kind: 'busy' };
+      }
+      const same = existing.find(({ lease }) => lease.kind === kind);
+      if (same !== undefined && same.lease.cooldownEndsAt > nowSeconds) {
+        return {
+          kind: 'cooldown',
+          retryAfterSeconds: same.lease.cooldownEndsAt - nowSeconds,
+        };
+      }
+      const leaseId = crypto.randomUUID();
+      this.queryDatabase
+        .delete(operationResults)
+        .where(eq(operationResults.kind, kind))
+        .run();
+      this.queryDatabase
+        .insert(operationLeases)
+        .values({
+          acquiredAt: nowSeconds,
+          cooldownEndsAt: nowSeconds + cooldownSeconds,
+          kind,
+          leaseExpiresAt: nowSeconds + deadlineSeconds,
+          leaseId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            acquiredAt: nowSeconds,
+            cooldownEndsAt: nowSeconds + cooldownSeconds,
+            leaseExpiresAt: nowSeconds + deadlineSeconds,
+            leaseId,
+          },
+          target: operationLeases.kind,
+        })
+        .run();
+      this.insertAudit(kind, 'started', nowSeconds, actor);
+      return { kind: 'acquired', leaseId };
+    });
+    return begin.immediate();
+  }
+
+  finalizeOperation(
+    kind: AdminOperationKind,
+    leaseId: string,
+    actor: AdminOperatorIdentity,
+    completedAt: number,
+    outcome: AdminOperationOutcome,
+    reason?: string,
+    backup?: Omit<AdminVerifiedBackup, 'issuer' | 'subject'>,
+  ): void {
+    const finalize = this.database.transaction(() => {
+      const lease = this.queryDatabase
+        .select()
+        .from(operationLeases)
+        .where(
+          and(
+            eq(operationLeases.kind, kind),
+            eq(operationLeases.leaseId, leaseId),
+          ),
+        )
+        .get();
+      if (lease === undefined) {
+        throw new Error('Operation lease is no longer current.');
+      }
+      this.queryDatabase
+        .insert(operationResults)
+        .values({
+          completedAt,
+          kind,
+          leaseId,
+          outcome,
+          ...(reason === undefined ? {} : { reason }),
+        })
+        .onConflictDoUpdate({
+          set: {
+            completedAt,
+            leaseId,
+            outcome,
+            reason: reason ?? null,
+          },
+          target: operationResults.kind,
+        })
+        .run();
+      if (backup !== undefined) {
+        this.queryDatabase
+          .insert(verifiedBackups)
+          .values({ ...backup, issuer: actor.issuer, subject: actor.subject })
+          .run();
+      }
+      this.insertAudit(kind, outcome, completedAt, actor, reason);
+    });
+    finalize.immediate();
+  }
+
   cleanup(
     nowSeconds: number,
     auditRetentionSeconds = DEFAULT_AUDIT_RETENTION_SECONDS,
+    metricsRetentionSeconds = 30 * 24 * 60 * 60,
+    includeRetention = true,
   ): Promise<AdminCleanupResult> {
     if (
       !Number.isSafeInteger(nowSeconds) ||
       nowSeconds < 0 ||
       !Number.isSafeInteger(auditRetentionSeconds) ||
-      auditRetentionSeconds < 1
+      auditRetentionSeconds < 1 ||
+      !Number.isSafeInteger(metricsRetentionSeconds) ||
+      metricsRetentionSeconds < 1
     ) {
       throw new Error('Administration cleanup input is invalid.');
     }
     const cleanup = this.database.transaction(() => {
-      const expiredAuditEntries = this.queryDatabase
-        .select({ id: operatorAuditEntries.id })
-        .from(operatorAuditEntries)
-        .where(
-          lte(
-            operatorAuditEntries.occurredAt,
-            nowSeconds - auditRetentionSeconds,
-          ),
-        )
-        .orderBy(
-          asc(operatorAuditEntries.occurredAt),
-          asc(operatorAuditEntries.id),
-        )
-        .limit(ADMIN_CLEANUP_BATCH_SIZE);
+      const expiredAuditEntries = includeRetention
+        ? this.queryDatabase
+            .select({ id: operatorAuditEntries.id })
+            .from(operatorAuditEntries)
+            .where(
+              lte(
+                operatorAuditEntries.occurredAt,
+                nowSeconds - auditRetentionSeconds,
+              ),
+            )
+            .orderBy(
+              asc(operatorAuditEntries.occurredAt),
+              asc(operatorAuditEntries.id),
+            )
+            .limit(ADMIN_CLEANUP_BATCH_SIZE)
+            .all()
+        : [];
       const expiredLoginAttempts = this.queryDatabase
         .select({ stateDigest: oidcLoginAttempts.stateDigest })
         .from(oidcLoginAttempts)
@@ -623,18 +883,36 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
           asc(oidcLoginAttempts.expiresAt),
           asc(oidcLoginAttempts.stateDigest),
         )
-        .limit(ADMIN_CLEANUP_BATCH_SIZE);
-      const expiredOperationLeases = this.queryDatabase
-        .select({ kind: operationLeases.kind })
-        .from(operationLeases)
-        .where(
-          and(
-            lte(operationLeases.leaseExpiresAt, nowSeconds),
-            lte(operationLeases.cooldownEndsAt, nowSeconds),
-          ),
-        )
-        .orderBy(asc(operationLeases.leaseExpiresAt), asc(operationLeases.kind))
-        .limit(ADMIN_CLEANUP_BATCH_SIZE);
+        .limit(ADMIN_CLEANUP_BATCH_SIZE)
+        .all();
+      const expiredRequestMetrics = includeRetention
+        ? this.queryDatabase
+            .select({ hour: requestMetricsHourly.hour })
+            .from(requestMetricsHourly)
+            .where(
+              lte(
+                requestMetricsHourly.hour,
+                nowSeconds - metricsRetentionSeconds,
+              ),
+            )
+            .orderBy(asc(requestMetricsHourly.hour))
+            .limit(ADMIN_CLEANUP_BATCH_SIZE)
+            .all()
+        : [];
+      const expiredFcmMetrics = includeRetention
+        ? this.queryDatabase
+            .select({
+              hour: fcmMetricsHourly.hour,
+              platform: fcmMetricsHourly.platform,
+            })
+            .from(fcmMetricsHourly)
+            .where(
+              lte(fcmMetricsHourly.hour, nowSeconds - metricsRetentionSeconds),
+            )
+            .orderBy(asc(fcmMetricsHourly.hour), asc(fcmMetricsHourly.platform))
+            .limit(ADMIN_CLEANUP_BATCH_SIZE)
+            .all()
+        : [];
       const expiredSessions = this.queryDatabase
         .select({ id: operatorSessions.id })
         .from(operatorSessions)
@@ -646,7 +924,8 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
           ),
         )
         .orderBy(asc(operatorSessions.idleExpiresAt), asc(operatorSessions.id))
-        .limit(ADMIN_CLEANUP_BATCH_SIZE);
+        .limit(ADMIN_CLEANUP_BATCH_SIZE)
+        .all();
 
       const changedRows = (): number =>
         this.database
@@ -657,29 +936,61 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
 
       this.queryDatabase
         .delete(operatorAuditEntries)
-        .where(inArray(operatorAuditEntries.id, expiredAuditEntries))
+        .where(
+          inArray(
+            operatorAuditEntries.id,
+            expiredAuditEntries.map(({ id }) => id),
+          ),
+        )
         .run();
       const auditEntries = changedRows();
       this.queryDatabase
         .delete(oidcLoginAttempts)
-        .where(inArray(oidcLoginAttempts.stateDigest, expiredLoginAttempts))
+        .where(
+          inArray(
+            oidcLoginAttempts.stateDigest,
+            expiredLoginAttempts.map(({ stateDigest }) => stateDigest),
+          ),
+        )
         .run();
       const loginAttempts = changedRows();
       this.queryDatabase
-        .delete(operationLeases)
-        .where(inArray(operationLeases.kind, expiredOperationLeases))
+        .delete(requestMetricsHourly)
+        .where(
+          inArray(
+            requestMetricsHourly.hour,
+            expiredRequestMetrics.map(({ hour }) => hour),
+          ),
+        )
         .run();
-      const operationLeaseCount = changedRows();
+      void changedRows();
+      for (const row of expiredFcmMetrics) {
+        this.queryDatabase
+          .delete(fcmMetricsHourly)
+          .where(
+            and(
+              eq(fcmMetricsHourly.hour, row.hour),
+              eq(fcmMetricsHourly.platform, row.platform),
+            ),
+          )
+          .run();
+      }
+      void expiredFcmMetrics.length;
       this.queryDatabase
         .delete(operatorSessions)
-        .where(inArray(operatorSessions.id, expiredSessions))
+        .where(
+          inArray(
+            operatorSessions.id,
+            expiredSessions.map(({ id }) => id),
+          ),
+        )
         .run();
       const sessions = changedRows();
 
       return {
         auditEntries,
         loginAttempts,
-        operationLeases: operationLeaseCount,
+        operationLeases: 0,
         sessions,
       };
     });
@@ -709,11 +1020,15 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
       );
       const requiredTables = [
         'admin_migrations',
+        'fcm_metrics_hourly',
         'oidc_login_attempts',
         'operation_leases',
+        'operation_results',
         'operator_audit_entries',
         'operator_identities',
         'operator_sessions',
+        'request_metrics_hourly',
+        'verified_backups',
       ];
       const requiredIndexes = [
         'oidc_login_attempts_cookie_digest_idx',
@@ -721,14 +1036,35 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
         'operation_leases_expiry_idx',
         'operation_leases_lease_id_idx',
         'operator_audit_entries_identity_idx',
+        'operator_audit_entries_kind_occurred_idx',
+        'operator_audit_entries_kind_outcome_occurred_idx',
         'operator_audit_entries_occurred_idx',
+        'operator_audit_entries_outcome_occurred_idx',
         'operator_sessions_expiry_idx',
         'operator_sessions_identity_idx',
         'operator_sessions_last_seen_idx',
         'operator_sessions_session_digest_idx',
         'operator_sessions_xsrf_digest_idx',
+        'verified_backups_created_idx',
+        'verified_backups_name_idx',
       ];
       const requiredColumns = {
+        fcm_metrics_hourly: [
+          'hour',
+          'platform',
+          'attempted',
+          'accepted',
+          'permanently_rejected',
+          'transient_failure',
+          'latency_under_100',
+          'latency_100_to_249',
+          'latency_250_to_499',
+          'latency_500_to_999',
+          'latency_1000_to_2499',
+          'latency_2500_to_4999',
+          'latency_5000_to_9999',
+          'latency_10000_or_more',
+        ],
         oidc_login_attempts: [
           'state_digest',
           'cookie_digest',
@@ -742,6 +1078,13 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
           'acquired_at',
           'lease_expires_at',
           'cooldown_ends_at',
+        ],
+        operation_results: [
+          'kind',
+          'lease_id',
+          'completed_at',
+          'outcome',
+          'reason',
         ],
         operator_audit_entries: [
           'id',
@@ -772,6 +1115,23 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
           'absolute_expires_at',
           'policy_fingerprint',
           'revoked_at',
+        ],
+        request_metrics_hourly: [
+          'hour',
+          'processed',
+          'invalid',
+          'rate_limited',
+          'safety_budget_exhausted',
+          'storage_unavailable',
+        ],
+        verified_backups: [
+          'id',
+          'name',
+          'created_at',
+          'size_bytes',
+          'sha256',
+          'issuer',
+          'subject',
         ],
       } as const;
       const hasSchemaObject = (

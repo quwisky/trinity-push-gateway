@@ -64,6 +64,46 @@ describe('gateway HTTP boundary', () => {
     ]);
   });
 
+  it('records fixed outcomes only for actual FCM calls and not terminal dedup reads', async () => {
+    let now = 2_000_000_000_000;
+    const requests: string[] = [];
+    const attempts: (readonly [string, string, number])[] = [];
+    const gateway = createGateway({
+      fcmClient: {
+        async send() {
+          now += 249;
+          return { kind: 'delivered' as const };
+        },
+      },
+      metrics: {
+        recordFcmAttempt(platform, outcome, latencyMs) {
+          attempts.push([platform, outcome, latencyMs]);
+        },
+        recordRequest(outcome) {
+          requests.push(outcome);
+        },
+      },
+      now: () => now,
+    });
+    const request = (): Request =>
+      notifyRequest({
+        notification: {
+          devices: [validClientInstallation()],
+          event_id: '$metrics-event:example.test',
+          room_id: '!metrics-room:example.test',
+        },
+      });
+
+    expect(
+      (await gateway.fetch(request(), env, createExecutionContext())).status,
+    ).toBe(200);
+    expect(
+      (await gateway.fetch(request(), env, createExecutionContext())).status,
+    ).toBe(200);
+    expect(requests).toEqual(['processed', 'processed']);
+    expect(attempts).toEqual([['android', 'accepted', 249]]);
+  });
+
   it('reports its version and readiness without contacting FCM', async () => {
     const response = await worker.fetch(
       new Request('https://gateway.test/health'),

@@ -16,7 +16,7 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/apps/push-gateway/bun"],
       "options": {
-        "command": "bun build src/bun/main.ts --target bun --outdir ../../dist/apps/push-gateway/bun --metafile=../../dist/apps/push-gateway/bun/meta.json",
+        "command": "bun build src/bun/main.ts src/bun/metrics-writer.worker.ts --target bun --outdir ../../dist/apps/push-gateway/bun --metafile=../../dist/apps/push-gateway/bun/meta.json",
         "cwd": "apps/push-gateway"
       }
     },
@@ -47,6 +47,7 @@
         "typecheck-bun",
         "test-bun",
         "build-bun",
+        "smoke-metrics-worker",
         "check-auth-selection",
         "check-migrations"
       ]
@@ -56,6 +57,14 @@
       "dependsOn": ["build-auth-selection", "build-bun"],
       "options": {
         "command": "node scripts/check-auth-selection.mjs",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "smoke-metrics-worker": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build-bun"],
+      "options": {
+        "command": "bun scripts/smoke-metrics-worker.mjs",
         "cwd": "apps/push-gateway"
       }
     },

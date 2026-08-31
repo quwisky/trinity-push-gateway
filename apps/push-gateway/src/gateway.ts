@@ -15,6 +15,7 @@ import type {
   FcmOutcome,
 } from './fcm';
 import type { GatewayStore, SourceLimiter } from './ports';
+import type { GatewayMetricsSink } from './metrics';
 
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
@@ -54,6 +55,7 @@ const CLIENT_INSTALLATION_SCHEMA = z.looseObject({
 export type GatewayDependencies = {
   readonly fcmClient?: FcmClient;
   readonly log?: (event: GatewayLog) => void;
+  readonly metrics?: GatewayMetricsSink;
   readonly now: () => number;
 };
 
@@ -355,11 +357,12 @@ async function processDelivery(
   env: GatewayRuntimeEnvironment,
   config: RuntimeConfig,
   fcmClient: FcmClient,
-  now: number,
+  metrics: GatewayMetricsSink | undefined,
+  now: () => number,
   deadlineMs: number,
 ): Promise<ProcessedOutcome> {
   const { clientInstallation, delivery } = entry;
-  const nowSeconds = Math.floor(now / 1000);
+  const nowSeconds = Math.floor(now() / 1000);
   const claim =
     delivery.kind === 'event'
       ? await env.store.claimDelivery(
@@ -384,7 +387,22 @@ async function processDelivery(
     return claim;
   }
 
+  const attemptStartedAt = now();
   const outcome = await fcmClient.send(delivery, deadlineMs);
+  try {
+    metrics?.recordFcmAttempt(
+      delivery.platform,
+      outcome.kind === 'delivered'
+        ? 'accepted'
+        : outcome.kind === 'rejected'
+          ? 'permanentlyRejected'
+          : 'transientFailure',
+      Math.max(0, now() - attemptStartedAt),
+      attemptStartedAt,
+    );
+  } catch {
+    // Observability is deliberately best effort on the notification hot path.
+  }
   if (outcome.kind === 'rejected' && claim?.kind === 'acquired') {
     await env.store.completeDelivery(
       claim.fingerprint,
@@ -415,6 +433,20 @@ export function createRuntimeGateway(
       const requestStartedAt = dependencies.now();
       const url = new URL(request.url);
       const config = runtimeConfig(env);
+      let requestMetricRecorded = false;
+      const recordRequest = (
+        outcome: Parameters<GatewayMetricsSink['recordRequest']>[0],
+      ): void => {
+        if (requestMetricRecorded) {
+          return;
+        }
+        requestMetricRecorded = true;
+        try {
+          dependencies.metrics?.recordRequest(outcome, requestStartedAt);
+        } catch {
+          // Metrics must never alter a Matrix response.
+        }
+      };
 
       if (request.method === 'GET' && url.pathname === '/health') {
         const ready = config !== undefined && (await env.store.ready());
@@ -428,6 +460,7 @@ export function createRuntimeGateway(
       }
 
       if (url.pathname === NOTIFY_PATH && request.method !== 'POST') {
+        recordRequest('invalid');
         return matrixError(405, 'M_UNRECOGNIZED', 'Method not allowed.');
       }
 
@@ -436,16 +469,18 @@ export function createRuntimeGateway(
       }
 
       if (config === undefined) {
+        recordRequest('storageUnavailable');
         return matrixError(503, 'M_UNKNOWN', 'Gateway is not configured.');
       }
 
       const deadlineMs =
         requestStartedAt + config.requestDeadlineSeconds * 1000;
       const abortController = new AbortController();
-      return responseBeforeDeadline(
+      const response = await responseBeforeDeadline(
         async () => {
           const sourceLimit = await env.limiter.limit(env.sourceKey(request));
           if (!sourceLimit.success) {
+            recordRequest('rateLimited');
             return rateLimitResponse(
               'Source rate limit exceeded.',
               sourceLimit.retryAfterSeconds * 1000,
@@ -458,6 +493,7 @@ export function createRuntimeGateway(
             abortController.signal,
           );
           if (jsonBody.kind === 'too-large') {
+            recordRequest('invalid');
             return matrixError(
               413,
               'M_TOO_LARGE',
@@ -465,6 +501,7 @@ export function createRuntimeGateway(
             );
           }
           if (jsonBody.kind === 'invalid') {
+            recordRequest('invalid');
             return matrixError(
               400,
               'M_NOT_JSON',
@@ -474,6 +511,7 @@ export function createRuntimeGateway(
 
           const notification = parseNotification(jsonBody.value);
           if (notification === undefined) {
+            recordRequest('invalid');
             return matrixError(
               400,
               'M_BAD_JSON',
@@ -481,6 +519,7 @@ export function createRuntimeGateway(
             );
           }
           if (notification.devices.length > config.maxDevices) {
+            recordRequest('invalid');
             return matrixError(
               413,
               'M_TOO_LARGE',
@@ -522,6 +561,7 @@ export function createRuntimeGateway(
             config.maxDailyAttempts,
           );
           if (!reserved) {
+            recordRequest('safetyBudgetExhausted');
             const date = new Date(now);
             const nextMidnight = Date.UTC(
               date.getUTCFullYear(),
@@ -548,6 +588,7 @@ export function createRuntimeGateway(
               deadlineMs
             ) {
               logOutcome(delivered, deliveries.length - offset);
+              recordRequest('processed');
               return matrixError(
                 502,
                 'M_UNKNOWN',
@@ -562,7 +603,8 @@ export function createRuntimeGateway(
                   env,
                   config,
                   fcmClient,
-                  dependencies.now(),
+                  dependencies.metrics,
+                  dependencies.now,
                   deadlineMs,
                 ),
               ),
@@ -594,11 +636,13 @@ export function createRuntimeGateway(
             }
             if (retryResponse !== undefined) {
               logOutcome(delivered, retryable);
+              recordRequest('processed');
               return retryResponse;
             }
           }
 
           logOutcome(delivered, retryable);
+          recordRequest('processed');
           return Response.json(
             { rejected },
             { headers: JSON_HEADERS, status: 200 },
@@ -610,6 +654,8 @@ export function createRuntimeGateway(
           abortController.abort();
         },
       );
+      recordRequest('processed');
+      return response;
     },
     async cleanup(env, now): Promise<void> {
       const nowSeconds = Math.floor(now / 1000);

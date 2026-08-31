@@ -11,6 +11,10 @@ const metafile = new URL(
   root,
 );
 const bunBundle = new URL('dist/apps/push-gateway/bun/main.js', root);
+const metricsWorkerBundle = new URL(
+  'dist/apps/push-gateway/bun/metrics-writer.worker.js',
+  root,
+);
 const bunMetafile = new URL('dist/apps/push-gateway/bun/meta.json', root);
 const [
   packageJson,
@@ -20,6 +24,7 @@ const [
   bunBytes,
   bunMetadata,
   bunStat,
+  metricsWorkerStat,
 ] = await Promise.all([
   readFile(packageFile, 'utf8').then(JSON.parse),
   readFile(bundle),
@@ -28,6 +33,7 @@ const [
   readFile(bunBundle),
   readFile(bunMetafile, 'utf8').then(JSON.parse),
   stat(bunBundle),
+  stat(metricsWorkerBundle),
 ]);
 
 const dependencies = packageJson.dependencies ?? {};
@@ -80,6 +86,14 @@ if (forbiddenInputs.length > 0) {
 const bunInputs = Object.keys(bunMetadata.inputs ?? {}).sort();
 if (!bunInputs.some((input) => input.endsWith('src/bun/main.ts'))) {
   throw new Error('The production Bun metafile is missing its entry point.');
+}
+if (
+  !bunInputs.some((input) =>
+    input.endsWith('src/bun/metrics-writer.worker.ts'),
+  ) ||
+  metricsWorkerStat.size === 0
+) {
+  throw new Error('The production Bun metrics Worker artifact is missing.');
 }
 for (const required of [
   'hono@4.13.5',

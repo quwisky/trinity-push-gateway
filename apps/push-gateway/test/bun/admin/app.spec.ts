@@ -189,6 +189,34 @@ async function createHarness(
     gatewayConfiguration,
     gatewayReady: () => true,
     now: clock.now,
+    operations: {
+      async backup() {
+        return { kind: 'limit' as const };
+      },
+      async cleanup() {
+        return {
+          kind: 'completed' as const,
+          result: {
+            completedAt: 1_700_000_001,
+            cooldownEndsAt: 1_700_000_300,
+            outcome: 'succeeded' as const,
+            startedAt: 1_700_000_000,
+          },
+        };
+      },
+      async firebaseValidation() {
+        return {
+          kind: 'completed' as const,
+          result: {
+            completedAt: 1_700_000_001,
+            cooldownEndsAt: 1_700_000_060,
+            outcome: 'failed' as const,
+            reason: 'access_denied',
+            startedAt: 1_700_000_000,
+          },
+        };
+      },
+    },
     safeConfiguration: administration.safe,
     startedAt: clock.now() - 10_000,
     store,
@@ -682,6 +710,41 @@ describe('production administration HTTP surface', () => {
       ).databaseBytes?.administration,
     ).toBeGreaterThan(0);
     expectNoCors(overview);
+    const metrics = await harness.surface.fetch(
+      authenticatedRequest('/admin/api/v1/metrics', session),
+    );
+    expect(metrics.status).toBe(200);
+    expect(await metrics.json()).toMatchObject({
+      fcmBuckets: [],
+      interval: 'hour',
+      requestBuckets: [],
+    });
+    harness.clock.advance(1_000);
+    const audit = await harness.surface.fetch(
+      authenticatedRequest('/admin/api/v1/audit-entries?limit=1', session),
+    );
+    expect(audit.status).toBe(200);
+    expect(await audit.json()).toMatchObject({
+      entries: [{ kind: 'login', outcome: 'succeeded' }],
+    });
+    const backups = await harness.surface.fetch(
+      authenticatedRequest('/admin/api/v1/backups', session),
+    );
+    expect(backups.status).toBe(200);
+    expect(await backups.json()).toEqual({ backups: [] });
+    const cleanup = await harness.surface.fetch(
+      mutationRequest('/admin/api/v1/operations/cleanup', session, {
+        method: 'POST',
+      }),
+    );
+    expect(cleanup.status).toBe(200);
+    expect(await cleanup.json()).toMatchObject({
+      outcome: 'succeeded',
+    });
+    const invalidMetrics = await harness.surface.fetch(
+      authenticatedRequest('/admin/api/v1/metrics?label=secret', session),
+    );
+    expect(invalidMetrics.status).toBe(400);
     const projections = JSON.stringify({
       overview: overviewBody,
       session: currentSessionBody,

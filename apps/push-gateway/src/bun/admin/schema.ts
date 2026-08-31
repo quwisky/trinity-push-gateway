@@ -36,6 +36,8 @@ export const ADMIN_OPERATION_KINDS = [
   'backup',
 ] as const;
 
+export const DELIVERY_PLATFORMS = ['android', 'ios'] as const;
+
 export const operatorIdentities = sqliteTable(
   'operator_identities',
   {
@@ -157,6 +159,22 @@ export const operatorAuditEntries = sqliteTable(
       table.subject,
       table.occurredAt,
     ),
+    index('operator_audit_entries_kind_occurred_idx').on(
+      table.kind,
+      table.occurredAt,
+      table.id,
+    ),
+    index('operator_audit_entries_outcome_occurred_idx').on(
+      table.outcome,
+      table.occurredAt,
+      table.id,
+    ),
+    index('operator_audit_entries_kind_outcome_occurred_idx').on(
+      table.kind,
+      table.outcome,
+      table.occurredAt,
+      table.id,
+    ),
     foreignKey({
       columns: [table.issuer, table.subject],
       foreignColumns: [operatorIdentities.issuer, operatorIdentities.subject],
@@ -222,12 +240,149 @@ export const operationLeases = sqliteTable(
   ],
 );
 
+export const operationResults = sqliteTable(
+  'operation_results',
+  {
+    kind: text('kind', { enum: ADMIN_OPERATION_KINDS }).primaryKey(),
+    leaseId: text('lease_id').notNull(),
+    completedAt: integer('completed_at').notNull(),
+    outcome: text('outcome', {
+      enum: ['succeeded', 'failed', 'outcome_unknown'],
+    }).notNull(),
+    reason: text('reason'),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.kind],
+      foreignColumns: [operationLeases.kind],
+      name: 'operation_results_lease_fk',
+    }).onDelete('cascade'),
+    check(
+      'operation_results_values_check',
+      sql`${table.kind} IN ('firebase_validation', 'cleanup', 'backup')
+        AND length(${table.leaseId}) BETWEEN 16 AND 128
+        AND ${table.completedAt} >= 0
+        AND ${table.outcome} IN ('succeeded', 'failed', 'outcome_unknown')
+        AND (${table.reason} IS NULL OR (
+          length(${table.reason}) BETWEEN 1 AND 64
+          AND substr(${table.reason}, 1, 1) GLOB '[a-z]'
+          AND ${table.reason} NOT GLOB '*[^a-z0-9_]*'
+        ))`,
+    ),
+  ],
+);
+
+export const requestMetricsHourly = sqliteTable(
+  'request_metrics_hourly',
+  {
+    hour: integer('hour').primaryKey(),
+    processed: integer('processed').notNull().default(0),
+    invalid: integer('invalid').notNull().default(0),
+    rateLimited: integer('rate_limited').notNull().default(0),
+    safetyBudgetExhausted: integer('safety_budget_exhausted')
+      .notNull()
+      .default(0),
+    storageUnavailable: integer('storage_unavailable').notNull().default(0),
+  },
+  (table) => [
+    check(
+      'request_metrics_hourly_values_check',
+      sql`${table.hour} >= 0 AND ${table.hour} % 3600 = 0
+        AND ${table.processed} >= 0
+        AND ${table.invalid} >= 0
+        AND ${table.rateLimited} >= 0
+        AND ${table.safetyBudgetExhausted} >= 0
+        AND ${table.storageUnavailable} >= 0`,
+    ),
+  ],
+);
+
+export const fcmMetricsHourly = sqliteTable(
+  'fcm_metrics_hourly',
+  {
+    hour: integer('hour').notNull(),
+    platform: text('platform', { enum: DELIVERY_PLATFORMS }).notNull(),
+    attempted: integer('attempted').notNull().default(0),
+    accepted: integer('accepted').notNull().default(0),
+    permanentlyRejected: integer('permanently_rejected').notNull().default(0),
+    transientFailure: integer('transient_failure').notNull().default(0),
+    latencyUnder100: integer('latency_under_100').notNull().default(0),
+    latency100To249: integer('latency_100_to_249').notNull().default(0),
+    latency250To499: integer('latency_250_to_499').notNull().default(0),
+    latency500To999: integer('latency_500_to_999').notNull().default(0),
+    latency1000To2499: integer('latency_1000_to_2499').notNull().default(0),
+    latency2500To4999: integer('latency_2500_to_4999').notNull().default(0),
+    latency5000To9999: integer('latency_5000_to_9999').notNull().default(0),
+    latency10000OrMore: integer('latency_10000_or_more').notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.hour, table.platform] }),
+    check(
+      'fcm_metrics_hourly_values_check',
+      sql`${table.hour} >= 0 AND ${table.hour} % 3600 = 0
+        AND ${table.platform} IN ('android', 'ios')
+        AND ${table.attempted} >= 0
+        AND ${table.accepted} >= 0
+        AND ${table.permanentlyRejected} >= 0
+        AND ${table.transientFailure} >= 0
+        AND ${table.latencyUnder100} >= 0
+        AND ${table.latency100To249} >= 0
+        AND ${table.latency250To499} >= 0
+        AND ${table.latency500To999} >= 0
+        AND ${table.latency1000To2499} >= 0
+        AND ${table.latency2500To4999} >= 0
+        AND ${table.latency5000To9999} >= 0
+        AND ${table.latency10000OrMore} >= 0`,
+    ),
+  ],
+);
+
+export const verifiedBackups = sqliteTable(
+  'verified_backups',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    createdAt: integer('created_at').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    issuer: text('issuer'),
+    subject: text('subject'),
+  },
+  (table) => [
+    uniqueIndex('verified_backups_name_idx').on(table.name),
+    index('verified_backups_created_idx').on(table.createdAt, table.id),
+    foreignKey({
+      columns: [table.issuer, table.subject],
+      foreignColumns: [operatorIdentities.issuer, operatorIdentities.subject],
+      name: 'verified_backups_identity_fk',
+    }).onDelete('restrict'),
+    check(
+      'verified_backups_values_check',
+      sql`length(${table.id}) BETWEEN 16 AND 128
+        AND length(${table.name}) BETWEEN 1 AND 128
+        AND ${table.name} NOT LIKE '%/%'
+        AND ${table.name} NOT LIKE '%\\%'
+        AND ${table.createdAt} >= 0
+        AND ${table.sizeBytes} > 0
+        AND length(${table.sha256}) = 64
+        AND lower(${table.sha256}) = ${table.sha256}
+        AND ${table.sha256} NOT GLOB '*[^a-f0-9]*'
+        AND ((${table.issuer} IS NULL AND ${table.subject} IS NULL)
+          OR (${table.issuer} IS NOT NULL AND ${table.subject} IS NOT NULL))`,
+    ),
+  ],
+);
+
 export const adminSchema = {
+  fcmMetricsHourly,
   oidcLoginAttempts,
   operationLeases,
+  operationResults,
   operatorAuditEntries,
   operatorIdentities,
   operatorSessions,
+  requestMetricsHourly,
+  verifiedBackups,
 };
 
 export type AdminSchema = typeof adminSchema;
