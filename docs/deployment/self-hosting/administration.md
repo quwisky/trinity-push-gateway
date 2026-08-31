@@ -74,6 +74,11 @@ The public origin is an origin, not a path: no credentials, query, fragment, or
 trailing slash. The callback is matched exactly. Except for explicit loopback
 development, both issuer and public origin must use HTTPS.
 
+When an unauthenticated operator opens a known administration route such as
+`/admin/metrics`, the sign-in flow returns to that route after authentication.
+The gateway accepts only its fixed administration routes as return targets and
+falls back to `/admin/overview` for an unknown or external value.
+
 ## Pocket ID
 
 Create a confidential OIDC client in Pocket ID with Authorization Code, PKCE,

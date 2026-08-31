@@ -5,17 +5,28 @@ import { fileURLToPath } from 'node:url';
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const providerRoot = path.join(workspaceRoot, 'apps/push-gateway/provider-e2e');
 
-const [workflow, pocketCompose, authentikCompose, blueprint, preparation] =
-  await Promise.all([
-    readFile(
-      path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
-      'utf8',
-    ),
-    readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
-    readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
-    readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
-    readFile(path.join(providerRoot, 'prepare-provider.mjs'), 'utf8'),
-  ]);
+const [
+  workflow,
+  project,
+  lifecycle,
+  pocketAdapter,
+  pocketCompose,
+  authentikCompose,
+  blueprint,
+  preparation,
+] = await Promise.all([
+  readFile(
+    path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
+    'utf8',
+  ),
+  readFile(path.join(workspaceRoot, 'apps/push-gateway/project.json'), 'utf8'),
+  readFile(path.join(providerRoot, 'provider-gate-lifecycle.mjs'), 'utf8'),
+  readFile(path.join(providerRoot, 'pocket-id-adapter.mjs'), 'utf8'),
+  readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
+  readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
+  readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
+  readFile(path.join(providerRoot, 'prepare-authentik.mjs'), 'utf8'),
+]);
 
 function requireContract(condition, message) {
   if (!condition) {
@@ -67,11 +78,13 @@ for (const required of [
 for (const required of [
   "cron: '23 3 * * 2'",
   'pnpm nx run push-gateway:test-oidc-provider --skipNxCache',
-  'browser-provider-gate.mjs',
+  'browser-authentik-gate.mjs',
   'Prove provider failure isolation',
   'release-gates:',
-  'pocket-id-visual-proof-',
+  'pocket-id-provider-gate-',
   'authentik-visual-proof-',
+  'push-gateway:provider-gate-pocket-id --skipNxCache',
+  'push-gateway:provider-gate-pocket-id-cleanup --skipNxCache',
 ]) {
   requireContract(
     workflow.includes(required),
@@ -84,10 +97,48 @@ requireContract(
   'Integration pull requests to master must select Authentik.',
 );
 requireContract(
-  workflow.includes('rm -rf -- "$RUNNER_TEMP/pocket-id-gate"') &&
+  workflow.includes('PROVIDER_GATE_WORK_DIRECTORY:') &&
     workflow.includes('rm -rf -- "$RUNNER_TEMP/authentik-gate"'),
   'Disposable provider credentials must be removed during cleanup.',
 );
+
+for (const required of [
+  '"provider-gate-pocket-id"',
+  '"provider-gate-pocket-id-cleanup"',
+  '"test-provider-gate-lifecycle"',
+]) {
+  requireContract(
+    project.includes(required),
+    `The push-gateway project is missing ${required}.`,
+  );
+}
+
+for (const required of [
+  'export async function runProviderGate',
+  'export async function cleanupProviderGate',
+  'await dependencies.browserContracts',
+  'await waitForProviderOutage',
+  'finally',
+  'mode: 0o600',
+]) {
+  requireContract(
+    lifecycle.includes(required),
+    `The deep provider lifecycle is missing ${required}.`,
+  );
+}
+
+for (const required of [
+  'createProviderSecrets',
+  'providerEnvironment',
+  'async provision',
+  'async authenticate',
+  'normalizeDeniedPage',
+]) {
+  requireContract(
+    pocketAdapter.includes(required),
+    `The Pocket ID adapter is missing ${required}.`,
+  );
+}
 
 for (const required of [
   "import { randomBytes } from 'node:crypto'",
@@ -105,5 +156,5 @@ for (const required of [
 }
 
 console.info(
-  'Provider contract: deterministic suite, pinned Pocket ID and Authentik services, ephemeral credentials, browser proof, outage isolation, and release gate.',
+  'Provider contract: deterministic suite, deep Pocket ID lifecycle, pinned real providers, ephemeral credentials, browser proof, outage isolation, and release gate.',
 );

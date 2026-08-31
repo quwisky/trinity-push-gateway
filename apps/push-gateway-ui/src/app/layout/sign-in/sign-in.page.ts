@@ -8,6 +8,11 @@ const isSignInReason = (value: string | null): value is SignInReason =>
   value === 'forbidden' ||
   value === 'unavailable';
 
+const loginHref = (returnPath: string | null): string =>
+  returnPath?.startsWith('/admin/') === true
+    ? `/admin/auth/login?returnPath=${encodeURIComponent(returnPath)}`
+    : '/admin/auth/login';
+
 @Component({
   selector: 'tpg-sign-in-page',
   template: `
@@ -37,9 +42,7 @@ const isSignInReason = (value: string | null): value is SignInReason =>
           }
         }
 
-        <a class="primary-action" href="/admin/auth/login">
-          Continue to sign in
-        </a>
+        <a class="primary-action" [href]="loginHref"> Continue to sign in </a>
         <p class="auth-note">
           Authentication uses this deployment's same-origin OIDC route.
         </p>
@@ -50,6 +53,9 @@ const isSignInReason = (value: string | null): value is SignInReason =>
 })
 export class SignInPage {
   private readonly route = inject(ActivatedRoute);
+  protected readonly loginHref = loginHref(
+    this.route.snapshot.queryParamMap.get('returnPath'),
+  );
   protected readonly reason = isSignInReason(
     this.route.snapshot.queryParamMap.get('reason'),
   )

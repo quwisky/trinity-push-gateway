@@ -35,7 +35,8 @@ describe('operatorSessionGuard', () => {
     router = TestBed.inject(Router);
   });
 
-  const runGuard = async (): Promise<GuardResult> => {
+  const runGuard = async (url = '/metrics'): Promise<GuardResult> => {
+    router.routerState.snapshot.url = url;
     const result = TestBed.runInInjectionContext(() =>
       operatorSessionGuard(
         router.routerState.snapshot.root,
@@ -70,6 +71,8 @@ describe('operatorSessionGuard', () => {
     if (!(result instanceof UrlTree)) {
       throw new Error('Expected the session guard to return a UrlTree.');
     }
-    expect(router.serializeUrl(result)).toBe(`/sign-in?reason=${status}`);
+    expect(router.serializeUrl(result)).toBe(
+      `/sign-in?reason=${status}&returnPath=%2Fadmin%2Fmetrics`,
+    );
   });
 });

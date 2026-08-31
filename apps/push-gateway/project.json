@@ -52,6 +52,7 @@
         "check-auth-selection",
         "check-container-contract",
         "check-provider-contract",
+        "test-provider-gate-lifecycle",
         "check-migrations"
       ]
     },
@@ -202,6 +203,30 @@
       "cache": false,
       "options": {
         "command": "bun test test/bun/auth test/bun/admin/app.spec.ts",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "test-provider-gate-lifecycle": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "options": {
+        "command": "node --test provider-e2e/provider-gate-lifecycle.test.mjs",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "provider-gate-pocket-id": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node provider-e2e/run-provider-gate.mjs pocket-id run",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "provider-gate-pocket-id-cleanup": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node provider-e2e/run-provider-gate.mjs pocket-id cleanup",
         "cwd": "apps/push-gateway"
       }
     },
