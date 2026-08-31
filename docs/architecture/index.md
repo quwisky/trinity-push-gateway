@@ -30,6 +30,11 @@ The Push Gateway UI is disabled by default and available only with the Bun targe
 
 Operator Identity, Operator Session, Operator Audit Entry, aggregate metrics, and operation state live in `/data/admin.sqlite`, separate from the delivery-critical gateway database. The operator API exposes bounded observation and Operator Actions for Firebase validation, cleanup, and verified gateway-database backup rather than general identity, configuration, secret, database, filesystem, or process management.
 
+One deep Operator Audit Entry query module owns accepted filters and ranges,
+privacy projection, stable keyset pagination, and signed cursor verification. The
+Hono route only maps the module result to HTTP, while the SQLite adapter only
+executes its normalized bounded storage query.
+
 UI, OIDC, administration-database, and metrics failures cannot alter or delay Matrix notification delivery or public `/health`. Metrics are fixed-cardinality aggregates flushed best-effort by one bounded Bun Worker; that worker never owns delivery coordination.
 
 ## Input boundary

@@ -27,6 +27,10 @@ import {
   type OperatorSession,
 } from '../auth/session-policy';
 import type { SqlMigration } from '../sqlite-store';
+import type {
+  OperatorAuditEntryRecord,
+  OperatorAuditEntryStorageQuery,
+} from './audit-query';
 import {
   adminSchema,
   fcmMetricsHourly,
@@ -104,15 +108,6 @@ export type AdminCleanupResult = {
   readonly sessions: number;
 };
 
-export type AdminAuditEntry = typeof operatorAuditEntries.$inferSelect;
-export type AdminAuditFilter = Readonly<{
-  before?: Readonly<{ id: string; occurredAt: number }>;
-  from: number;
-  kind?: AdminAuditEntry['kind'];
-  limit: number;
-  outcome?: AdminAuditEntry['outcome'];
-  to: number;
-}>;
 export type AdminOperationKind = typeof operationLeases.$inferInsert.kind;
 export type AdminOperationOutcome =
   typeof operationResults.$inferInsert.outcome;
@@ -655,7 +650,9 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
     };
   }
 
-  listAuditEntries(filter: AdminAuditFilter): readonly AdminAuditEntry[] {
+  readOperatorAuditEntries(
+    filter: OperatorAuditEntryStorageQuery,
+  ): readonly OperatorAuditEntryRecord[] {
     const conditions = [
       gte(operatorAuditEntries.occurredAt, filter.from),
       lt(operatorAuditEntries.occurredAt, filter.to),
@@ -678,14 +675,22 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
           ]),
     ];
     return this.queryDatabase
-      .select()
+      .select({
+        id: operatorAuditEntries.id,
+        issuer: operatorAuditEntries.issuer,
+        kind: operatorAuditEntries.kind,
+        occurredAt: operatorAuditEntries.occurredAt,
+        outcome: operatorAuditEntries.outcome,
+        reason: operatorAuditEntries.reason,
+        subject: operatorAuditEntries.subject,
+      })
       .from(operatorAuditEntries)
       .where(and(...conditions))
       .orderBy(
         desc(operatorAuditEntries.occurredAt),
         desc(operatorAuditEntries.id),
       )
-      .limit(Math.min(101, filter.limit + 1))
+      .limit(filter.take)
       .all();
   }
 
