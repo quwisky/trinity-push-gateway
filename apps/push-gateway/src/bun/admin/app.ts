@@ -10,6 +10,7 @@ import {
 } from 'hono/cookie';
 
 import { version as gatewayVersion } from '../../../../../package.json';
+import { OPERATOR_SESSION_RESPONSE_SCHEMA } from '../../admin-contract/operator-session';
 import type { BunConfiguration } from '../config';
 import {
   createOidcAuthenticator,
@@ -27,7 +28,6 @@ import {
   ADMIN_METRICS_SCHEMA,
   ADMIN_OPERATION_RESULT_SCHEMA,
   ADMIN_OPERATOR_SESSION_LIST_SCHEMA,
-  ADMIN_OPERATOR_SESSION_SCHEMA,
   ADMIN_OVERVIEW_SCHEMA,
   ADMIN_SESSION_ID_SCHEMA,
   validatedAdminResponse,
@@ -762,7 +762,7 @@ export function createAdminSurface(
     authenticatedRoute((_context, session) => {
       return adminJsonResponse(
         validatedAdminResponse(
-          ADMIN_OPERATOR_SESSION_SCHEMA,
+          OPERATOR_SESSION_RESPONSE_SCHEMA,
           sessionProjection(session, session.id),
         ),
       );
