@@ -188,6 +188,7 @@ const CONFIGURATION = Object.freeze({
     cleanupIntervalSeconds: 3600,
   },
   administration: {
+    enabled: true,
     publicOrigin: 'https://gateway.example.test',
     oidcIssuer: 'https://identity.example.test',
     oidcClientId: 'trinity-push-gateway',
@@ -731,6 +732,8 @@ test('renders and operates all five feature routes', async ({
   await failedOperationDialog.getByRole('button', { name: 'Cancel' }).click();
 
   await page.getByRole('link', { name: 'Configuration' }).click();
+  await expect(page.getByText('Administration enabled')).toBeVisible();
+  await expect(page.getByText('true', { exact: true })).toBeVisible();
   await expect(page.getByText('ovh.qwky.trinity.android')).toBeVisible();
   await expect(page.getByText('Firebase client identity')).toBeVisible();
   await expect(page.getByText('/private/gateway.sqlite')).toBeVisible();

@@ -340,6 +340,8 @@ export const AdministrationConfigurationOidcTokenEndpointAuthMethod = {
  * Credential paths and raw environment names are excluded.
  */
 export interface AdministrationConfiguration {
+  /** The administration surface is enabled for this response. */
+  enabled: true;
   /**
    * @minLength 8
    * @maxLength 2048

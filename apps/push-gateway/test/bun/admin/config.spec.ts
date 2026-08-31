@@ -112,6 +112,7 @@ describe('Bun administration configuration', () => {
         backupLimitCount: 24,
         cleanupCooldownSeconds: 300,
         cleanupDeadlineSeconds: 30,
+        enabled: true,
         firebaseValidationCooldownSeconds: 60,
         firebaseValidationDeadlineSeconds: 20,
         maxSessionsDeployment: 100,
@@ -366,7 +367,6 @@ describe('Bun administration configuration', () => {
     );
     expect(ADMIN_CONFIGURATION_DEFAULTS).toMatchObject({
       TRINITY_PUSH_GATEWAY_ADMIN_ASSETS_PATH: '/app/admin',
-      TRINITY_PUSH_GATEWAY_ADMIN_ENABLED: 'false',
       TRINITY_PUSH_GATEWAY_ADMIN_MIGRATIONS_PATH: '/app/admin-migrations',
       TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES: 'openid profile email groups',
     });
