@@ -187,6 +187,29 @@ describe('OIDC persistence feasibility', () => {
     harness.close();
   });
 
+  it('persists immediate idempotent session revocation', () => {
+    const harness = SqliteAuthSpikeHarness.open(databasePath());
+    harness.establishSession(
+      { issuer: 'https://issuer.example/', subject: 'operator-1' },
+      {
+        id: 'session-to-revoke',
+        nowSeconds: 1_000,
+        policyFingerprint: 'policy',
+        xsrfToken: 'xsrf',
+      },
+    );
+
+    expect(harness.revokeSession('session-to-revoke', 1_001)).toBe(true);
+    expect(harness.revokeSession('session-to-revoke', 1_002)).toBe(false);
+    expect(harness.snapshot().sessions).toEqual([
+      expect.objectContaining({
+        id: 'session-to-revoke',
+        revokedAt: 1_001,
+      }),
+    ]);
+    harness.close();
+  });
+
   it('enforces five-per-identity and 100-global session caps atomically', () => {
     const harness = SqliteAuthSpikeHarness.open(databasePath());
     for (let index = 0; index < 6; index += 1) {

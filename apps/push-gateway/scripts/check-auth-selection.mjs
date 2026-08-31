@@ -11,15 +11,24 @@ const metafile = new URL(
   root,
 );
 const bunBundle = new URL('dist/apps/push-gateway/bun/main.js', root);
-const [packageJson, bundleBytes, { size }, metadata, bunBytes, bunStat] =
-  await Promise.all([
-    readFile(packageFile, 'utf8').then(JSON.parse),
-    readFile(bundle),
-    stat(bundle),
-    readFile(metafile, 'utf8').then(JSON.parse),
-    readFile(bunBundle),
-    stat(bunBundle),
-  ]);
+const bunMetafile = new URL('dist/apps/push-gateway/bun/meta.json', root);
+const [
+  packageJson,
+  bundleBytes,
+  { size },
+  metadata,
+  bunBytes,
+  bunMetadata,
+  bunStat,
+] = await Promise.all([
+  readFile(packageFile, 'utf8').then(JSON.parse),
+  readFile(bundle),
+  stat(bundle),
+  readFile(metafile, 'utf8').then(JSON.parse),
+  readFile(bunBundle),
+  readFile(bunMetafile, 'utf8').then(JSON.parse),
+  stat(bunBundle),
+]);
 
 const dependencies = packageJson.dependencies ?? {};
 const devDependencies = packageJson.devDependencies ?? {};
@@ -65,6 +74,21 @@ if (forbiddenInputs.length > 0) {
   );
 }
 
+const bunInputs = Object.keys(bunMetadata.inputs ?? {}).sort();
+if (!bunInputs.some((input) => input.endsWith('src/bun/main.ts'))) {
+  throw new Error('The production Bun metafile is missing its entry point.');
+}
+const forbiddenBunInputs = bunInputs.filter((input) =>
+  /better-auth|oidc-provider|(?:^|[/\\])test(?:[/\\]|$)|test-oidc-provider/u.test(
+    input,
+  ),
+);
+if (forbiddenBunInputs.length > 0) {
+  throw new Error(
+    `Production Bun bundle contains a losing or test-only input: ${forbiddenBunInputs.join(', ')}.`,
+  );
+}
+
 const [gzipBytes, bunGzipBytes] = await Promise.all([
   gzipAsync(bundleBytes),
   gzipAsync(bunBytes),
@@ -72,5 +96,6 @@ const [gzipBytes, bunGzipBytes] = await Promise.all([
 console.info(
   `Selected OIDC module: ${size} raw bytes; ${gzipBytes.byteLength} gzip bytes; ` +
     `${inputs.length} source inputs. Unwired Bun gateway baseline: ` +
-    `${bunStat.size} raw bytes; ${bunGzipBytes.byteLength} gzip bytes.`,
+    `${bunStat.size} raw bytes; ${bunGzipBytes.byteLength} gzip bytes; ` +
+    `${bunInputs.length} production inputs.`,
 );

@@ -16,7 +16,7 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/apps/push-gateway/bun"],
       "options": {
-        "command": "bun build src/bun/main.ts --target bun --outdir ../../dist/apps/push-gateway/bun",
+        "command": "bun build src/bun/main.ts --target bun --outdir ../../dist/apps/push-gateway/bun --metafile=../../dist/apps/push-gateway/bun/meta.json",
         "cwd": "apps/push-gateway"
       }
     },

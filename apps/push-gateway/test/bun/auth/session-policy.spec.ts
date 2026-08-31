@@ -91,7 +91,7 @@ describe('Operator Session policy', () => {
       expectedOrigin: 'https://gateway.example',
       headerToken: 'xsrf-session-1',
       requestOrigin: 'https://gateway.example',
-      sessionToken: 'xsrf-session-1',
+      sessionXsrfToken: 'xsrf-session-1',
     };
 
     expect(authorizeOperatorMutation(input)).toBe(true);
@@ -109,7 +109,7 @@ describe('Operator Session policy', () => {
         ...input,
         cookieToken: '',
         headerToken: '',
-        sessionToken: '',
+        sessionXsrfToken: '',
       }),
     ).toBe(false);
     expect(OPERATOR_SESSION_COOKIE).toEqual({

@@ -111,7 +111,7 @@ type OperatorMutationProof = {
   readonly expectedOrigin: string;
   readonly headerToken: string | undefined;
   readonly requestOrigin: string | undefined;
-  readonly sessionToken: string;
+  readonly sessionXsrfToken: string;
 };
 
 function equalSecret(left: string, right: string): boolean {
@@ -128,10 +128,10 @@ export function authorizeOperatorMutation(
 ): boolean {
   return (
     proof.requestOrigin === proof.expectedOrigin &&
-    proof.sessionToken.length > 0 &&
+    proof.sessionXsrfToken.length > 0 &&
     proof.cookieToken !== undefined &&
     proof.headerToken !== undefined &&
-    equalSecret(proof.cookieToken, proof.sessionToken) &&
-    equalSecret(proof.headerToken, proof.sessionToken)
+    equalSecret(proof.cookieToken, proof.sessionXsrfToken) &&
+    equalSecret(proof.headerToken, proof.sessionXsrfToken)
   );
 }

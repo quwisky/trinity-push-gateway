@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import {
@@ -226,6 +226,19 @@ export class SqliteAuthSpikeHarness implements OidcLoginAttemptStore {
   save(attempt: OidcLoginAttempt): Promise<void> {
     this.queryDatabase.insert(loginAttempts).values(attempt).run();
     return Promise.resolve();
+  }
+
+  revokeSession(id: string, nowSeconds: number): boolean {
+    return (
+      this.queryDatabase
+        .update(operatorSessions)
+        .set({ revokedAt: nowSeconds })
+        .where(
+          and(eq(operatorSessions.id, id), isNull(operatorSessions.revokedAt)),
+        )
+        .returning({ id: operatorSessions.id })
+        .all().length === 1
+    );
   }
 
   snapshot(): SpikeSnapshot {
