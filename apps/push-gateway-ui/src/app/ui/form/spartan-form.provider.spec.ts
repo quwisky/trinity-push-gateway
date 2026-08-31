@@ -9,7 +9,7 @@ import {
   SPARTAN_FIELD_TYPES,
 } from './spartan-form.provider';
 
-describe('SPARTAN_FIELD_TYPES', () => {
+describe('shared SPARTAN_FIELD_TYPES', () => {
   it('registers only the five application-owned field types', () => {
     expect(SPARTAN_FIELD_TYPES.map(({ name }) => name)).toEqual([
       'input',

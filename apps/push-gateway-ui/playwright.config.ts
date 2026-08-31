@@ -27,10 +27,22 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      grepInvert: /@mobile/u,
     },
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
+      grep: /@cross-browser/u,
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+      grep: /@cross-browser/u,
+    },
+    {
+      name: 'mobile-webkit',
+      use: { ...devices['iPhone 13'] },
+      grep: /@mobile/u,
     },
   ],
 });

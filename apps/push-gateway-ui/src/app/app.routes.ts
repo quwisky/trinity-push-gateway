@@ -25,9 +25,9 @@ export const appRoutes: Routes = [
       },
       {
         path: 'metrics',
-        loadComponent: () =>
-          import('./features/metrics/metrics.page').then(
-            ({ MetricsPage }) => MetricsPage,
+        loadChildren: () =>
+          import('./features/metrics/metrics.routes').then(
+            ({ METRICS_ROUTES }) => METRICS_ROUTES,
           ),
       },
       {
@@ -46,9 +46,9 @@ export const appRoutes: Routes = [
       },
       {
         path: 'security',
-        loadComponent: () =>
-          import('./features/security/security.page').then(
-            ({ SecurityPage }) => SecurityPage,
+        loadChildren: () =>
+          import('./features/security/security.routes').then(
+            ({ SECURITY_ROUTES }) => SECURITY_ROUTES,
           ),
       },
     ],

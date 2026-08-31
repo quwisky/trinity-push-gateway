@@ -6,7 +6,7 @@ import {
   injectNgForgeAction,
   NgForgeActionHost,
 } from '@ng-forge/dynamic-forms/integration';
-import { HlmButton } from '../../../ui/helm/button';
+import { HlmButton } from '../helm/button';
 
 @Component({
   selector: 'tpg-spartan-submit-field',

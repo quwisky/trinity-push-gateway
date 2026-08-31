@@ -7,8 +7,8 @@ import {
   NgForgeControl,
   NgForgeFieldHost,
 } from '@ng-forge/dynamic-forms/integration';
-import { HlmCheckbox } from '../../../ui/helm/checkbox';
-import { HlmLabel } from '../../../ui/helm/label';
+import { HlmCheckbox } from '../helm/checkbox';
+import { HlmLabel } from '../helm/label';
 
 @Component({
   selector: 'tpg-spartan-checkbox-field',

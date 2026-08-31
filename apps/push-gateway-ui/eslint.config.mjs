@@ -59,7 +59,7 @@ export default [
     },
   },
   {
-    files: ['src/app/features/operations/form/spartan-form.types.ts'],
+    files: ['src/app/ui/form/spartan-form.types.ts'],
     rules: {
       // TypeScript module augmentation requires an interface declaration.
       '@typescript-eslint/consistent-type-definitions': 'off',

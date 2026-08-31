@@ -95,6 +95,10 @@ const forbiddenSources = [
   ['Chart.js date adapter', /chartjs-adapter/u],
   ['Angular Chart.js wrapper', /\b(?:ng2-charts|angular-chart)\b/u],
   [
+    'bundle-expanding Zod namespace import',
+    /import\s+(?:\*\s+as\s+\w+|\{\s*z\s*\})\s+from\s*['"]zod\/mini['"]/u,
+  ],
+  [
     'alternate ng-forge adapter',
     /@ng-forge\/dynamic-forms-(?:bootstrap|ionic|material|primeng)/u,
   ],
@@ -129,8 +133,11 @@ const importedChartSymbols = chartImport.groups.imports
   .filter(Boolean)
   .sort();
 const expectedChartSymbols = [
+  'BarController',
+  'BarElement',
   'CategoryScale',
   'Chart',
+  'Legend',
   'LinearScale',
   'LineController',
   'LineElement',
@@ -162,7 +169,7 @@ assertPolicy(
 
 const formProviderPath = path.join(
   sourceRoot,
-  'app/features/operations/form/spartan-form.provider.ts',
+  'app/ui/form/spartan-form.provider.ts',
 );
 const formProvider = await readFile(formProviderPath, 'utf8');
 const registeredFields = [
@@ -173,14 +180,16 @@ assertPolicy(
   JSON.stringify(registeredFields) === JSON.stringify(expectedFields),
   `Spartan form registrations changed: ${registeredFields.join(', ')}.`,
 );
-const operationsRoutes = await readFile(
-  path.join(sourceRoot, 'app/features/operations/operations.routes.ts'),
-  'utf8',
-);
-assertPolicy(
-  /providers:\s*\[provideSpartanDynamicForm\(\)\]/u.test(operationsRoutes),
-  'The ng-forge registry must remain local to the Operations route.',
-);
+for (const route of ['metrics', 'operations', 'security']) {
+  const routeSource = await readFile(
+    path.join(sourceRoot, `app/features/${route}/${route}.routes.ts`),
+    'utf8',
+  );
+  assertPolicy(
+    /providers:\s*\[[^\]]*provideSpartanDynamicForm\(\)/u.test(routeSource),
+    `The ng-forge registry must remain local to the lazy ${route} route.`,
+  );
+}
 
 const workspaceConfiguration = await readFile(
   path.join(workspaceRoot, 'pnpm-workspace.yaml'),
@@ -215,8 +224,22 @@ for (const { relativePath, source } of sources) {
     continue;
   }
   assertPolicy(
-    relativePath.startsWith('src/app/features/operations/'),
-    `ng-forge must remain route-local; found an import in ${relativePath}.`,
+    relativePath.startsWith('src/app/ui/form/') ||
+      relativePath.startsWith('src/app/ui/confirmation/') ||
+      relativePath.startsWith('src/app/features/metrics/') ||
+      relativePath.startsWith('src/app/features/operations/') ||
+      relativePath.startsWith('src/app/features/security/'),
+    `ng-forge must remain in shared lazy form code or a form-bearing lazy route; found an import in ${relativePath}.`,
+  );
+}
+
+for (const { relativePath, source } of runtimeSources) {
+  if (!source.includes("from 'chart.js'")) {
+    continue;
+  }
+  assertPolicy(
+    relativePath.startsWith('src/app/features/metrics/'),
+    `Chart.js must remain confined to the lazy Metrics route; found an import in ${relativePath}.`,
   );
 }
 

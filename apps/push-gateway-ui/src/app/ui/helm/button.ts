@@ -1,6 +1,8 @@
 import { computed, Directive, inject, input } from '@angular/core';
 import { BrnButton } from '@spartan-ng/brain/button';
 import { cva, VariantProps } from 'class-variance-authority';
+import { ClassValue } from 'clsx';
+import { hlm } from './hlm';
 
 export const buttonVariants = cva(
   'spartan-button group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50',
@@ -40,11 +42,15 @@ type ButtonVariants = VariantProps<typeof buttonVariants>;
 export class HlmButton {
   private readonly brainButton = inject(BrnButton);
 
+  readonly userClass = input<ClassValue>('', { alias: 'class' });
   readonly variant = input<ButtonVariants['variant']>('default');
   readonly size = input<ButtonVariants['size']>('default');
   readonly tabIndex = input<number | undefined>(undefined);
   protected readonly computedClass = computed(() =>
-    buttonVariants({ variant: this.variant(), size: this.size() }),
+    hlm(
+      buttonVariants({ variant: this.variant(), size: this.size() }),
+      this.userClass(),
+    ),
   );
   protected readonly computedTabIndex = computed(() =>
     this.brainButton.disabled() ? -1 : this.tabIndex(),

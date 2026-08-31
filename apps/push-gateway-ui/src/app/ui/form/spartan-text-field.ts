@@ -7,11 +7,12 @@ import {
   NgForgeControl,
   NgForgeFieldHost,
 } from '@ng-forge/dynamic-forms/integration';
-import { HlmInput } from '../../../ui/helm/input';
-import { HlmLabel } from '../../../ui/helm/label';
+import { HlmInput } from '../helm/input';
+import { HlmLabel } from '../helm/label';
+import { SpartanTextProps } from './spartan-form.types';
 
 @Component({
-  selector: 'tpg-spartan-datetime-field',
+  selector: 'tpg-spartan-text-field',
   imports: [
     AsyncPipe,
     DynamicTextPipe,
@@ -24,7 +25,7 @@ import { HlmLabel } from '../../../ui/helm/label';
   host: { class: 'form-field' },
   template: `
     @let state = field.field();
-    @let inputId = field.key() + '-datetime';
+    @let inputId = field.key() + '-input';
     @if (field.label(); as label) {
       <label hlmLabel [for]="inputId">
         {{ label | dynamicText | async }}
@@ -33,9 +34,10 @@ import { HlmLabel } from '../../../ui/helm/label';
     <input
       hlmInput
       ngForgeControl
-      type="datetime-local"
       [formField]="state"
       [id]="inputId"
+      [type]="props()?.type ?? 'text'"
+      [placeholder]="(field.placeholder() | dynamicText | async) ?? ''"
       [attr.tabindex]="field.tabIndex()"
       [class.control-invalid]="state().invalid() && state().touched()"
     />
@@ -49,7 +51,7 @@ import { HlmLabel } from '../../../ui/helm/label';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SpartanDateTimeFieldComponent {
+export class SpartanTextFieldComponent {
   protected readonly field = injectNgForgeField<string>();
-  readonly props = input<Readonly<{ hint?: string }>>();
+  readonly props = input<SpartanTextProps>();
 }

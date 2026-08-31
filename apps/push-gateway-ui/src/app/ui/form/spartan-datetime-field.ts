@@ -1,49 +1,44 @@
 import { AsyncPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { FormField } from '@angular/forms/signals';
-import { FieldOption } from '@ng-forge/dynamic-forms';
 import {
   DynamicTextPipe,
   injectNgForgeField,
   NgForgeControl,
   NgForgeFieldHost,
 } from '@ng-forge/dynamic-forms/integration';
-import { HlmLabel } from '../../../ui/helm/label';
-import { HlmNativeSelect } from '../../../ui/helm/native-select';
+import { HlmInput } from '../helm/input';
+import { HlmLabel } from '../helm/label';
 
 @Component({
-  selector: 'tpg-spartan-select-field',
+  selector: 'tpg-spartan-datetime-field',
   imports: [
     AsyncPipe,
     DynamicTextPipe,
     FormField,
+    HlmInput,
     HlmLabel,
-    HlmNativeSelect,
     NgForgeControl,
   ],
   hostDirectives: [NgForgeFieldHost],
   host: { class: 'form-field' },
   template: `
     @let state = field.field();
-    @let selectId = field.key() + '-select';
+    @let inputId = field.key() + '-datetime';
     @if (field.label(); as label) {
-      <label hlmLabel [for]="selectId">
+      <label hlmLabel [for]="inputId">
         {{ label | dynamicText | async }}
       </label>
     }
-    <hlm-native-select
-      [ngForgeControl]="'select'"
+    <input
+      hlmInput
+      ngForgeControl
+      type="datetime-local"
       [formField]="state"
-      [selectId]="selectId"
-      [tabIndex]="field.tabIndex()"
-      [forceInvalid]="state().invalid() && state().touched()"
-    >
-      @for (option of options(); track option.value) {
-        <option [value]="option.value" [disabled]="option.disabled ?? false">
-          {{ option.label | dynamicText | async }}
-        </option>
-      }
-    </hlm-native-select>
+      [id]="inputId"
+      [attr.tabindex]="field.tabIndex()"
+      [class.control-invalid]="state().invalid() && state().touched()"
+    />
     @if (field.errorsToDisplay()[0]; as error) {
       <p class="field-error" [id]="field.errorId()" role="alert">
         {{ error.message }}
@@ -54,8 +49,7 @@ import { HlmNativeSelect } from '../../../ui/helm/native-select';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SpartanSelectFieldComponent {
+export class SpartanDateTimeFieldComponent {
   protected readonly field = injectNgForgeField<string>();
-  readonly options = input<readonly FieldOption<string>[]>([]);
   readonly props = input<Readonly<{ hint?: string }>>();
 }

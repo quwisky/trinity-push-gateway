@@ -1,11 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { z } from 'zod/mini';
-
-const apiProblemSchema = z.object({
-  title: z.optional(z.string()),
-  detail: z.optional(z.string()),
-  status: z.optional(z.number()),
-});
+import { apiProblemSchema } from '../core/validation/schemas';
 
 export type SafeApiProblem = Readonly<{
   title: string;
