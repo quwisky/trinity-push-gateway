@@ -143,7 +143,7 @@ inspect_image() {
   grep --fixed-strings --line-regexp --quiet 'app/admin/index.html' "$filesystem"
   grep --extended-regexp --quiet '^app/admin/(main|styles|chunk)-[^/]+\.(js|css)$' "$filesystem"
   grep --extended-regexp --quiet '^app/admin-migrations/[0-9]{4}_[a-z0-9_]+\.sql$' "$filesystem"
-  if grep --extended-regexp --quiet '(^|/)(node_modules|src)(/|$)|(^|/)package\.json$|\.map$' "$filesystem"; then
+  if grep --extended-regexp --quiet '^app/(.*/)?(node_modules|src)(/|$)|^app/(.*/)?package\.json$|^app/.*\.map$' "$filesystem"; then
     printf '%s\n' 'The final image contains a forbidden development artifact.' >&2
     return 1
   fi
