@@ -27,3 +27,4 @@ narrow runtime, privacy, delivery, operator, release, and repository boundaries.
 22. [Use Zod at untrusted boundaries](./0022-use-zod-at-untrusted-boundaries)
 23. [Use Drizzle within runtime-specific storage adapters](./0023-use-drizzle-within-runtime-specific-storage-adapters)
 24. [Add an isolated self-hosted Push Gateway UI](./0024-add-an-isolated-self-hosted-push-gateway-ui)
+25. [Use openid-client for Operator authentication](./0025-use-openid-client-for-operator-authentication)
