@@ -5,24 +5,20 @@ import { fileURLToPath } from 'node:url';
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const providerRoot = path.join(workspaceRoot, 'apps/push-gateway/provider-e2e');
 
-const [
-  workflow,
-  project,
-  pocketCompose,
-  authentikCompose,
-  blueprint,
-  preparation,
-] = await Promise.all([
-  readFile(
-    path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
-    'utf8',
-  ),
-  readFile(path.join(workspaceRoot, 'apps/push-gateway/project.json'), 'utf8'),
-  readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
-  readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
-  readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
-  readFile(path.join(providerRoot, 'prepare-authentik.mjs'), 'utf8'),
-]);
+const [workflow, project, pocketCompose, authentikCompose, blueprint] =
+  await Promise.all([
+    readFile(
+      path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
+      'utf8',
+    ),
+    readFile(
+      path.join(workspaceRoot, 'apps/push-gateway/project.json'),
+      'utf8',
+    ),
+    readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
+    readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
+    readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
+  ]);
 
 function requireContract(condition, message) {
   if (!condition) {
@@ -76,13 +72,13 @@ for (const required of [
 for (const required of [
   "cron: '23 3 * * 2'",
   'pnpm nx run push-gateway:test-oidc-provider --skipNxCache',
-  'browser-authentik-gate.mjs',
-  'Prove provider failure isolation',
   'release-gates:',
   'pocket-id-provider-gate-',
-  'authentik-visual-proof-',
+  'authentik-provider-gate-',
   'push-gateway:provider-gate-pocket-id --skipNxCache',
   'push-gateway:provider-gate-pocket-id-cleanup --skipNxCache',
+  'push-gateway:provider-gate-authentik --skipNxCache',
+  'push-gateway:provider-gate-authentik-cleanup --skipNxCache',
 ]) {
   requireContract(
     workflow.includes(required),
@@ -95,9 +91,13 @@ requireContract(
   'Integration pull requests to master must select Authentik.',
 );
 requireContract(
-  workflow.includes('PROVIDER_GATE_WORK_DIRECTORY:') &&
-    workflow.includes('rm -rf -- "$RUNNER_TEMP/authentik-gate"'),
-  'Disposable provider credentials must be removed during cleanup.',
+  (workflow.match(/PROVIDER_GATE_WORK_DIRECTORY:/gu)?.length ?? 0) >= 4,
+  'Both provider gates and cleanup fallbacks must use disposable credential roots.',
+);
+requireContract(
+  !workflow.includes('browser-authentik-gate.mjs') &&
+    !workflow.includes('prepare-authentik.mjs'),
+  'Authentik must not retain legacy workflow orchestration scripts.',
 );
 
 for (const [target, command] of [
@@ -108,6 +108,14 @@ for (const [target, command] of [
   [
     'provider-gate-pocket-id-cleanup',
     'node provider-e2e/run-provider-gate.mjs pocket-id cleanup',
+  ],
+  [
+    'provider-gate-authentik',
+    'node provider-e2e/run-provider-gate.mjs authentik run',
+  ],
+  [
+    'provider-gate-authentik-cleanup',
+    'node provider-e2e/run-provider-gate.mjs authentik cleanup',
   ],
   ['test-provider-gate-lifecycle', 'node --test provider-e2e/*.test.mjs'],
 ]) {
@@ -123,21 +131,6 @@ requireContract(
   'The Bun validation gate must execute the provider lifecycle and adapter tests.',
 );
 
-for (const required of [
-  "import { randomBytes } from 'node:crypto'",
-  'randomBytes(bytes)',
-  '::add-mask::',
-  'mode: 0o600',
-  'gateway.env',
-  'provider.env',
-  'browser-state.json',
-]) {
-  requireContract(
-    preparation.includes(required),
-    `Provider credential preparation is missing ${required}.`,
-  );
-}
-
 console.info(
-  'Provider contract: deterministic suite, deep Pocket ID lifecycle, pinned real providers, ephemeral credentials, browser proof, outage isolation, and release gate.',
+  'Provider contract: deterministic suite, one deep lifecycle with Pocket ID and Authentik adapters, pinned real providers, ephemeral credentials, browser proof, outage isolation, and release gate.',
 );

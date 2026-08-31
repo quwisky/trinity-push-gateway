@@ -230,6 +230,22 @@
         "cwd": "apps/push-gateway"
       }
     },
+    "provider-gate-authentik": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node provider-e2e/run-provider-gate.mjs authentik run",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "provider-gate-authentik-cleanup": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node provider-e2e/run-provider-gate.mjs authentik cleanup",
+        "cwd": "apps/push-gateway"
+      }
+    },
     "test-coverage": {
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/coverage/apps/push-gateway"],

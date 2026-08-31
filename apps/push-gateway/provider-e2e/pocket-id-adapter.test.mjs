@@ -71,9 +71,11 @@ test('Pocket ID provisioning keeps provider API variance behind the adapter', as
 test('Pocket ID browser variance exchanges one-time tokens and normalizes denial', async () => {
   const exchanges = [];
   const navigations = [];
+  const authenticationOrder = [];
   const context = {
     request: {
       async post(url) {
+        authenticationOrder.push('exchange');
         exchanges.push(url);
         return { ok: () => true, status: () => 200 };
       },
@@ -83,24 +85,31 @@ test('Pocket ID browser variance exchanges one-time tokens and normalizes denial
   await pocketIdAdapter.authenticate({
     context,
     identity: { oneTimeToken: 'token with spaces' },
+    navigate: async () => authenticationOrder.push('navigate'),
   });
   assert.deepEqual(exchanges, [
     'http://127.0.0.1:1411/api/one-time-access-token/token%20with%20spaces',
   ]);
-  assert.equal(
-    pocketIdAdapter.isDeniedProviderUrl(
-      new URL('http://127.0.0.1:1411/interaction/error?error=not%20allowed'),
-    ),
-    true,
-  );
-  await pocketIdAdapter.normalizeDeniedPage(
-    {
+  assert.deepEqual(authenticationOrder, ['exchange', 'navigate']);
+  await pocketIdAdapter.normalizeProviderDenial({
+    gatewayOrigin: 'http://127.0.0.1:3000',
+    page: {
       goto: async (url) => navigations.push(url),
       url: () =>
         'http://127.0.0.1:1411/interaction/error?error=user%20not%20allowed',
+      waitForURL: async (predicate, options) => {
+        assert.equal(options.timeout, 60_000);
+        assert.equal(
+          predicate(
+            new URL(
+              'http://127.0.0.1:1411/interaction/error?error=not%20allowed',
+            ),
+          ),
+          true,
+        );
+      },
     },
-    'http://127.0.0.1:3000',
-  );
+  });
   assert.deepEqual(navigations, [
     'http://127.0.0.1:3000/admin/sign-in?reason=forbidden',
   ]);

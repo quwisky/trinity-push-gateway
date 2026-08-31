@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const GATEWAY_ORIGIN = 'http://127.0.0.1:3000';
-const DISCOVERY_SUFFIX = '/.well-known/openid-configuration';
+const DISCOVERY_PATH = '.well-known/openid-configuration';
 const WAIT_ATTEMPTS = 90;
 const WORKSPACE_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -48,6 +48,11 @@ function containsDirectory(parent, child) {
     relative === '' ||
     (!relative.startsWith('..') && !path.isAbsolute(relative))
   );
+}
+
+function providerDiscoveryUrl(issuer) {
+  const base = issuer.endsWith('/') ? issuer : `${issuer}/`;
+  return new URL(DISCOVERY_PATH, base).href;
 }
 
 export function providerGateConfiguration(adapter, environment = process.env) {
@@ -212,7 +217,7 @@ async function waitForProvider(adapter, fetchImplementation, sleep) {
     adapter.displayName,
     async () => {
       const response = await fetchImplementation(
-        `${adapter.issuer}${DISCOVERY_SUFFIX}`,
+        providerDiscoveryUrl(adapter.issuer),
         {
           signal: AbortSignal.timeout(3_000),
         },
@@ -264,7 +269,7 @@ async function waitForProviderOutage(adapter, fetchImplementation, sleep) {
     `${adapter.displayName} outage`,
     async () => {
       try {
-        await fetchImplementation(`${adapter.issuer}${DISCOVERY_SUFFIX}`, {
+        await fetchImplementation(providerDiscoveryUrl(adapter.issuer), {
           signal: AbortSignal.timeout(1_000),
         });
         return false;
@@ -293,25 +298,33 @@ async function exerciseAllowedBrowser(
   const context = await browser.newContext();
   const page = await context.newPage();
   try {
-    await adapter.authenticate({ context, identity: identities.allowed, page });
-    await page.goto(`${configuration.gatewayOrigin}/admin/metrics`);
-    await page.getByRole('heading', { name: 'Trinity Push Gateway' }).waitFor();
-    const signInUrl = new URL(page.url());
-    requireCondition(
-      signInUrl.pathname === '/admin/sign-in' &&
-        signInUrl.searchParams.get('reason') === 'unauthenticated' &&
-        signInUrl.searchParams.get('returnPath') === '/admin/metrics',
-      `Unauthenticated deep link reached unexpected URL ${page.url()}.`,
-    );
-    const continueLink = page.getByRole('link', {
-      name: 'Continue to sign in',
+    await adapter.authenticate({
+      context,
+      identity: identities.allowed,
+      navigate: async () => {
+        await page.goto(`${configuration.gatewayOrigin}/admin/metrics`);
+        await page
+          .getByRole('heading', { name: 'Trinity Push Gateway' })
+          .waitFor();
+        const signInUrl = new URL(page.url());
+        requireCondition(
+          signInUrl.pathname === '/admin/sign-in' &&
+            signInUrl.searchParams.get('reason') === 'unauthenticated' &&
+            signInUrl.searchParams.get('returnPath') === '/admin/metrics',
+          `Unauthenticated deep link reached unexpected URL ${page.url()}.`,
+        );
+        const continueLink = page.getByRole('link', {
+          name: 'Continue to sign in',
+        });
+        requireCondition(
+          (await continueLink.getAttribute('href')) ===
+            '/admin/auth/login?returnPath=%2Fadmin%2Fmetrics',
+          'The sign-in page did not preserve the administration deep link.',
+        );
+        await continueLink.click();
+      },
+      page,
     });
-    requireCondition(
-      (await continueLink.getAttribute('href')) ===
-        '/admin/auth/login?returnPath=%2Fadmin%2Fmetrics',
-      'The sign-in page did not preserve the administration deep link.',
-    );
-    await continueLink.click();
     await page.waitForURL(
       (url) =>
         url.origin === configuration.gatewayOrigin &&
@@ -409,18 +422,28 @@ async function exerciseDeniedBrowser(
   const context = await browser.newContext();
   const page = await context.newPage();
   try {
-    await adapter.authenticate({ context, identity: identities.denied, page });
     const loginUrl = new URL('/admin/auth/login', configuration.gatewayOrigin);
     loginUrl.searchParams.set('returnPath', '/admin/security');
-    await page.goto(loginUrl.href);
-    await page.waitForURL(
-      (url) =>
-        url.origin === configuration.gatewayOrigin ||
-        adapter.isDeniedProviderUrl(url),
+    await adapter.authenticate({
+      context,
+      identity: identities.denied,
+      navigate: () => page.goto(loginUrl.href),
+      page,
+    });
+    const gatewayReturn = page.waitForURL(
+      (url) => url.origin === configuration.gatewayOrigin,
       { timeout: 60_000 },
     );
-    if (adapter.isDeniedProviderUrl(new URL(page.url()))) {
-      await adapter.normalizeDeniedPage(page, configuration.gatewayOrigin);
+    if (adapter.normalizeProviderDenial) {
+      await Promise.any([
+        gatewayReturn,
+        adapter.normalizeProviderDenial({
+          gatewayOrigin: configuration.gatewayOrigin,
+          page,
+        }),
+      ]);
+    } else {
+      await gatewayReturn;
     }
     await page.getByRole('heading', { name: 'Trinity Push Gateway' }).waitFor();
     const denialUrl = new URL(page.url());
