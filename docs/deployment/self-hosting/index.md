@@ -102,7 +102,8 @@ is ignored and `/admin/*` returns `404`. The Cloudflare Worker neither imports
 nor serves this surface.
 
 When enabled with complete valid configuration, Operator identities, opaque
-sessions, one-use OIDC attempts, and audit primitives use a separate
+sessions, one-use OIDC attempts, aggregate metrics, audit entries, operation
+leases, and verified-backup metadata use a separate
 `/data/admin.sqlite` database. An invalid configuration or an administration
 database, migration, authentication, or asset failure returns a generic `503`
 only below `/admin/*`; Matrix requests and public `/health` continue to use the
@@ -114,9 +115,26 @@ this foundation section.
 
 The runtime rejects symlink, hardlink, and SQLite `-wal` or `-shm` aliases of
 the delivery database before applying administration migrations. Online
-administration writes wait no more than 50 ms for a lock, and periodic cleanup
-removes at most 100 expired rows from each administration table per tick. A
-blocked or failed cleanup makes only the administration surface unavailable.
+administration writes wait no more than 50 ms for a lock. Expired attempts and
+sessions are pruned on UTC-hour boundaries; 30-day metric and 90-day audit
+retention is applied on UTC-day boundaries, at most 100 rows per table and
+pass. A blocked or failed cleanup makes only the administration surface
+unavailable.
+
+The authenticated API exposes fixed hourly or daily request/FCM aggregates,
+privacy-safe audit pages, verified-backup metadata, and three bounded Operator
+Actions: Firebase credential/project/API validation, delivery-state cleanup,
+and a new verified `gateway.sqlite` backup. These actions use per-kind leases,
+deadlines, and cooldowns. Cleanup and backup run in terminated-on-timeout child
+processes; Firebase validation uses FCM `validate_only` with a synthetic target
+and proves access only, never app registration or delivery. An action is not
+executed unless its audit intent commits first. A failed result finalization is
+reported as non-retriable `outcome_unknown`; no action is automatically retried.
+
+Notification counters stay on the delivery path only long enough for a
+non-blocking fixed-cardinality increment. One bounded Bun Worker flushes them
+best effort to `admin.sqlite`; writer startup, queue, lock, corruption, or death
+failures drop metrics without changing a Matrix response or public health.
 
 The Bun entry point also exposes `session-purge`, which revokes every Operator
 session and refuses to run unless administration is enabled with valid

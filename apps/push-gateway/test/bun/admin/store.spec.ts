@@ -67,11 +67,15 @@ describe('isolated administration SQLite store', () => {
         .map(({ name }) => name),
     ).toEqual([
       'admin_migrations',
+      'fcm_metrics_hourly',
       'oidc_login_attempts',
       'operation_leases',
+      'operation_results',
       'operator_audit_entries',
       'operator_identities',
       'operator_sessions',
+      'request_metrics_hourly',
+      'verified_backups',
     ]);
     expect(
       database
@@ -79,15 +83,24 @@ describe('isolated administration SQLite store', () => {
           'SELECT name FROM admin_migrations ORDER BY name',
         )
         .all(),
-    ).toEqual([{ name: '0001_admin_foundation.sql' }]);
+    ).toEqual([
+      { name: '0001_admin_foundation.sql' },
+      { name: '0002_observability_operations.sql' },
+    ]);
     const definitions = database
       .query<{ readonly sql: string }, []>(
         "SELECT sql FROM sqlite_master WHERE type = 'table'",
       )
       .all();
-    expect(definitions.every(({ sql }) => sql.includes('WITHOUT ROWID'))).toBe(
-      true,
-    );
+    expect(
+      definitions
+        .filter(({ sql }) =>
+          /CREATE TABLE (?:operator_identities|operator_sessions|oidc_login_attempts|operator_audit_entries|operation_leases)/u.test(
+            sql,
+          ),
+        )
+        .every(({ sql }) => sql.includes('WITHOUT ROWID')),
+    ).toBe(true);
     database.close(true);
   });
 
@@ -381,6 +394,59 @@ describe('isolated administration SQLite store', () => {
       sessions: 0,
     });
     reopened.close();
+  });
+
+  it('serializes audited actions and preserves their last known summary', async () => {
+    const { store } = openStore();
+    const actor = await store.establishSession(
+      { issuer: 'https://issuer.example', subject: 'operator-1' },
+      sessionOptions(1, 1_000),
+    );
+    const acquired = store.beginOperation(
+      'cleanup',
+      actor.operator,
+      1_001,
+      30,
+      300,
+    );
+    expect(acquired.kind).toBe('acquired');
+    expect(
+      store.beginOperation('backup', actor.operator, 1_002, 120, 3_600),
+    ).toEqual({ kind: 'busy' });
+    if (acquired.kind !== 'acquired') {
+      throw new Error('Expected cleanup lease.');
+    }
+    store.finalizeOperation(
+      'cleanup',
+      acquired.leaseId,
+      actor.operator,
+      1_003,
+      'succeeded',
+    );
+
+    expect(
+      store.beginOperation('cleanup', actor.operator, 1_004, 30, 300),
+    ).toEqual({ kind: 'cooldown', retryAfterSeconds: 297 });
+    expect(store.operationSummaries()).toEqual([
+      {
+        acquiredAt: 1_001,
+        completedAt: 1_003,
+        cooldownEndsAt: 1_301,
+        kind: 'cleanup',
+        outcome: 'succeeded',
+        reason: null,
+      },
+    ]);
+    expect(
+      store
+        .listAuditEntries({ from: 1_000, limit: 10, to: 2_000 })
+        .map(({ kind, outcome }) => ({ kind, outcome })),
+    ).toEqual([
+      { kind: 'cleanup', outcome: 'succeeded' },
+      { kind: 'cleanup', outcome: 'started' },
+      { kind: 'login', outcome: 'succeeded' },
+    ]);
+    store.close();
   });
 
   it('fails a locked administration cleanup within a short bound', () => {

@@ -67,6 +67,17 @@ export type FcmClient = {
   ) => Promise<FcmOutcome>;
 };
 
+export type FirebaseValidationResult =
+  | Readonly<{ kind: 'succeeded' }>
+  | Readonly<{
+      kind: 'failed';
+      reason: 'access_denied' | 'request_rejected' | 'unavailable';
+    }>;
+
+export type FirebaseValidator = Readonly<{
+  validate(deadlineMs: number): Promise<FirebaseValidationResult>;
+}>;
+
 export type FcmClientOptions = {
   readonly clientEmail: string;
   readonly fetch: typeof fetch;
@@ -317,4 +328,50 @@ export function createFcmClient(options: FcmClientOptions): FcmClient {
         : { kind: 'transient', reason: 'unavailable' };
     },
   };
+}
+
+export function createFirebaseValidator(
+  options: FcmClientOptions,
+): FirebaseValidator {
+  return Object.freeze({
+    async validate(deadlineMs): Promise<FirebaseValidationResult> {
+      let response: Response;
+      try {
+        const token = await requestAccessToken(options, deadlineMs);
+        response = await options.fetch(
+          `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(options.projectId)}/messages:send`,
+          {
+            body: JSON.stringify({
+              message: { token: 'trinity-push-gateway-validation-only' },
+              validate_only: true,
+            }),
+            headers: {
+              authorization: `Bearer ${token.value}`,
+              'content-type': 'application/json; charset=utf-8',
+            },
+            method: 'POST',
+            signal: requestSignal(options, deadlineMs),
+          },
+        );
+      } catch {
+        return { kind: 'failed', reason: 'unavailable' };
+      }
+      if (response.ok) {
+        return { kind: 'succeeded' };
+      }
+      const body: unknown = await response.json().catch(() => undefined);
+      if (
+        hasFcmErrorCode(body, 'INVALID_ARGUMENT') ||
+        hasFcmErrorCode(body, 'UNREGISTERED')
+      ) {
+        return { kind: 'succeeded' };
+      }
+      if (response.status === 401 || response.status === 403) {
+        return { kind: 'failed', reason: 'access_denied' };
+      }
+      return response.status === 429 || response.status >= 500
+        ? { kind: 'failed', reason: 'unavailable' }
+        : { kind: 'failed', reason: 'request_rejected' };
+    },
+  });
 }

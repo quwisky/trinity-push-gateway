@@ -12,7 +12,7 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
 COPY apps/push-gateway/src ./apps/push-gateway/src
-RUN bun build apps/push-gateway/src/bun/main.ts --target bun --outdir dist/apps/push-gateway/bun
+RUN bun build apps/push-gateway/src/bun/main.ts apps/push-gateway/src/bun/metrics-writer.worker.ts --target bun --outdir dist/apps/push-gateway/bun
 
 FROM oven/bun:1.4.0-slim@sha256:e0ee68d16ccb9927bf02aa7dd8fd4bf3369ee6d46da04faa72b05ce8bfd135f6 AS runtime
 LABEL org.opencontainers.image.description="Matrix-to-FCM push gateway" \
@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.description="Matrix-to-FCM push gateway" \
       org.opencontainers.image.source="https://github.com/quwisky/trinity-push-gateway"
 WORKDIR /app
 RUN install -d -o bun -g bun /data /app/migrations
-COPY --from=build --chown=bun:bun /app/dist/apps/push-gateway/bun/main.js /app/main.js
+COPY --from=build --chown=bun:bun /app/dist/apps/push-gateway/bun/ /app/
 COPY --chown=bun:bun apps/push-gateway/migrations/*.sql /app/migrations/
 ENV TRINITY_PUSH_GATEWAY_DATABASE_PATH=/data/gateway.sqlite \
     TRINITY_PUSH_GATEWAY_HOST=0.0.0.0 \

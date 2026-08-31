@@ -4,6 +4,11 @@ export type AdminProblemCode =
   | 'forbidden'
   | 'invalid_request'
   | 'not_found'
+  | 'operation_in_progress'
+  | 'cooldown_active'
+  | 'operation_timeout'
+  | 'outcome_unknown'
+  | 'backup_limit_exceeded'
   | 'unauthenticated';
 
 const PROBLEM_TITLES: Readonly<Record<AdminProblemCode, string>> = {
@@ -12,6 +17,11 @@ const PROBLEM_TITLES: Readonly<Record<AdminProblemCode, string>> = {
   forbidden: 'Forbidden',
   invalid_request: 'Invalid request',
   not_found: 'Not found',
+  operation_in_progress: 'Operation already in progress',
+  cooldown_active: 'Operation cooldown active',
+  operation_timeout: 'Operation timed out',
+  outcome_unknown: 'Operation outcome unknown',
+  backup_limit_exceeded: 'Backup limit exceeded',
   unauthenticated: 'Authentication required',
 };
 
@@ -37,8 +47,15 @@ export function adminJsonResponse(value: unknown, status = 200): Response {
 
 export function adminProblemResponse(
   code: AdminProblemCode,
-  status: 400 | 401 | 403 | 404 | 503,
+  status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503 | 504 | 507,
+  retryAfterSeconds?: number,
 ): Response {
+  const headers = adminNoStoreHeaders(
+    'application/problem+json; charset=utf-8',
+  );
+  if (retryAfterSeconds !== undefined) {
+    headers.set('retry-after', String(retryAfterSeconds));
+  }
   return new Response(
     JSON.stringify({
       code,
@@ -47,7 +64,7 @@ export function adminProblemResponse(
       type: `/admin/problems/${code}`,
     }),
     {
-      headers: adminNoStoreHeaders('application/problem+json; charset=utf-8'),
+      headers,
       status,
     },
   );

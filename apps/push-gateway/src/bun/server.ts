@@ -20,6 +20,7 @@ import {
 import { createMemorySourceLimiter } from './source-limiter';
 import { SqliteGatewayStore } from './sqlite-store';
 import type { SqlMigration } from './sqlite-store';
+import type { GatewayMetricsSink } from '../metrics';
 
 type RuntimeEvent = Readonly<Record<string, unknown>>;
 
@@ -28,6 +29,7 @@ type StartOptions = {
   readonly installSignalHandlers?: boolean;
   readonly log?: (event: RuntimeEvent) => void;
   readonly now?: () => number;
+  readonly operationEntryPath?: string;
   readonly shutdownGraceMs?: number;
   readonly terminate?: (exitCode: number) => void;
 };
@@ -55,11 +57,26 @@ export async function startBunGateway(
     now,
     periodSeconds: config.sourcePeriodSeconds,
   });
+  let administration: AdministrationRuntime | undefined;
+  const metrics: GatewayMetricsSink = {
+    recordFcmAttempt(platform, outcome, latencyMs, occurredAtMs): void {
+      administration?.metrics.recordFcmAttempt(
+        platform,
+        outcome,
+        latencyMs,
+        occurredAtMs,
+      );
+    },
+    recordRequest(outcome, occurredAtMs): void {
+      administration?.metrics.recordRequest(outcome, occurredAtMs);
+    },
+  };
   const gateway = createRuntimeGateway({
     ...(options.fcmClient === undefined
       ? {}
       : { fcmClient: options.fcmClient }),
     log,
+    metrics,
     now,
   });
   const directAddresses = new WeakMap<Request, string>();
@@ -88,7 +105,6 @@ export async function startBunGateway(
     throw error;
   }
   let gatewayReady = true;
-  let administration: AdministrationRuntime | undefined;
   let administrationClosed = false;
   let server: Server<undefined>;
   try {
@@ -127,6 +143,7 @@ export async function startBunGateway(
             return response;
           } catch {
             gatewayReady = false;
+            metrics.recordRequest('storageUnavailable', now());
             log({ event: 'storage_failure', outcome: 'retryable' });
             return gatewayStorageUnavailableResponse();
           }
@@ -156,6 +173,9 @@ export async function startBunGateway(
         gatewayReady: () => gatewayReady,
         log,
         now,
+        ...(options.operationEntryPath === undefined
+          ? {}
+          : { operationEntryPath: options.operationEntryPath }),
       }),
     )
     .then((runtime) => {

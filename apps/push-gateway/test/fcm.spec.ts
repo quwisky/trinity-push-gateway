@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { createFcmClient, type FcmClient } from '../src/fcm';
+import {
+  createFcmClient,
+  createFirebaseValidator,
+  type FcmClient,
+} from '../src/fcm';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -100,6 +104,74 @@ function schemaResponseClient(
 describe('FCM adapter', () => {
   beforeAll(async () => {
     schemaPrivateKeyPem = await createPrivateKeyPem();
+  });
+
+  it('validates access without using a real installation or claiming delivery', async () => {
+    let validationBody: unknown;
+    const validator = createFirebaseValidator({
+      clientEmail: 'gateway@example.test',
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        if (request.url === 'https://oauth2.googleapis.com/token') {
+          return Response.json({ access_token: 'token', expires_in: 3600 });
+        }
+        validationBody = await request.json();
+        return Response.json(
+          {
+            error: {
+              details: [
+                {
+                  '@type':
+                    'type.googleapis.com/google.firebase.fcm.v1.FcmError',
+                  errorCode: 'INVALID_ARGUMENT',
+                },
+              ],
+            },
+          },
+          { status: 400 },
+        );
+      },
+      now: () => 2_000_000_000_000,
+      privateKey: schemaPrivateKeyPem,
+      projectId: 'test-project',
+    });
+
+    await expect(validator.validate(2_000_000_020_000)).resolves.toEqual({
+      kind: 'succeeded',
+    });
+    expect(validationBody).toEqual({
+      message: { token: 'trinity-push-gateway-validation-only' },
+      validate_only: true,
+    });
+  });
+
+  it('does not confuse a malformed dry-run request with FCM access', async () => {
+    const validator = createFirebaseValidator({
+      clientEmail: 'gateway@example.test',
+      fetch: async (input) =>
+        new URL(new Request(input).url).hostname === 'oauth2.googleapis.com'
+          ? Response.json({ access_token: 'token', expires_in: 3600 })
+          : Response.json(
+              {
+                error: {
+                  details: [
+                    {
+                      '@type': 'type.googleapis.com/google.rpc.BadRequest',
+                    },
+                  ],
+                },
+              },
+              { status: 400 },
+            ),
+      now: () => 2_000_000_000_000,
+      privateKey: schemaPrivateKeyPem,
+      projectId: 'test-project',
+    });
+
+    await expect(validator.validate(2_000_000_020_000)).resolves.toEqual({
+      kind: 'failed',
+      reason: 'request_rejected',
+    });
   });
 
   it('shares one OAuth refresh across concurrent deliveries', async () => {

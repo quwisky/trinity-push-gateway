@@ -1,4 +1,6 @@
 import type { BunConfiguration } from '../config';
+import { createFirebaseValidator } from '../../fcm';
+import type { GatewayMetricsSink } from '../../metrics';
 import { readMigrations } from '../migrations';
 import { createAdminSurface, type AdminSurface } from './app';
 import { loadAdminAssets } from './assets';
@@ -6,6 +8,8 @@ import type { AdminConfigurationState } from './config';
 import { assertAdministrationDatabaseSeparated } from './database-separation';
 import { adminNotFoundResponse, adminUnavailableResponse } from './responses';
 import { SqliteAdminStore } from './store';
+import { createMetricsWriter, type MetricsWriter } from './metrics';
+import { AdminOperations, createOperationBackend } from './operations';
 
 type RuntimeEvent = Readonly<Record<string, unknown>>;
 
@@ -14,13 +18,20 @@ export type AdministrationRuntime = Readonly<{
   close(): void;
   fetch(request: Request): Promise<Response>;
   kind: 'disabled' | 'ready' | 'unavailable';
+  metrics: GatewayMetricsSink;
 }>;
 
 type CreateAdministrationRuntimeOptions = Readonly<{
   gatewayReady: () => boolean;
   log: (event: RuntimeEvent) => void;
   now?: () => number;
+  operationEntryPath?: string;
 }>;
+
+const NOOP_METRICS: GatewayMetricsSink = Object.freeze({
+  recordFcmAttempt: () => undefined,
+  recordRequest: () => undefined,
+});
 
 export function isAdministrationRequest(request: Request): boolean {
   const pathname = new URL(request.url).pathname;
@@ -33,6 +44,7 @@ function disabledRuntime(): AdministrationRuntime {
     close: () => undefined,
     fetch: () => Promise.resolve(adminNotFoundResponse()),
     kind: 'disabled' as const,
+    metrics: NOOP_METRICS,
   });
 }
 
@@ -42,11 +54,13 @@ function unavailableRuntime(): AdministrationRuntime {
     close: () => undefined,
     fetch: () => Promise.resolve(adminUnavailableResponse()),
     kind: 'unavailable' as const,
+    metrics: NOOP_METRICS,
   });
 }
 
 function readyRuntime(
   surface: AdminSurface,
+  metrics: MetricsWriter,
   log: (event: RuntimeEvent) => void,
 ): AdministrationRuntime {
   let available = true;
@@ -64,6 +78,7 @@ function readyRuntime(
       }
     },
     close(): void {
+      metrics.close();
       surface.close();
     },
     async fetch(request): Promise<Response> {
@@ -77,6 +92,7 @@ function readyRuntime(
       }
     },
     kind: 'ready' as const,
+    metrics,
   });
 }
 
@@ -97,6 +113,7 @@ export async function createAdministrationRuntime(
   }
 
   let store: SqliteAdminStore | undefined;
+  let metrics: MetricsWriter | undefined;
   try {
     assertAdministrationDatabaseSeparated(
       gatewayConfiguration.databasePath,
@@ -108,19 +125,54 @@ export async function createAdministrationRuntime(
       throw new Error('Administration database is not ready.');
     }
     const assets = loadAdminAssets(state.configuration.assetsPath);
+    try {
+      metrics = createMetricsWriter(
+        state.configuration.databasePath,
+        options.log,
+      );
+    } catch {
+      options.log({ event: 'admin_metrics_unavailable', outcome: 'dropped' });
+      metrics = Object.freeze({ ...NOOP_METRICS, close: () => undefined });
+    }
+    const now = options.now ?? Date.now;
+    const validator = createFirebaseValidator({
+      clientEmail:
+        gatewayConfiguration.environment.TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL,
+      fetch,
+      now,
+      privateKey:
+        gatewayConfiguration.environment.TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY,
+      projectId:
+        gatewayConfiguration.environment.TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID,
+      timeoutMs:
+        state.configuration.policy.firebaseValidationDeadlineSeconds * 1_000,
+    });
+    const operations = new AdminOperations(
+      store,
+      state.configuration,
+      createOperationBackend(
+        options.operationEntryPath ??
+          new URL('../main.js', import.meta.url).pathname,
+        validator,
+      ),
+      gatewayConfiguration.databasePath,
+      now,
+    );
     const surface = createAdminSurface({
       assets,
       configuration: state.configuration,
       gatewayConfiguration,
       gatewayReady: options.gatewayReady,
+      operations,
       ...(options.now === undefined ? {} : { now: options.now }),
       safeConfiguration: state.safe,
       store,
     });
     await surface.cleanup(Math.floor((options.now?.() ?? Date.now()) / 1_000));
     options.log({ event: 'admin_started' });
-    return readyRuntime(surface, options.log);
+    return readyRuntime(surface, metrics, options.log);
   } catch {
+    metrics?.close();
     store?.close();
     options.log({
       event: 'admin_initialization_failed',
