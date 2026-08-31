@@ -59,6 +59,11 @@ async function temporaryGate() {
 
 function successfulDependencies(configuration, options = {}) {
   const operations = [];
+  const requests = [];
+  const providerIssuer = options.providerIssuer ?? adapter.issuer;
+  const providerBase = providerIssuer.endsWith('/')
+    ? providerIssuer
+    : `${providerIssuer}/`;
   let providerUp = false;
   const processRunner = async (command, arguments_) => {
     operations.push([command, ...arguments_]);
@@ -71,17 +76,18 @@ function successfulDependencies(configuration, options = {}) {
     return { stderr: '', stdout: '' };
   };
   const fetchImplementation = async (url) => {
+    requests.push(url);
     const parsed = new URL(url);
-    if (parsed.origin === adapter.issuer) {
+    if (parsed.origin === new URL(providerIssuer).origin) {
       if (!providerUp) {
         throw new Error('provider unavailable');
       }
       return Response.json({
-        authorization_endpoint: `${adapter.issuer}/authorize`,
-        end_session_endpoint: `${adapter.issuer}/logout`,
-        issuer: adapter.issuer,
-        jwks_uri: `${adapter.issuer}/jwks`,
-        token_endpoint: `${adapter.issuer}/token`,
+        authorization_endpoint: `${providerBase}authorize`,
+        end_session_endpoint: `${providerBase}logout`,
+        issuer: providerIssuer,
+        jwks_uri: `${providerBase}jwks`,
+        token_endpoint: `${providerBase}token`,
       });
     }
     return new Response('', { status: 200 });
@@ -99,6 +105,7 @@ function successfulDependencies(configuration, options = {}) {
       sleep: async () => {},
     },
     operations,
+    requests,
   };
 }
 
@@ -162,6 +169,32 @@ test('one lifecycle owns provisioning through evidence and cleanup', async () =>
   assert.ok(operations.some((operation) => operation.includes('run')));
   assert.ok(operations.some((operation) => operation.includes('stop')));
   assert.ok(operations.some((operation) => operation.includes('down')));
+});
+
+test('provider discovery preserves issuer paths without adding a double slash', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const providerIssuer = `${adapter.issuer}/application/o/gateway/`;
+  const { dependencies, requests } = successfulDependencies(configuration, {
+    providerIssuer,
+  });
+
+  await runProviderGate(
+    {
+      ...adapter,
+      issuer: providerIssuer,
+      provision: async () => ({ allowed: {}, denied: {} }),
+    },
+    { configuration, dependencies, environment },
+  );
+
+  assert.ok(
+    requests.includes(`${providerIssuer}.well-known/openid-configuration`),
+  );
+  assert.ok(
+    requests.every(
+      (url) => !url.includes('/gateway//.well-known/openid-configuration'),
+    ),
+  );
 });
 
 test('a failed browser contract still removes credentials and disposable resources', async () => {
