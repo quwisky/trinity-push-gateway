@@ -2,16 +2,14 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { GATEWAY_CONFIGURATION_REFERENCE } from '../../apps/push-gateway/src/config-reference';
-import { SHARED_CONFIGURATION_DEFAULTS } from '../../apps/push-gateway/src/configuration-defaults';
+import {
+  PUSH_GATEWAY_CONFIGURATION_CATALOG,
+  SHARED_CONFIGURATION_DEFAULTS,
+} from '../../apps/push-gateway/src/configuration-catalog';
 
 describe('configuration documentation coverage', () => {
-  it('documents every configuration name accepted by code and Compose', () => {
+  it('keeps every deployment input inside the authoritative catalog', () => {
     const sources = [
-      '../../apps/push-gateway/src/config.ts',
-      '../../apps/push-gateway/src/bun/config.ts',
-      '../../apps/push-gateway/src/admin-configuration-names.ts',
-      '../../apps/push-gateway/src/bun/main.ts',
       '../../compose.yml',
       '../../compose.admin.yml',
       '../../.env.self-host.example',
@@ -19,17 +17,23 @@ describe('configuration documentation coverage', () => {
     ].map((relativePath) =>
       readFileSync(new URL(relativePath, import.meta.url), 'utf8'),
     );
-    const acceptedNames = new Set(
+    const deploymentNames = new Set(
       sources.flatMap(
         (source) =>
           source.match(/\bTRINITY_PUSH_GATEWAY_[A-Z][A-Z0-9_]*/gu) ?? [],
       ),
     );
-    const documentedNames = new Set(
-      GATEWAY_CONFIGURATION_REFERENCE.map(({ name }) => name),
-    );
-
-    expect([...acceptedNames].sort()).toEqual([...documentedNames].sort());
+    for (const name of deploymentNames) {
+      const entry = PUSH_GATEWAY_CONFIGURATION_CATALOG.references.find(
+        (candidate) => candidate.name === name,
+      );
+      expect(entry, `${name} must be catalog-owned`).toBeDefined();
+      expect(
+        entry?.runtimes.some(
+          (runtime) => runtime === 'bun' || runtime === 'compose',
+        ),
+      ).toBe(true);
+    }
   });
 
   it('keeps Cloudflare variables aligned with shared runtime defaults', () => {

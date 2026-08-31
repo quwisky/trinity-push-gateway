@@ -2,22 +2,68 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { PUSH_GATEWAY_CONFIGURATION_CATALOG } from '../src/configuration-catalog.ts';
+
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const gatewayRoot = path.join(workspaceRoot, 'apps/push-gateway');
 
-const [dockerfile, dockerignore, compose, adminCompose, adminExample] =
-  await Promise.all([
-    readFile(path.join(gatewayRoot, 'Dockerfile'), 'utf8'),
-    readFile(path.join(workspaceRoot, '.dockerignore'), 'utf8'),
-    readFile(path.join(workspaceRoot, 'compose.yml'), 'utf8'),
-    readFile(path.join(workspaceRoot, 'compose.admin.yml'), 'utf8'),
-    readFile(path.join(workspaceRoot, '.env.self-host-admin.example'), 'utf8'),
-  ]);
+const [
+  dockerfile,
+  dockerignore,
+  compose,
+  adminCompose,
+  selfHostExample,
+  adminExample,
+] = await Promise.all([
+  readFile(path.join(gatewayRoot, 'Dockerfile'), 'utf8'),
+  readFile(path.join(workspaceRoot, '.dockerignore'), 'utf8'),
+  readFile(path.join(workspaceRoot, 'compose.yml'), 'utf8'),
+  readFile(path.join(workspaceRoot, 'compose.admin.yml'), 'utf8'),
+  readFile(path.join(workspaceRoot, '.env.self-host.example'), 'utf8'),
+  readFile(path.join(workspaceRoot, '.env.self-host-admin.example'), 'utf8'),
+]);
 
 function requireContract(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+const deploymentSources = [
+  compose,
+  adminCompose,
+  selfHostExample,
+  adminExample,
+];
+const deploymentNames = new Set(
+  deploymentSources.flatMap(
+    (source) => source.match(/\bTRINITY_PUSH_GATEWAY_[A-Z][A-Z0-9_]*/gu) ?? [],
+  ),
+);
+for (const name of deploymentNames) {
+  const entry = PUSH_GATEWAY_CONFIGURATION_CATALOG.references.find(
+    (candidate) => candidate.name === name,
+  );
+  requireContract(
+    entry !== undefined &&
+      (entry.runtimes.includes('bun') || entry.runtimes.includes('compose')),
+    `Deployment input ${name} is not owned by the configuration catalog.`,
+  );
+}
+
+function catalogDefault(name) {
+  const defaultValue = PUSH_GATEWAY_CONFIGURATION_CATALOG.references.find(
+    (entry) => entry.name === name,
+  )?.defaultValue;
+  requireContract(
+    defaultValue !== undefined,
+    `The configuration catalog has no default for ${name}.`,
+  );
+  return defaultValue;
+}
+
+function composeFallback(name) {
+  return `\${${name}:-${catalogDefault(name)}}`;
 }
 
 const runtimeMarker =
@@ -100,10 +146,42 @@ requireContract(
   'The base Compose deployment must pin UID/GID 1000.',
 );
 for (const required of [
+  `ghcr.io/quwisky/trinity-push-gateway:${composeFallback(
+    'TRINITY_PUSH_GATEWAY_VERSION',
+  )}`,
+  `127.0.0.1:${composeFallback(
+    'TRINITY_PUSH_GATEWAY_HOST_PORT',
+  )}:${composeFallback('TRINITY_PUSH_GATEWAY_PORT')}`,
+  `TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER: ${composeFallback(
+    'TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER',
+  )}`,
+  `TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS: ${composeFallback(
+    'TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS',
+  )}`,
+]) {
+  requireContract(
+    compose.includes(required),
+    `The base Compose deployment does not use the catalog default in ${required}.`,
+  );
+}
+for (const required of [
   'TRINITY_PUSH_GATEWAY_ADMIN_ENABLED',
   'TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN',
-  'TRINITY_PUSH_GATEWAY_ADMIN_DATABASE_PATH: /data/admin.sqlite',
-  'TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_DIRECTORY: /data/backups',
+  `TRINITY_PUSH_GATEWAY_ADMIN_DATABASE_PATH: ${catalogDefault(
+    'TRINITY_PUSH_GATEWAY_ADMIN_DATABASE_PATH',
+  )}`,
+  `TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_DIRECTORY: ${catalogDefault(
+    'TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_DIRECTORY',
+  )}`,
+  `TRINITY_PUSH_GATEWAY_ADMIN_OIDC_GROUP_CLAIM: ${composeFallback(
+    'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_GROUP_CLAIM',
+  )}`,
+  `TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES: ${composeFallback(
+    'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES',
+  )}`,
+  `TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD: ${composeFallback(
+    'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD',
+  )}`,
   'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET_FILE: /run/secrets/admin_oidc_client_secret',
   'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET_FILE: /run/secrets/admin_session_secret',
 ]) {
@@ -112,14 +190,53 @@ for (const required of [
     `The administration Compose override is missing ${required}.`,
   );
 }
-for (const required of [
-  'TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN=https://push.example.com',
-  'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_basic',
-  'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post',
+for (const [source, required] of [
+  [
+    selfHostExample,
+    `TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER=${catalogDefault(
+      'TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER',
+    )}`,
+  ],
+  [
+    selfHostExample,
+    `TRINITY_PUSH_GATEWAY_HOST_PORT=${catalogDefault(
+      'TRINITY_PUSH_GATEWAY_HOST_PORT',
+    )}`,
+  ],
+  [
+    selfHostExample,
+    `TRINITY_PUSH_GATEWAY_PORT=${catalogDefault('TRINITY_PUSH_GATEWAY_PORT')}`,
+  ],
+  [
+    adminExample,
+    `TRINITY_PUSH_GATEWAY_ADMIN_OIDC_GROUP_CLAIM=${catalogDefault(
+      'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_GROUP_CLAIM',
+    )}`,
+  ],
+  [
+    adminExample,
+    `TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES=${catalogDefault(
+      'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES',
+    )}`,
+  ],
+  [
+    adminExample,
+    `TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD=${catalogDefault(
+      'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD',
+    )}`,
+  ],
+  [
+    adminExample,
+    'TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN=https://push.example.com',
+  ],
+  [
+    adminExample,
+    'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post',
+  ],
 ]) {
   requireContract(
-    adminExample.includes(required),
-    `The administration environment example is missing ${required}.`,
+    source.includes(required),
+    `The self-hosting environment examples are missing ${required}.`,
   );
 }
 
