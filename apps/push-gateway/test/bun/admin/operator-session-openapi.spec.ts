@@ -11,6 +11,7 @@ describe('Operator Session published contract', () => {
       'OpaqueId',
       'OperatorIdentity',
       'OperatorSession',
+      'OperatorSessionList',
     ]);
     expect(components).toMatchObject({
       UtcTimestamp: {
@@ -55,6 +56,16 @@ describe('Operator Session published contract', () => {
           'absoluteExpiresAt',
           'current',
         ],
+        type: 'object',
+      },
+      OperatorSessionList: {
+        additionalProperties: false,
+        properties: {
+          sessions: {
+            items: { $ref: '#/components/schemas/OperatorSession' },
+            maxItems: 100,
+          },
+        },
         type: 'object',
       },
     });
