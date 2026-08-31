@@ -37,7 +37,8 @@
         "test-coverage",
         "check-migrations",
         "check-bundle",
-        "check-openapi"
+        "check-openapi",
+        "check-admin-contract"
       ]
     },
     "check-bun": {
@@ -120,6 +121,13 @@
         "cwd": "apps/push-gateway"
       }
     },
+    "check-admin-contract": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "options": {
+        "command": "bun apps/push-gateway/scripts/generate-admin-contract.ts --check"
+      }
+    },
     "check-migrations": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -165,6 +173,13 @@
       "cache": false,
       "options": {
         "command": "node apps/push-gateway/scripts/generate-migration.mjs"
+      }
+    },
+    "generate-admin-contract": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun apps/push-gateway/scripts/generate-admin-contract.ts"
       }
     },
     "test-bun": {

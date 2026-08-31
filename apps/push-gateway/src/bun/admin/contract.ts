@@ -1,10 +1,10 @@
 import * as z from 'zod/mini';
 
+import { OPERATOR_SESSION_RESPONSE_SCHEMA } from '../../admin-contract/operator-session';
+
 const SAFE_COUNT = z.number().check(z.int(), z.nonnegative());
 const POSITIVE_SAFE_INTEGER = z.number().check(z.int(), z.positive());
-const UTC_TIMESTAMP = z
-  .string()
-  .check(z.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/u));
+const UTC_TIMESTAMP = z.iso.datetime();
 
 export const ADMIN_SESSION_ID_SCHEMA = z
   .string()
@@ -13,10 +13,11 @@ export const ADMIN_SESSION_ID_SCHEMA = z
 export const ADMIN_OPERATOR_IDENTITY_SCHEMA = z.strictObject({
   displayName: z.optional(z.string().check(z.minLength(1), z.maxLength(256))),
   email: z.optional(z.email().check(z.minLength(3), z.maxLength(320))),
-  issuer: z.string().check(z.minLength(1), z.maxLength(2048)),
+  issuer: z.url().check(z.maxLength(2048)),
   subject: z.string().check(z.minLength(1), z.maxLength(512)),
 });
 
+/** Migration compatibility schema for session-list and parity coverage. */
 export const ADMIN_OPERATOR_SESSION_SCHEMA = z.strictObject({
   absoluteExpiresAt: UTC_TIMESTAMP,
   createdAt: UTC_TIMESTAMP,
@@ -28,7 +29,7 @@ export const ADMIN_OPERATOR_SESSION_SCHEMA = z.strictObject({
 });
 
 export const ADMIN_OPERATOR_SESSION_LIST_SCHEMA = z.strictObject({
-  sessions: z.array(ADMIN_OPERATOR_SESSION_SCHEMA).check(z.maxLength(100)),
+  sessions: z.array(OPERATOR_SESSION_RESPONSE_SCHEMA).check(z.maxLength(100)),
 });
 
 const REQUEST_OUTCOME_COUNTS_SCHEMA = z.strictObject({
