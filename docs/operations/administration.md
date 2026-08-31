@@ -58,6 +58,13 @@ is bounded per pass. Treat `admin.sqlite`, browser sessions, audit data, and
 backups as sensitive operational metadata even though message content is never
 stored.
 
+The Security page queries a UTC half-open range of at most 90 days. Its opaque
+load-older cursor fixes the initial range, filters, page size, timestamp, and
+identifier boundary; it is signed with the administration session secret and
+expires 15 minutes after the first page. Replaying it with the same filters is
+safe and deterministic. Changing any filter starts a new query; editing,
+reusing after expiry, or replaying the cursor with different filters is rejected.
+
 ## Recover from an identity-provider outage
 
 Existing unexpired local sessions remain governed by local policy, while new

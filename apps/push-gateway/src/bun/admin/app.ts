@@ -18,10 +18,10 @@ import {
   type OidcAuthenticator,
 } from '../auth/oidc-client';
 import type { AdminAssetCatalog } from './assets';
+import { createOperatorAuditEntryQuery } from './audit-query';
 import type { AdminOperations, OperationResponse } from './operations';
 import type { AdminConfiguration, SafeAdminConfiguration } from './config';
 import {
-  ADMIN_AUDIT_PAGE_SCHEMA,
   ADMIN_BACKUP_LIST_SCHEMA,
   ADMIN_BACKUP_SCHEMA,
   ADMIN_CONFIGURATION_RESPONSE_SCHEMA,
@@ -39,7 +39,6 @@ import {
   adminProblemResponse,
   adminUnavailableResponse,
 } from './responses';
-import { ADMIN_AUDIT_KINDS, ADMIN_AUDIT_OUTCOMES } from './schema';
 import {
   type AdminAuthenticatedSession,
   type AdminOperatorSession,
@@ -524,33 +523,11 @@ export function createAdminSurface(
   let resolvedAuthenticator: OidcAuthenticator | undefined;
   let lastCleanupHour: number | undefined;
   let lastCleanupDay: number | undefined;
-  const cursorFor = (payload: Readonly<Record<string, unknown>>): string => {
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    return `${encoded}.${digest(secret, 'audit-cursor', encoded)}`;
-  };
-  const parseCursor = (
-    value: string,
-  ): Readonly<Record<string, unknown>> | undefined => {
-    const [encoded, signature, extra] = value.split('.');
-    if (
-      encoded === undefined ||
-      signature === undefined ||
-      extra !== undefined ||
-      !secretsEqual(signature, digest(secret, 'audit-cursor', encoded))
-    ) {
-      return undefined;
-    }
-    try {
-      const parsed: unknown = JSON.parse(
-        Buffer.from(encoded, 'base64url').toString('utf8'),
-      );
-      return typeof parsed === 'object' && parsed !== null
-        ? (parsed as Readonly<Record<string, unknown>>)
-        : undefined;
-    } catch {
-      return undefined;
-    }
-  };
+  const auditEntries = createOperatorAuditEntryQuery({
+    cursorSecret: secret,
+    nowSeconds: () => Math.floor(now() / 1_000),
+    storage: options.store,
+  });
   const authenticator = (): Promise<OidcAuthenticator> => {
     authenticatorPromise ??= createOidcAuthenticator(
       {
@@ -895,152 +872,10 @@ export function createAdminSurface(
   app.get(
     '/admin/api/v1/audit-entries',
     authenticatedRoute((context) => {
-      const url = new URL(context.req.url);
-      const allowed = new Set([
-        'cursor',
-        'from',
-        'kind',
-        'limit',
-        'outcome',
-        'to',
-      ]);
-      if (
-        [...url.searchParams.keys()].some((key) => !allowed.has(key)) ||
-        [...allowed].some((key) => url.searchParams.getAll(key).length > 1)
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const nowSeconds = Math.floor(now() / 1_000);
-      const cursorValue = url.searchParams.get('cursor');
-      const cursor =
-        cursorValue === null ? undefined : parseCursor(cursorValue);
-      if (
-        cursorValue !== null &&
-        (cursorValue.length > 2_048 ||
-          cursor === undefined ||
-          typeof cursor.expiresAt !== 'number' ||
-          !Number.isSafeInteger(cursor.expiresAt) ||
-          cursor.expiresAt <= nowSeconds ||
-          typeof cursor.from !== 'number' ||
-          !Number.isSafeInteger(cursor.from) ||
-          typeof cursor.to !== 'number' ||
-          !Number.isSafeInteger(cursor.to) ||
-          typeof cursor.limit !== 'number' ||
-          !Number.isSafeInteger(cursor.limit) ||
-          (cursor.kind !== null && typeof cursor.kind !== 'string') ||
-          (cursor.outcome !== null && typeof cursor.outcome !== 'string') ||
-          typeof cursor.beforeAt !== 'number' ||
-          !Number.isSafeInteger(cursor.beforeAt) ||
-          typeof cursor.beforeId !== 'string' ||
-          cursor.beforeId.length < 16 ||
-          cursor.beforeId.length > 128)
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const rawFrom = url.searchParams.get('from');
-      const rawTo = url.searchParams.get('to');
-      if ((rawFrom === null) !== (rawTo === null)) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const to =
-        rawTo === null
-          ? Number(cursor?.to ?? nowSeconds)
-          : Math.floor(Date.parse(rawTo) / 1_000);
-      const from =
-        rawFrom === null
-          ? Number(cursor?.from ?? to - 86_400)
-          : Math.floor(Date.parse(rawFrom) / 1_000);
-      const limit = Number(
-        url.searchParams.get('limit') ?? cursor?.limit ?? '50',
-      );
-      const kind =
-        url.searchParams.get('kind') ??
-        (cursor?.kind === null
-          ? undefined
-          : (cursor?.kind as string | undefined));
-      const outcome =
-        url.searchParams.get('outcome') ??
-        (cursor?.outcome === null
-          ? undefined
-          : (cursor?.outcome as string | undefined));
-      const auditKinds = new Set<string>(ADMIN_AUDIT_KINDS);
-      const auditOutcomes = new Set<string>(ADMIN_AUDIT_OUTCOMES);
-      if (
-        !Number.isSafeInteger(from) ||
-        !Number.isSafeInteger(to) ||
-        from < 0 ||
-        to <= from ||
-        to - from > 90 * 86_400 ||
-        !Number.isSafeInteger(limit) ||
-        limit < 1 ||
-        limit > 100 ||
-        (kind !== undefined && !auditKinds.has(kind)) ||
-        (outcome !== undefined && !auditOutcomes.has(outcome))
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      if (
-        cursorValue !== null &&
-        (cursor?.from !== from ||
-          cursor.to !== to ||
-          cursor.limit !== limit ||
-          cursor.kind !== (kind ?? null) ||
-          cursor.outcome !== (outcome ?? null) ||
-          typeof cursor.beforeAt !== 'number' ||
-          typeof cursor.beforeId !== 'string')
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const entries = options.store.listAuditEntries({
-        ...(cursor === undefined
-          ? {}
-          : {
-              before: {
-                id: String(cursor.beforeId),
-                occurredAt: Number(cursor.beforeAt),
-              },
-            }),
-        from,
-        ...(kind === undefined
-          ? {}
-          : { kind: kind as (typeof ADMIN_AUDIT_KINDS)[number] }),
-        limit,
-        ...(outcome === undefined
-          ? {}
-          : { outcome: outcome as (typeof ADMIN_AUDIT_OUTCOMES)[number] }),
-        to,
-      });
-      const page = entries.slice(0, limit);
-      const last = page.at(-1);
-      const nextCursor =
-        entries.length <= limit || last === undefined
-          ? undefined
-          : cursorFor({
-              beforeAt: last.occurredAt,
-              beforeId: last.id,
-              expiresAt: nowSeconds + 15 * 60,
-              from,
-              kind: kind ?? null,
-              limit,
-              outcome: outcome ?? null,
-              to,
-            });
-      return adminJsonResponse(
-        validatedAdminResponse(ADMIN_AUDIT_PAGE_SCHEMA, {
-          entries: page.map((entry) => ({
-            id: entry.id,
-            kind: entry.kind,
-            occurredAt: secondsToTimestamp(entry.occurredAt),
-            operator:
-              entry.issuer === null || entry.subject === null
-                ? null
-                : { issuer: entry.issuer, subject: entry.subject },
-            outcome: entry.outcome,
-            ...(entry.reason === null ? {} : { reason: entry.reason }),
-          })),
-          ...(nextCursor === undefined ? {} : { nextCursor }),
-        }),
-      );
+      const result = auditEntries.query(new URL(context.req.url).searchParams);
+      return result.kind === 'invalid'
+        ? adminProblemResponse('invalid_request', 400)
+        : adminJsonResponse(result.page);
     }),
   );
 

@@ -150,9 +150,10 @@ self-contained.
 
 Rotate either secret by replacing its Docker secret file and recreating the
 container. Rotating the session secret immediately invalidates every local
-Operator Session. Rotating the OIDC client secret blocks new login until the
-provider and gateway agree, but it does not expand an existing session's
-lifetime. There is no live reload and no local break-glass login.
+Operator Session and outstanding Operator Audit Entry cursor. Rotating the OIDC
+client secret blocks new login until the provider and gateway agree, but it does
+not expand an existing session's lifetime. There is no live reload and no local
+break-glass login.
 
 Continue with [administration operations and recovery](/operations/administration)
 and [backup scope](/operations/backup-and-restore).
