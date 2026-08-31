@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   access,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -225,6 +226,46 @@ test('credential preparation failures still remove the private work directory', 
   assert.equal(evidence.checks.cleanup, true);
 });
 
+test('directory overrides are base roots and cleanup removes only the lifecycle-owned child', async () => {
+  const root = await mkdtemp(
+    path.join(os.tmpdir(), 'provider-lifecycle-ownership-test-'),
+  );
+  temporaryDirectories.push(root);
+  const workBase = path.join(root, 'credentials-base');
+  const evidenceBase = path.join(root, 'evidence-base');
+  await mkdir(workBase, { recursive: true });
+  await writeFile(path.join(workBase, 'sentinel.txt'), 'retain parent');
+  const environment = {
+    PROVIDER_GATE_EVIDENCE_DIRECTORY: evidenceBase,
+    PROVIDER_GATE_RUN_ID: 'owned-child',
+    PROVIDER_GATE_WORK_DIRECTORY: workBase,
+  };
+  const configuration = providerGateConfiguration(adapter, environment);
+  const { dependencies } = successfulDependencies(configuration);
+
+  await assert.rejects(
+    runProviderGate(adapter, {
+      configuration,
+      dependencies: {
+        ...dependencies,
+        secretFactory: () => {
+          throw new Error('secret generation failed');
+        },
+      },
+      environment,
+    }),
+    /secret generation failed/u,
+  );
+
+  assert.equal(
+    await readFile(path.join(workBase, 'sentinel.txt'), 'utf8'),
+    'retain parent',
+  );
+  await assert.rejects(access(configuration.workDirectory));
+  assert.equal(path.dirname(configuration.workDirectory), workBase);
+  assert.equal(path.dirname(configuration.evidenceDirectory), evidenceBase);
+});
+
 test('cleanup command failures fail the gate and cannot be reported as clean', async () => {
   const { configuration, environment } = await temporaryGate();
   const { dependencies } = successfulDependencies(configuration);
@@ -265,6 +306,92 @@ test('cleanup command failures fail the gate and cannot be reported as clean', a
   assert.equal(evidence.status, 'failed');
   assert.equal(evidence.checks.cleanup, false);
 });
+
+for (const residual of [
+  {
+    label: 'named gateway container',
+    matches: (arguments_) =>
+      arguments_[0] === 'container' &&
+      arguments_.includes('name=^/tpg-test-provider-unit-test-gateway$'),
+  },
+  {
+    label: 'named gateway volume',
+    matches: (arguments_) =>
+      arguments_[0] === 'volume' &&
+      arguments_.includes('name=^tpg-test-provider-unit-test-data$'),
+  },
+  {
+    label: 'Compose container',
+    matches: (arguments_) =>
+      arguments_[0] === 'container' &&
+      arguments_.includes(
+        'label=com.docker.compose.project=tpg-test-provider-unit-test',
+      ),
+  },
+  {
+    label: 'Compose network',
+    matches: (arguments_) =>
+      arguments_[0] === 'network' &&
+      arguments_.includes(
+        'label=com.docker.compose.project=tpg-test-provider-unit-test',
+      ),
+  },
+  {
+    label: 'Compose volume',
+    matches: (arguments_) =>
+      arguments_[0] === 'volume' &&
+      arguments_.includes(
+        'label=com.docker.compose.project=tpg-test-provider-unit-test',
+      ),
+  },
+]) {
+  test(`cleanup fails when a ${residual.label} remains`, async () => {
+    const { configuration, environment } = await temporaryGate();
+    const { dependencies } = successfulDependencies(configuration);
+    const successfulRunner = dependencies.processRunner;
+    let composeDowns = 0;
+
+    await assert.rejects(
+      runProviderGate(
+        {
+          ...adapter,
+          provision: async () => ({ allowed: {}, denied: {} }),
+        },
+        {
+          configuration,
+          dependencies: {
+            ...dependencies,
+            processRunner: async (command, arguments_, options) => {
+              if (arguments_.includes('down')) {
+                composeDowns += 1;
+              }
+              const result = await successfulRunner(
+                command,
+                arguments_,
+                options,
+              );
+              if (composeDowns === 2 && residual.matches(arguments_)) {
+                return { ...result, stdout: 'remaining-resource-id\n' };
+              }
+              return result;
+            },
+          },
+          environment,
+        },
+      ),
+      /cleanup did not remove every disposable Docker resource/u,
+    );
+
+    const evidence = JSON.parse(
+      await readFile(
+        path.join(configuration.evidenceDirectory, 'result.json'),
+        'utf8',
+      ),
+    );
+    assert.equal(evidence.status, 'failed');
+    assert.equal(evidence.checks.cleanup, false);
+  });
+}
 
 test('the explicit cleanup entry point reuses lifecycle-owned resource names', async () => {
   const { configuration, environment } = await temporaryGate();

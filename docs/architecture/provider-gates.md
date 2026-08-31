@@ -54,7 +54,9 @@ PROVIDER_GATE_RUN_ID=local-pocket-id \
   pnpm nx run push-gateway:provider-gate-pocket-id-cleanup --skipNxCache
 ```
 
-`PROVIDER_GATE_WORK_DIRECTORY`, `PROVIDER_GATE_EVIDENCE_DIRECTORY`, and
+`PROVIDER_GATE_WORK_DIRECTORY` and `PROVIDER_GATE_EVIDENCE_DIRECTORY` select
+base directories; the lifecycle creates and removes only its run-specific child
+under each base. `PROVIDER_GATE_RUN_ID` and
 `PROVIDER_GATE_IMAGE` may override their defaults. The work and evidence paths
 must be separate directory trees so an artifact upload can never include
 credentials, including after an interrupted run.

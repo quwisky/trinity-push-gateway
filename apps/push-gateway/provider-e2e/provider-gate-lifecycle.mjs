@@ -31,19 +31,15 @@ function normalizedRunId(value) {
   return bounded;
 }
 
-function validateOwnedDirectory(directory, label) {
-  const resolved = path.resolve(directory);
-  const forbidden = new Set([
-    path.parse(resolved).root,
-    path.resolve(process.cwd()),
-    path.resolve(os.homedir()),
-    path.resolve(os.tmpdir()),
-    path.resolve(WORKSPACE_ROOT),
-  ]);
-  if (forbidden.has(resolved)) {
-    throw new Error(`${label} must be a dedicated child directory.`);
+function ownedChildDirectory(baseDirectory, childName) {
+  const base = path.resolve(baseDirectory);
+  const child = path.resolve(base, childName);
+  if (!containsDirectory(base, child) || child === base) {
+    throw new Error(
+      'Provider gate directory ownership could not be established.',
+    );
   }
-  return resolved;
+  return child;
 }
 
 function containsDirectory(parent, child) {
@@ -58,20 +54,14 @@ export function providerGateConfiguration(adapter, environment = process.env) {
   const runId = normalizedRunId(
     environment.PROVIDER_GATE_RUN_ID ?? `${Date.now()}-${process.pid}`,
   );
-  const workDirectory = validateOwnedDirectory(
-    environment.PROVIDER_GATE_WORK_DIRECTORY ??
-      path.join(os.tmpdir(), `trinity-${adapter.id}-${runId}`),
-    'Provider gate work directory',
+  const workDirectory = ownedChildDirectory(
+    environment.PROVIDER_GATE_WORK_DIRECTORY ?? os.tmpdir(),
+    `trinity-${adapter.id}-${runId}`,
   );
-  const evidenceDirectory = validateOwnedDirectory(
+  const evidenceDirectory = ownedChildDirectory(
     environment.PROVIDER_GATE_EVIDENCE_DIRECTORY ??
-      path.join(
-        WORKSPACE_ROOT,
-        'test-output',
-        'provider-gates',
-        `${adapter.id}-${runId}`,
-      ),
-    'Provider gate evidence directory',
+      path.join(WORKSPACE_ROOT, 'test-output', 'provider-gates'),
+    `${adapter.id}-${runId}`,
   );
   if (
     containsDirectory(workDirectory, evidenceDirectory) ||
