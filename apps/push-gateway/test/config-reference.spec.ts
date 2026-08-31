@@ -5,6 +5,7 @@ import {
   type GatewayConfigurationName,
 } from '../src/config-reference';
 import { ADMIN_CONFIGURATION_ENVIRONMENT_NAMES } from '../src/admin-configuration-names';
+import { ADMINISTRATION_CONFIGURATION_CATALOG } from '../src/configuration-catalog';
 import {
   ADMIN_CONFIGURATION_DEFAULTS,
   BUN_CONFIGURATION_DEFAULTS,
@@ -81,6 +82,20 @@ describe('gateway configuration reference', () => {
           GATEWAY_CONFIGURATION_REFERENCE.find((entry) => entry.name === name),
         ).toMatchObject({ required: false, runtimes: ['bun'], secret: true });
       }
+    }
+  });
+
+  it('publishes catalog-owned administration metadata without secret values', () => {
+    const catalogNames = [
+      'TRINITY_PUSH_GATEWAY_ADMIN_ENABLED',
+      'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET',
+      'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET_FILE',
+    ] as const;
+
+    for (const name of catalogNames) {
+      expect(
+        GATEWAY_CONFIGURATION_REFERENCE.find((entry) => entry.name === name),
+      ).toEqual(ADMINISTRATION_CONFIGURATION_CATALOG.reference(name));
     }
   });
 

@@ -181,6 +181,7 @@ export const ADMIN_CONFIGURATION_RESPONSE_SCHEMA = z.strictObject({
     backupLimitCount: z.number().check(z.int(), z.gte(1), z.lte(1_000)),
     cleanupCooldownSeconds: POSITIVE_SAFE_INTEGER,
     cleanupDeadlineSeconds: POSITIVE_SAFE_INTEGER,
+    enabled: z.literal(true),
     firebaseValidationCooldownSeconds: POSITIVE_SAFE_INTEGER,
     firebaseValidationDeadlineSeconds: POSITIVE_SAFE_INTEGER,
     maxSessionsDeployment: z.literal(100),

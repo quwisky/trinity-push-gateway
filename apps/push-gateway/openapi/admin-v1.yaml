@@ -1076,11 +1076,16 @@ components:
         - firebaseValidationCooldownSeconds
         - cleanupDeadlineSeconds
         - cleanupCooldownSeconds
+        - enabled
         - backupDeadlineSeconds
         - backupCooldownSeconds
         - backupLimitCount
         - backupLimitBytes
       properties:
+        enabled:
+          type: boolean
+          const: true
+          description: The administration surface is enabled for this response.
         publicOrigin:
           type: string
           format: uri

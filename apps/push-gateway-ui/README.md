@@ -48,6 +48,12 @@ Generated files under `src/app/api/generated` are committed, deterministic,
 and never edited by hand. The drift check regenerates twice in temporary Nx
 workspace data, validates the owned output set, and compares content hashes.
 
+The read-only Configuration route consumes catalog-backed safe projections for
+the administration enable flag and Operator Session secret. It presents only
+the public enabled state, configured presence, and direct or file source;
+secret values and file paths never enter the browser contract. Disabled
+administration returns before either secret source is read.
+
 ## Browser boundary
 
 - Chart.js is registered directly and remains on the lazy Metrics route. The
