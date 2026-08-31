@@ -5,7 +5,7 @@ A small, privacy-preserving [Matrix Push Gateway](https://spec.matrix.org/latest
 - `ovh.qwky.trinity.android`
 - `ovh.qwky.trinity.ios`
 
-The Worker has two focused runtime dependencies: `jose` for standards-conformant service-account JWT signing and Valibot for untrusted boundary validation. It sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
+The Worker has two focused runtime dependencies: `jose` for standards-conformant service-account JWT signing and Zod Mini for untrusted boundary validation. It sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
 
 ## What it provides
 
@@ -42,7 +42,7 @@ pnpm nx run push-gateway:check-bun
 pnpm nx run push-gateway-docs:check
 ```
 
-The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits and rejects runtime dependencies outside the exact `jose` and Valibot allowlist.
+The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits and rejects runtime dependencies outside the exact `jose` and Zod allowlist.
 
 Local commits are protected by Husky: lint-staged applies the uncached Nx lint fixer and Prettier before the full typecheck and test suite, and Commitlint validates Conventional Commit messages. See [the contribution guide](CONTRIBUTING.md) for the pull-request and release contract.
 

@@ -5,7 +5,7 @@ import { gzip } from 'node:zlib';
 const gzipAsync = promisify(gzip);
 const maximumRawBytes = 64 * 1024 * 1024;
 const maximumGzipBytes = 3 * 1024 * 1024;
-const allowedDependencyNames = ['jose', 'valibot'];
+const allowedDependencyNames = ['jose', 'zod'];
 const bundle = new URL(
   '../../../dist/apps/push-gateway/worker/index.js',
   import.meta.url,
@@ -48,5 +48,6 @@ const gzipPercentage = ((gzipBytes / maximumGzipBytes) * 100).toFixed(2);
 
 console.info(
   `Worker bundle: ${size} raw bytes (${rawPercentage}% of Free-plan limit); ` +
-    `${gzipBytes} gzip bytes (${gzipPercentage}%); runtime dependencies: 2 approved.`,
+    `${gzipBytes} gzip bytes (${gzipPercentage}%); ` +
+    `runtime dependencies: ${dependencyNames.length} approved.`,
 );

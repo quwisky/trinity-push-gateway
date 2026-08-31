@@ -90,6 +90,41 @@ describe('Bun runtime configuration', () => {
     ).toThrow('TRINITY_PUSH_GATEWAY_PORT');
   });
 
+  it.each([
+    [
+      'application identifiers are equal',
+      {
+        TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: 'same.app',
+        TRINITY_PUSH_GATEWAY_IOS_APP_ID: 'same.app',
+      },
+    ],
+    [
+      'fingerprint key is too short',
+      { TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY: 'short-key' },
+    ],
+    [
+      'terminal retention does not exceed the pending lease',
+      {
+        TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS: '120',
+        TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS: '120',
+      },
+    ],
+    [
+      'upstream timeout is not shorter than the request deadline',
+      {
+        TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS: '30',
+        TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: '30',
+      },
+    ],
+  ] satisfies readonly [string, Record<string, string>][])(
+    'uses the generic runtime error when %s',
+    (_description, overrides) => {
+      expect(() =>
+        loadBunConfiguration({ ...requiredEnvironment(), ...overrides }),
+      ).toThrow(/^Gateway runtime configuration is invalid\.$/u);
+    },
+  );
+
   it('does not accept legacy unprefixed configuration names', () => {
     expect(() =>
       loadBunConfiguration({
