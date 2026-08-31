@@ -15,7 +15,6 @@ describe('Overview and metrics published contract', () => {
       'FcmOutcomeCounts',
       'FcmPlatformTotals',
       'OperationSummaryOutcome',
-      'OperationSummaryReason',
       'OperationSummary',
       'DatabaseByteUsage',
       'Overview',
@@ -60,19 +59,6 @@ describe('Overview and metrics published contract', () => {
       MetricsInterval: {
         default: 'hour',
         enum: ['hour', 'day'],
-      },
-      OperationSummaryReason: {
-        enum: [
-          'access_denied',
-          'audit_finalization_failed',
-          'backup_failed',
-          'backup_limit_exceeded',
-          'cleanup_failed',
-          'firebase_validation_failed',
-          'operation_timeout',
-          'request_rejected',
-          'unavailable',
-        ],
       },
       FcmLatencyMetrics: {
         properties: {

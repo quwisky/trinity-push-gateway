@@ -10,31 +10,11 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
-export const ADMIN_AUDIT_KINDS = [
-  'login',
-  'logout',
-  'session_expired',
-  'session_revoked',
-  'session_cap_eviction',
-  'policy_rejected',
-  'session_purge',
-  'firebase_validation',
-  'cleanup',
-  'backup',
-] as const;
-
-export const ADMIN_AUDIT_OUTCOMES = [
-  'succeeded',
-  'failed',
-  'started',
-  'outcome_unknown',
-] as const;
-
-export const ADMIN_OPERATION_KINDS = [
-  'firebase_validation',
-  'cleanup',
-  'backup',
-] as const;
+import {
+  AUDIT_ENTRY_KINDS,
+  AUDIT_ENTRY_OUTCOMES,
+  OPERATOR_ACTION_KINDS,
+} from '../../admin-contract/operator-actions';
 
 export const DELIVERY_PLATFORMS = ['android', 'ios'] as const;
 
@@ -148,8 +128,8 @@ export const operatorAuditEntries = sqliteTable(
     occurredAt: integer('occurred_at').notNull(),
     issuer: text('issuer'),
     subject: text('subject'),
-    kind: text('kind', { enum: ADMIN_AUDIT_KINDS }).notNull(),
-    outcome: text('outcome', { enum: ADMIN_AUDIT_OUTCOMES }).notNull(),
+    kind: text('kind', { enum: AUDIT_ENTRY_KINDS }).notNull(),
+    outcome: text('outcome', { enum: AUDIT_ENTRY_OUTCOMES }).notNull(),
     reason: text('reason'),
   },
   (table) => [
@@ -211,7 +191,7 @@ export const operatorAuditEntries = sqliteTable(
 export const operationLeases = sqliteTable(
   'operation_leases',
   {
-    kind: text('kind', { enum: ADMIN_OPERATION_KINDS }).primaryKey(),
+    kind: text('kind', { enum: OPERATOR_ACTION_KINDS }).primaryKey(),
     leaseId: text('lease_id').notNull(),
     acquiredAt: integer('acquired_at').notNull(),
     leaseExpiresAt: integer('lease_expires_at').notNull(),
@@ -243,7 +223,7 @@ export const operationLeases = sqliteTable(
 export const operationResults = sqliteTable(
   'operation_results',
   {
-    kind: text('kind', { enum: ADMIN_OPERATION_KINDS }).primaryKey(),
+    kind: text('kind', { enum: OPERATOR_ACTION_KINDS }).primaryKey(),
     leaseId: text('lease_id').notNull(),
     completedAt: integer('completed_at').notNull(),
     outcome: text('outcome', {

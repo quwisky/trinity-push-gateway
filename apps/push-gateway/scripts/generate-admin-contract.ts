@@ -3,6 +3,16 @@ import { fileURLToPath } from 'node:url';
 
 import { configurationOpenApiComponents } from '../src/admin-contract/configuration-openapi';
 import { operatorSessionOpenApiComponents } from '../src/admin-contract/operator-session-openapi';
+import {
+  ADMIN_PROBLEM_CODES,
+  AUDIT_ENTRY_KINDS,
+  AUDIT_ENTRY_OUTCOMES,
+  AUDIT_QUERY_POLICY,
+} from '../src/admin-contract/operator-actions';
+import {
+  operatorActionsOpenApiComponents,
+  operatorAuditOpenApiParameters,
+} from '../src/admin-contract/operator-actions-openapi';
 import { METRICS_QUERY_POLICY } from '../src/admin-contract/overview-metrics';
 import {
   metricsOpenApiParameters,
@@ -33,6 +43,12 @@ const GENERATED_CONTRACT_BLOCKS: readonly GeneratedContractBlock[] = [
     startMarker: '    # BEGIN GENERATED METRICS PARAMETERS',
   },
   {
+    content: operatorAuditOpenApiParameters(),
+    endMarker: '    # END GENERATED AUDIT PARAMETERS',
+    name: 'audit parameters',
+    startMarker: '    # BEGIN GENERATED AUDIT PARAMETERS',
+  },
+  {
     content: operatorSessionOpenApiComponents(),
     endMarker: '    # END GENERATED OPERATOR SESSION CONTRACT',
     name: 'Operator Session',
@@ -49,6 +65,12 @@ const GENERATED_CONTRACT_BLOCKS: readonly GeneratedContractBlock[] = [
     endMarker: '    # END GENERATED CONFIGURATION CONTRACT',
     name: 'configuration',
     startMarker: '    # BEGIN GENERATED CONFIGURATION CONTRACT',
+  },
+  {
+    content: operatorActionsOpenApiComponents(),
+    endMarker: '    # END GENERATED OPERATOR ACTION CONTRACT',
+    name: 'Operator Action',
+    startMarker: '    # BEGIN GENERATED OPERATOR ACTION CONTRACT',
   },
 ];
 const check = process.argv.slice(2).includes('--check');
@@ -130,7 +152,8 @@ function generatedOpenApi(source: string): string {
 function generatedBrowserPolicy(): string {
   return [
     '/**',
-    ' * Generated from apps/push-gateway/src/admin-contract/overview-metrics.ts.',
+    ' * Generated from apps/push-gateway/src/admin-contract/overview-metrics.ts',
+    ' * and apps/push-gateway/src/admin-contract/operator-actions.ts.',
     ' * Do not edit manually. Run pnpm nx run push-gateway:generate-admin-contract.',
     ' */',
     'export const METRICS_QUERY_POLICY = {',
@@ -144,6 +167,22 @@ function generatedBrowserPolicy(): string {
     `  maximumRangeDays: ${String(METRICS_QUERY_POLICY.maximumRangeDays)},`,
     `  maximumRangeSeconds: ${String(METRICS_QUERY_POLICY.maximumRangeSeconds)},`,
     '} as const;',
+    '',
+    'export const AUDIT_QUERY_POLICY = {',
+    `  defaultPageSize: ${String(AUDIT_QUERY_POLICY.defaultPageSize)},`,
+    `  defaultRangeSeconds: ${String(AUDIT_QUERY_POLICY.defaultRangeSeconds)},`,
+    '  kinds: [',
+    ...AUDIT_ENTRY_KINDS.map((kind) => `    '${kind}',`),
+    '  ],',
+    `  maximumPageSize: ${String(AUDIT_QUERY_POLICY.maximumPageSize)},`,
+    `  maximumRangeDays: ${String(AUDIT_QUERY_POLICY.maximumRangeDays)},`,
+    `  maximumRangeSeconds: ${String(AUDIT_QUERY_POLICY.maximumRangeSeconds)},`,
+    `  outcomes: [${AUDIT_ENTRY_OUTCOMES.map((outcome) => `'${outcome}'`).join(', ')}],`,
+    '} as const;',
+    '',
+    'export const ADMIN_PROBLEM_CODES = [',
+    ...ADMIN_PROBLEM_CODES.map((code) => `  '${code}',`),
+    '] as const;',
     '',
   ].join('\n');
 }

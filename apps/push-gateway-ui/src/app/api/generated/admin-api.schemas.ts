@@ -109,7 +109,7 @@ export const OperationSummaryOutcome = {
 } as const;
 
 /**
- * Finite privacy-safe reason for an administration operation summary.
+ * Finite privacy-safe reason for an administration operation summary or known Operator Action result.
  */
 export type OperationSummaryReason =
   (typeof OperationSummaryReason)[keyof typeof OperationSummaryReason];
@@ -232,30 +232,6 @@ export interface Metrics {
   requestBuckets: RequestMetricBucket[];
   /** @maxItems 1440 */
   fcmBuckets: FcmMetricBucket[];
-}
-
-/**
- * Known result of the synchronous action.
- */
-export type OperationResultOutcome =
-  (typeof OperationResultOutcome)[keyof typeof OperationResultOutcome];
-
-export const OperationResultOutcome = {
-  succeeded: 'succeeded',
-  failed: 'failed',
-} as const;
-
-export interface OperationResult {
-  startedAt: UtcTimestamp;
-  completedAt: UtcTimestamp;
-  /** Known result of the synchronous action. */
-  outcome: OperationResultOutcome;
-  cooldownEndsAt: UtcTimestamp;
-  /**
-   * Optional coarse safe reason code; never a raw external or process error.
-   * @pattern ^[a-z][a-z0-9_]{0,63}$
-   */
-  reason?: string;
 }
 
 /**
@@ -479,6 +455,28 @@ export interface Configuration {
   credentials: CredentialPresence;
 }
 
+/**
+ * Known result of the synchronous Operator Action.
+ */
+export type OperationResultOutcome =
+  (typeof OperationResultOutcome)[keyof typeof OperationResultOutcome];
+
+export const OperationResultOutcome = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+/**
+ * Known success or failure result of a bounded synchronous Operator Action.
+ */
+export interface OperationResult {
+  startedAt: UtcTimestamp;
+  completedAt: UtcTimestamp;
+  outcome: OperationResultOutcome;
+  cooldownEndsAt: UtcTimestamp;
+  reason?: OperationSummaryReason;
+}
+
 export type AuditEntryKind =
   (typeof AuditEntryKind)[keyof typeof AuditEntryKind];
 
@@ -505,6 +503,29 @@ export const AuditEntryOutcome = {
   outcome_unknown: 'outcome_unknown',
 } as const;
 
+/**
+ * Finite privacy-safe reason for an Operator Audit Entry; raw claims, identifiers, external errors, and process errors are excluded.
+ */
+export type AuditEntryReason =
+  (typeof AuditEntryReason)[keyof typeof AuditEntryReason];
+
+export const AuditEntryReason = {
+  access_denied: 'access_denied',
+  audit_finalization_failed: 'audit_finalization_failed',
+  backup_failed: 'backup_failed',
+  backup_limit_exceeded: 'backup_limit_exceeded',
+  cleanup_failed: 'cleanup_failed',
+  firebase_validation_failed: 'firebase_validation_failed',
+  operation_timeout: 'operation_timeout',
+  request_rejected: 'request_rejected',
+  unavailable: 'unavailable',
+  absolute_expired: 'absolute_expired',
+  idle_expired: 'idle_expired',
+  no_active_sessions: 'no_active_sessions',
+  policy_changed: 'policy_changed',
+  session_cap: 'session_cap',
+} as const;
+
 export interface OperatorAuditEntry {
   id: OpaqueId;
   occurredAt: UtcTimestamp;
@@ -512,11 +533,7 @@ export interface OperatorAuditEntry {
   operator: OperatorIdentity | null;
   kind: AuditEntryKind;
   outcome: AuditEntryOutcome;
-  /**
-   * Optional coarse safe reason code; never raw claims or external errors.
-   * @pattern ^[a-z][a-z0-9_]{0,63}$
-   */
-  reason?: string;
+  reason?: AuditEntryReason;
 }
 
 export interface OperatorAuditEntryPage {
@@ -530,12 +547,7 @@ export interface OperatorAuditEntryPage {
   nextCursor?: string;
 }
 
-export type BackupIntegrity =
-  (typeof BackupIntegrity)[keyof typeof BackupIntegrity];
-
-export const BackupIntegrity = {
-  verified: 'verified',
-} as const;
+export type BackupIntegrity = 'verified';
 
 export interface Backup {
   id: OpaqueId;
@@ -603,8 +615,7 @@ export interface Problem {
   status: number;
   code: ProblemCode;
   /**
-   * Generic safe explanation. It never includes secret values, tokens,
-   * identifiers, paths, external response bodies, or raw process errors.
+   * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
    * @minLength 1
    * @maxLength 512
    */
@@ -681,8 +692,7 @@ export type MetricsToParameter = UtcTimestamp;
 export type MetricsIntervalParameter = MetricsInterval;
 
 /**
- * Opaque continuation cursor from `nextCursor`. It binds every effective
- * filter and must be replayed without interpretation or modification.
+ * Opaque continuation cursor from `nextCursor`. It binds every effective filter and must be replayed without interpretation or modification.
  */
 export type AuditCursorParameter = string;
 
@@ -731,8 +741,7 @@ export type GetMetricsParams = {
 
 export type ListAuditEntriesParams = {
   /**
-   * Opaque continuation cursor from `nextCursor`. It binds every effective
-   * filter and must be replayed without interpretation or modification.
+   * Opaque continuation cursor from `nextCursor`. It binds every effective filter and must be replayed without interpretation or modification.
    * @minLength 1
    * @maxLength 2048
    */

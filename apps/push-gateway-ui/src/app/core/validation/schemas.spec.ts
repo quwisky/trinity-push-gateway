@@ -58,11 +58,18 @@ describe('UI validation schemas', () => {
     );
     expect(
       apiProblemSchema.safeParse({
+        code: 'admin_unavailable',
         title: 'Unavailable',
         detail: 'Try again.',
         status: 503,
       }).success,
     ).toBe(true);
+    expect(
+      apiProblemSchema.safeParse({
+        code: 'private_key_contents',
+        title: 'Unavailable',
+      }).success,
+    ).toBe(false);
     expect(apiProblemSchema.safeParse({ title: 503 }).success).toBe(false);
   });
 });
