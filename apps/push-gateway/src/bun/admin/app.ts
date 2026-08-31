@@ -43,7 +43,7 @@ import {
   OidcAuthenticationError,
   type OidcAuthenticator,
 } from '../auth/oidc-client';
-import type { AdminAssetCatalog } from './assets';
+import { ADMIN_SPA_ROUTES, type AdminAssetCatalog } from './assets';
 import { createOperatorAuditEntryQuery } from './audit-query';
 import type { AdminOperations, OperationResponse } from './operations';
 import type { AdminConfiguration, SafeAdminConfiguration } from './config';
@@ -65,6 +65,10 @@ const XSRF_COOKIE = 'TRINITY_ADMIN_XSRF';
 const OIDC_COOKIE = 'TRINITY_ADMIN_OIDC';
 const API_PREFIX = '/admin/api/';
 const AUTH_PREFIX = '/admin/auth/';
+const DEFAULT_ADMIN_RETURN_PATH = '/admin/overview';
+const AUTHENTICATED_ADMIN_ROUTES = new Set<string>(
+  ADMIN_SPA_ROUTES.filter((route) => route !== '/admin/sign-in'),
+);
 
 type AdminApplicationOptions = Readonly<{
   assets: AdminAssetCatalog;
@@ -111,6 +115,32 @@ function randomToken(): string {
 
 function randomOpaqueId(): string {
   return randomBytes(18).toString('base64url');
+}
+
+function requestedAdminReturnPath(requestUrl: string): string {
+  const requested = new URL(requestUrl).searchParams.get('returnPath');
+  return requested !== null && AUTHENTICATED_ADMIN_ROUTES.has(requested)
+    ? requested
+    : DEFAULT_ADMIN_RETURN_PATH;
+}
+
+function oidcBrowserCookie(returnPath: string): string {
+  const routeIndex = ADMIN_SPA_ROUTES.findIndex(
+    (route) => route === returnPath,
+  );
+  if (routeIndex < 0 || returnPath === '/admin/sign-in') {
+    throw new Error('OIDC return path is not an authenticated admin route.');
+  }
+  return `${randomToken()}.${routeIndex.toString(36)}`;
+}
+
+function oidcReturnPath(cookie: string): string {
+  const separator = cookie.lastIndexOf('.');
+  const routeIndex = Number.parseInt(cookie.slice(separator + 1), 36);
+  const route = ADMIN_SPA_ROUTES[routeIndex];
+  return separator > 0 && route !== undefined && route !== '/admin/sign-in'
+    ? route
+    : DEFAULT_ADMIN_RETURN_PATH;
 }
 
 function digest(secret: string, purpose: string, value: string): string {
@@ -565,7 +595,8 @@ export function createAdminSurface(
   const app = new Hono({ strict: true });
 
   app.get('/admin/auth/login', async (context) => {
-    const oidcCookie = randomToken();
+    const returnPath = requestedAdminReturnPath(context.req.url);
+    const oidcCookie = oidcBrowserCookie(returnPath);
     try {
       const authorizationUrl = await (
         await authenticator()
@@ -600,7 +631,7 @@ export function createAdminSurface(
         xsrfDigest: digest(secret, 'xsrf', xsrfToken),
       });
       setSessionCookies(context, sessionToken, xsrfToken);
-      return redirectResponse(context, '/admin/overview');
+      return redirectResponse(context, oidcReturnPath(oidcCookie));
     } catch (error) {
       return redirectResponse(
         context,
