@@ -126,6 +126,10 @@ export default defineConfigWithTheme<DefaultTheme.Config & TrinityThemeConfig>({
         text: 'Architecture',
         items: [
           { text: 'System design', link: '/architecture/' },
+          {
+            text: 'Real OIDC provider gates',
+            link: '/architecture/provider-gates',
+          },
           { text: 'Decision records', link: '/architecture/adr/' },
         ],
       },

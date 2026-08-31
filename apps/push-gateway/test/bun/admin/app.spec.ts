@@ -226,10 +226,15 @@ async function createHarness(
   return { clock, provider, surface };
 }
 
-async function beginLogin(harness: AdminHarness): Promise<LoginStart> {
-  const response = await harness.surface.fetch(
-    new Request(`${PUBLIC_ORIGIN}/admin/auth/login`),
-  );
+async function beginLogin(
+  harness: AdminHarness,
+  returnPath?: string,
+): Promise<LoginStart> {
+  const loginUrl = new URL('/admin/auth/login', PUBLIC_ORIGIN);
+  if (returnPath !== undefined) {
+    loginUrl.searchParams.set('returnPath', returnPath);
+  }
+  const response = await harness.surface.fetch(new Request(loginUrl));
   const location = response.headers.get('location');
   const oidcCookie = cookieValue(response, OIDC_COOKIE);
   expect(response.status).toBe(303);
@@ -401,6 +406,29 @@ describe('production administration HTTP surface', () => {
       '/admin/sign-in?reason=unauthenticated',
     );
     expect(cookieValue(replay, SESSION_COOKIE)).toBeUndefined();
+  });
+
+  it('returns an authenticated browser to a validated administration deep link', async () => {
+    const harness = await createHarness({
+      clientSecretMethod: 'client_secret_basic',
+      profile: 'pocket-id',
+      scopes: 'openid profile email groups',
+    });
+
+    const deepLink = await completeLogin(
+      harness,
+      await beginLogin(harness, '/admin/metrics'),
+    );
+    expect(deepLink.status).toBe(303);
+    expect(deepLink.headers.get('location')).toBe('/admin/metrics');
+    expect(cookieValue(deepLink, SESSION_COOKIE)).toBeDefined();
+
+    const external = await completeLogin(
+      harness,
+      await beginLogin(harness, 'https://attacker.example/admin/metrics'),
+    );
+    expect(external.status).toBe(303);
+    expect(external.headers.get('location')).toBe('/admin/overview');
   });
 
   it.each([

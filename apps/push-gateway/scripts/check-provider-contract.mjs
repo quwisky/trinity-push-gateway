@@ -5,23 +5,32 @@ import { fileURLToPath } from 'node:url';
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const providerRoot = path.join(workspaceRoot, 'apps/push-gateway/provider-e2e');
 
-const [workflow, pocketCompose, authentikCompose, blueprint, preparation] =
-  await Promise.all([
-    readFile(
-      path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
-      'utf8',
-    ),
-    readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
-    readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
-    readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
-    readFile(path.join(providerRoot, 'prepare-provider.mjs'), 'utf8'),
-  ]);
+const [
+  workflow,
+  project,
+  pocketCompose,
+  authentikCompose,
+  blueprint,
+  preparation,
+] = await Promise.all([
+  readFile(
+    path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
+    'utf8',
+  ),
+  readFile(path.join(workspaceRoot, 'apps/push-gateway/project.json'), 'utf8'),
+  readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
+  readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
+  readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
+  readFile(path.join(providerRoot, 'prepare-authentik.mjs'), 'utf8'),
+]);
 
 function requireContract(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
 }
+
+const projectConfiguration = JSON.parse(project);
 
 for (const [name, compose, image] of [
   [
@@ -67,11 +76,13 @@ for (const required of [
 for (const required of [
   "cron: '23 3 * * 2'",
   'pnpm nx run push-gateway:test-oidc-provider --skipNxCache',
-  'browser-provider-gate.mjs',
+  'browser-authentik-gate.mjs',
   'Prove provider failure isolation',
   'release-gates:',
-  'pocket-id-visual-proof-',
+  'pocket-id-provider-gate-',
   'authentik-visual-proof-',
+  'push-gateway:provider-gate-pocket-id --skipNxCache',
+  'push-gateway:provider-gate-pocket-id-cleanup --skipNxCache',
 ]) {
   requireContract(
     workflow.includes(required),
@@ -84,9 +95,32 @@ requireContract(
   'Integration pull requests to master must select Authentik.',
 );
 requireContract(
-  workflow.includes('rm -rf -- "$RUNNER_TEMP/pocket-id-gate"') &&
+  workflow.includes('PROVIDER_GATE_WORK_DIRECTORY:') &&
     workflow.includes('rm -rf -- "$RUNNER_TEMP/authentik-gate"'),
   'Disposable provider credentials must be removed during cleanup.',
+);
+
+for (const [target, command] of [
+  [
+    'provider-gate-pocket-id',
+    'node provider-e2e/run-provider-gate.mjs pocket-id run',
+  ],
+  [
+    'provider-gate-pocket-id-cleanup',
+    'node provider-e2e/run-provider-gate.mjs pocket-id cleanup',
+  ],
+  ['test-provider-gate-lifecycle', 'node --test provider-e2e/*.test.mjs'],
+]) {
+  requireContract(
+    projectConfiguration.targets?.[target]?.options?.command === command,
+    `The push-gateway project target ${target} is not wired to its reviewed command.`,
+  );
+}
+requireContract(
+  projectConfiguration.targets?.['check-bun']?.dependsOn?.includes(
+    'test-provider-gate-lifecycle',
+  ),
+  'The Bun validation gate must execute the provider lifecycle and adapter tests.',
 );
 
 for (const required of [
@@ -105,5 +139,5 @@ for (const required of [
 }
 
 console.info(
-  'Provider contract: deterministic suite, pinned Pocket ID and Authentik services, ephemeral credentials, browser proof, outage isolation, and release gate.',
+  'Provider contract: deterministic suite, deep Pocket ID lifecycle, pinned real providers, ephemeral credentials, browser proof, outage isolation, and release gate.',
 );
