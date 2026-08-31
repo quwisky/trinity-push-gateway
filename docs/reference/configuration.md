@@ -1,14 +1,12 @@
 # Configuration reference
 
-The table is rendered from the typed configuration reference used by repository
-contract tests. The administration enable setting and both Operator Session
-secret sources are projected from the same authoritative catalog that loads
-them at runtime and produces their safe operator state. When enabled, the
-response and Configuration page expose only the public `true` state plus the
-secret's configured/source metadata; the remaining entries stay on the
-compatibility reference until their staged migration. Secrets have
-no documented value. For Bun, a credential's `_FILE` setting is mutually
-exclusive with its direct setting.
+The table is rendered from the authoritative configuration catalog used by the
+Cloudflare Worker, Bun runtime, Docker deployment checks, and administration
+API. The same catalog owns every setting's default, constraint, secrecy, and
+runtime applicability. The Configuration page consumes its safe operator
+projection: non-secret effective values plus credential presence and source,
+never secret values or file paths. For Bun, a credential's `_FILE` setting is
+mutually exclusive with its direct setting.
 
 <!-- configuration-reference -->
 

@@ -89,7 +89,7 @@
         "{workspaceRoot}/compose.yml"
       ],
       "options": {
-        "command": "node apps/push-gateway/scripts/check-container-contract.mjs"
+        "command": "bun apps/push-gateway/scripts/check-container-contract.mjs"
       }
     },
     "check-provider-contract": {

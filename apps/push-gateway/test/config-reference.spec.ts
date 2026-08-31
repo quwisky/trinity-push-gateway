@@ -5,7 +5,7 @@ import {
   type GatewayConfigurationName,
 } from '../src/config-reference';
 import { ADMIN_CONFIGURATION_ENVIRONMENT_NAMES } from '../src/admin-configuration-names';
-import { ADMINISTRATION_CONFIGURATION_CATALOG } from '../src/configuration-catalog';
+import { PUSH_GATEWAY_CONFIGURATION_CATALOG } from '../src/configuration-catalog';
 import {
   ADMIN_CONFIGURATION_DEFAULTS,
   BUN_CONFIGURATION_DEFAULTS,
@@ -95,7 +95,7 @@ describe('gateway configuration reference', () => {
     for (const name of catalogNames) {
       expect(
         GATEWAY_CONFIGURATION_REFERENCE.find((entry) => entry.name === name),
-      ).toEqual(ADMINISTRATION_CONFIGURATION_CATALOG.reference(name));
+      ).toEqual(PUSH_GATEWAY_CONFIGURATION_CATALOG.reference(name));
     }
   });
 
