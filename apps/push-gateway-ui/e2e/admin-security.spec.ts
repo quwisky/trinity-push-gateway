@@ -9,6 +9,7 @@ import {
   ADMIN_SPA_ROUTES,
   loadAdminAssets,
 } from '../../push-gateway/src/bun/admin/assets';
+import { AUDIT_QUERY_POLICY } from '../src/app/api/admin-contract.generated';
 import type {
   Backup,
   OperatorSession,
@@ -748,6 +749,11 @@ test('renders and operates all five feature routes', async ({
   });
 
   await page.getByRole('link', { name: 'Security' }).click();
+  await expect(
+    page.getByText(
+      `Maximum ${String(AUDIT_QUERY_POLICY.maximumRangeDays)} days`,
+    ),
+  ).toBeVisible();
   await expect(page.getByText('Other Operator Session')).toBeVisible();
   await page.getByRole('combobox', { name: 'Kind' }).selectOption('cleanup');
   await page

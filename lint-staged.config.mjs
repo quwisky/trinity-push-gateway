@@ -4,5 +4,5 @@ export default {
   'docs/**/*.{js,cjs,mjs,ts,cts,mts,vue}': () =>
     'pnpm nx run push-gateway-docs:lint --fix --skip-nx-cache',
   '*.{js,cjs,mjs,ts,cts,mts}': 'prettier --write',
-  '*.{json,json5,jsonc,md,mdx,yaml,yml,css,scss,html}': 'prettier --write',
+  '*.{json,json5,jsonc,md,mdx,yaml,yml,css,scss,html,sql}': 'prettier --write',
 };

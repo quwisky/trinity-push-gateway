@@ -324,7 +324,7 @@
       "checkConstraints": {
         "operation_results_values_check": {
           "name": "operation_results_values_check",
-          "value": "\"operation_results\".\"kind\" IN ('firebase_validation', 'cleanup', 'backup')\n        AND length(\"operation_results\".\"lease_id\") BETWEEN 16 AND 128\n        AND \"operation_results\".\"completed_at\" >= 0\n        AND \"operation_results\".\"outcome\" IN ('succeeded', 'failed', 'outcome_unknown')\n        AND (\"operation_results\".\"reason\" IS NULL OR (\n          length(\"operation_results\".\"reason\") BETWEEN 1 AND 64\n          AND substr(\"operation_results\".\"reason\", 1, 1) GLOB '[a-z]'\n          AND \"operation_results\".\"reason\" NOT GLOB '*[^a-z0-9_]*'\n        ))"
+          "value": "\"operation_results\".\"kind\" IN ('firebase_validation', 'cleanup', 'backup')\n        AND length(\"operation_results\".\"lease_id\") BETWEEN 16 AND 128\n        AND \"operation_results\".\"completed_at\" >= 0\n        AND \"operation_results\".\"outcome\" IN ('succeeded', 'failed', 'outcome_unknown')\n        AND (\"operation_results\".\"reason\" IS NULL OR \"operation_results\".\"reason\" IN ('access_denied', 'audit_finalization_failed', 'backup_failed', 'backup_limit_exceeded', 'cleanup_failed', 'firebase_validation_failed', 'operation_timeout', 'request_rejected', 'unavailable'))"
         }
       }
     },
@@ -436,7 +436,7 @@
         },
         "operator_audit_entries_reason_check": {
           "name": "operator_audit_entries_reason_check",
-          "value": "\"operator_audit_entries\".\"reason\" IS NULL OR (\n        length(\"operator_audit_entries\".\"reason\") BETWEEN 1 AND 64\n        AND substr(\"operator_audit_entries\".\"reason\", 1, 1) GLOB '[a-z]'\n        AND \"operator_audit_entries\".\"reason\" NOT GLOB '*[^a-z0-9_]*'\n      )"
+          "value": "\"operator_audit_entries\".\"reason\" IS NULL OR \"operator_audit_entries\".\"reason\" IN ('access_denied', 'audit_finalization_failed', 'backup_failed', 'backup_limit_exceeded', 'cleanup_failed', 'firebase_validation_failed', 'operation_timeout', 'request_rejected', 'unavailable', 'absolute_expired', 'idle_expired', 'no_active_sessions', 'policy_changed', 'session_cap')"
         },
         "operator_audit_entries_values_check": {
           "name": "operator_audit_entries_values_check",

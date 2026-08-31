@@ -44,12 +44,19 @@ completed even though its final audit record failed. Review the audit page,
 backup directory, health, and redacted logs first. A busy or cooldown response
 should be allowed to expire rather than bypassed.
 
+The operator API publishes one fixed mapping from every problem code to its HTTP
+status and safe title. Known cleanup and Firebase-validation results use only
+`succeeded` or `failed`; timeouts, busy leases, cooldowns, unknown finalization,
+backup limits, and administration unavailability remain explicit problem
+responses. The browser client and Bun response boundary are generated or
+validated from the same contract.
+
 ## Metrics and audit privacy
 
 Metrics use only hourly/daily fixed-cardinality request, platform, outcome, and
 latency buckets. Metrics-writer startup, lock, corruption, or worker death drops
 new aggregates and never changes a Matrix response. Audit records contain the
-operator issuer/subject, action kind, coarse outcome, and bounded reason; they
+operator issuer/subject, action kind, coarse outcome, and finite reason; they
 do not contain provider tokens, client secrets, Matrix identifiers, Push Keys,
 account routes, or notification content.
 

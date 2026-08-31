@@ -6,6 +6,7 @@ import {
   SAFE_COUNT_SCHEMA,
   UTC_TIMESTAMP_SCHEMA,
 } from './shared';
+import { OPERATION_SUMMARY_REASON_SCHEMA } from './operator-actions';
 
 const SECONDS_PER_HOUR = 60 * 60;
 const SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR;
@@ -92,28 +93,6 @@ const FCM_PLATFORM_TOTALS_SCHEMA = z
 const OPERATION_SUMMARY_OUTCOME_SCHEMA = z
   .enum(['succeeded', 'failed', 'outcome_unknown'])
   .register(ADMIN_CONTRACT_REGISTRY, { id: 'OperationSummaryOutcome' });
-
-export const OPERATION_SUMMARY_REASON_SCHEMA = z
-  .enum([
-    'access_denied',
-    'audit_finalization_failed',
-    'backup_failed',
-    'backup_limit_exceeded',
-    'cleanup_failed',
-    'firebase_validation_failed',
-    'operation_timeout',
-    'request_rejected',
-    'unavailable',
-  ])
-  .register(ADMIN_CONTRACT_REGISTRY, {
-    description:
-      'Finite privacy-safe reason for an administration operation summary.',
-    id: 'OperationSummaryReason',
-  });
-
-export type OperationSummaryReason = z.infer<
-  typeof OPERATION_SUMMARY_REASON_SCHEMA
->;
 
 const OPERATION_SUMMARY_SCHEMA = z
   .strictObject({
@@ -262,6 +241,11 @@ export const METRICS_RESPONSE_SCHEMA = z
   });
 
 export type MetricsResponse = z.infer<typeof METRICS_RESPONSE_SCHEMA>;
+
+export {
+  OPERATION_SUMMARY_REASON_SCHEMA,
+  type OperationSummaryReason,
+} from './operator-actions';
 
 const METRICS_QUERY_SCHEMA = z
   .strictObject({

@@ -31,15 +31,16 @@ policy.
 The published API contract is `apps/push-gateway/openapi/admin-v1.yaml`.
 Runtime-neutral administration schemas migrate into
 `apps/push-gateway/src/admin-contract` one capability at a time. The Operator
-Session, Operator Session list, safe configuration, Overview, and Metrics
-schemas own Bun response validation and generate their marked OpenAPI
-components. The canonical Metrics query owns the interval vocabulary and its
-paired, bounded UTC range policy; generation publishes the matching OpenAPI
-parameters plus `src/app/api/admin-contract.generated.ts`, and the browser uses
-that policy for its default range, bounds, interval options, and copy. The
-remaining OpenAPI components stay directly authored during the compatibility
-migration. Legacy validators are parity-test-only and are not used by a runtime
-route.
+Session, Operator Session list, safe configuration, Overview, Metrics, Operator
+Audit Entry, verified backup, and Operator Action result schemas own Bun
+response validation and generate their marked OpenAPI components. The canonical
+Metrics and audit queries own their vocabularies, defaults, and bounded UTC
+range policies; generation publishes the matching OpenAPI parameters plus
+`src/app/api/admin-contract.generated.ts`, and the browser uses those policies
+for ranges, page size, interval options, filters, and copy. The Operator Action
+contract also owns finite safe reason codes and the fixed problem-code, status,
+and title catalog. Legacy validators are parity-test-only and are not used by a
+runtime route.
 
 Regenerate the canonical administration component before regenerating its
 Angular HttpClient client:
