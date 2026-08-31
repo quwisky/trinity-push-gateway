@@ -27,12 +27,20 @@ source policy, and raw/compressed browser bundle policy.
 
 ## Generated operator API client
 
-The canonical API contract is
-`apps/push-gateway/openapi/admin-v1.yaml`. Regenerate its Angular HttpClient
-client with:
+The published API contract is `apps/push-gateway/openapi/admin-v1.yaml`.
+Runtime-neutral administration schemas migrate into
+`apps/push-gateway/src/admin-contract` one capability at a time. The current
+Operator Session schema already owns Bun response validation and generates its
+marked OpenAPI component; the remaining OpenAPI components stay directly
+authored during the compatibility migration.
+
+Regenerate the canonical administration component before regenerating its
+Angular HttpClient client:
 
 ```sh
+pnpm nx run push-gateway:generate-admin-contract
 pnpm nx run push-gateway-ui:generate-api
+pnpm nx run push-gateway:check-admin-contract
 pnpm nx run push-gateway-ui:check-api
 ```
 

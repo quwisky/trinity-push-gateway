@@ -3,18 +3,6 @@
  * Do not edit manually. Run pnpm nx run push-gateway-ui:generate-api.
  */
 /**
- * RFC 3339 timestamp normalized to UTC and ending in `Z`.
- * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
- */
-export type UtcTimestamp = string;
-
-/**
- * Opaque identifier with no client-meaningful structure.
- * @pattern ^[A-Za-z0-9_-]{16,128}$
- */
-export type OpaqueId = string;
-
-/**
  * Non-negative JSON safe integer.
  * @minimum 0
  * @maximum 9007199254740991
@@ -28,10 +16,24 @@ export type SafeCount = number;
  */
 export type PositiveSafeInteger = number;
 
+/**
+ * RFC 3339 timestamp normalized to UTC and ending in `Z`.
+ * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+ */
+export type UtcTimestamp = string;
+
+/**
+ * Opaque identifier with no client-meaningful structure.
+ * @pattern ^[A-Za-z0-9_-]{16,128}$
+ */
+export type OpaqueId = string;
+
+/**
+ * Privacy-safe Operator Identity attributes accepted for display by the Push Gateway UI.
+ */
 export interface OperatorIdentity {
   /**
    * Exact identity-provider issuer for this Operator Identity.
-   * @minLength 1
    * @maxLength 2048
    */
   issuer: string;
@@ -51,10 +53,14 @@ export interface OperatorIdentity {
    * Optional display email copied from the current accepted identity claims.
    * @minLength 3
    * @maxLength 320
+   * @pattern ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
    */
   email?: string;
 }
 
+/**
+ * The authenticated Operator Identity and bounded current Operator Session.
+ */
 export interface OperatorSession {
   id: OpaqueId;
   operator: OperatorIdentity;
@@ -709,12 +715,12 @@ export type XsrfTokenParameter = string;
 export type GetMetricsParams = {
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   from?: MetricsFromParameter;
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   to?: MetricsToParameter;
   /**
@@ -747,12 +753,12 @@ export type ListAuditEntriesParams = {
   outcome?: AuditEntryOutcomeFilterParameter;
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   from?: AuditFromParameter;
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   to?: AuditToParameter;
 };
