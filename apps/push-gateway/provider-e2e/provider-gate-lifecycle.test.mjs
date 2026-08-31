@@ -17,29 +17,11 @@ import {
   providerGateConfiguration,
   runProviderGate,
 } from './provider-gate-lifecycle.mjs';
+import { createMockOidcAdapter } from './mock-oidc-adapter.mjs';
 
 const temporaryDirectories = [];
 
-const adapter = Object.freeze({
-  clientId: 'test-client',
-  composeFile: '/workspace/compose.test.yml',
-  displayName: 'Test Provider',
-  id: 'test-provider',
-  issuer: 'http://127.0.0.1:9191',
-  outageServices: Object.freeze(['provider']),
-  providerOrigin: 'http://127.0.0.1:9191',
-  requiredGroup: 'operators',
-  scopes: 'openid groups',
-  tokenEndpointAuthMethod: 'client_secret_basic',
-  createProviderSecrets: (secretFactory) => ({
-    clientSecret: secretFactory(36),
-    providerSecret: secretFactory(24),
-  }),
-  providerEnvironment: (secrets) => ({
-    TEST_CLIENT_SECRET: secrets.clientSecret,
-    TEST_PROVIDER_SECRET: secrets.providerSecret,
-  }),
-});
+const adapter = createMockOidcAdapter();
 
 async function temporaryGate() {
   const root = await mkdtemp(
@@ -117,11 +99,26 @@ afterEach(async () => {
 
 test('one lifecycle owns provisioning through evidence and cleanup', async () => {
   const { configuration, environment } = await temporaryGate();
-  const { dependencies, operations } = successfulDependencies(configuration);
+  const browserIdentities = [];
+  const { dependencies, operations } = successfulDependencies(configuration, {
+    browserContracts: async (
+      providerAdapter,
+      identities,
+      gateConfiguration,
+    ) => {
+      for (const identity of [identities.allowed, identities.denied]) {
+        await providerAdapter.authenticate({
+          identity,
+          navigate: async () => browserIdentities.push(identity.subject),
+        });
+      }
+      await writeFile(gateConfiguration.screenshotPath, 'visual proof');
+    },
+  });
   let provisioned = false;
   const testAdapter = {
     ...adapter,
-    async provision() {
+    async provision(options) {
       provisioned = true;
       assert.equal(
         (await stat(configuration.providerEnvironmentPath)).mode & 0o777,
@@ -131,7 +128,7 @@ test('one lifecycle owns provisioning through evidence and cleanup', async () =>
         (await stat(configuration.gatewayEnvironmentPath)).mode & 0o777,
         0o600,
       );
-      return { allowed: {}, denied: {} };
+      return adapter.provision(options);
     },
   };
 
@@ -142,6 +139,7 @@ test('one lifecycle owns provisioning through evidence and cleanup', async () =>
   });
 
   assert.equal(provisioned, true);
+  assert.deepEqual(browserIdentities, ['allowed-operator', 'denied-operator']);
   await assert.rejects(access(configuration.workDirectory));
   assert.equal(
     await readFile(configuration.screenshotPath, 'utf8'),
@@ -345,20 +343,20 @@ for (const residual of [
     label: 'named gateway container',
     matches: (arguments_) =>
       arguments_[0] === 'container' &&
-      arguments_.includes('name=^/tpg-test-provider-unit-test-gateway$'),
+      arguments_.includes('name=^/tpg-mock-oidc-unit-test-gateway$'),
   },
   {
     label: 'named gateway volume',
     matches: (arguments_) =>
       arguments_[0] === 'volume' &&
-      arguments_.includes('name=^tpg-test-provider-unit-test-data$'),
+      arguments_.includes('name=^tpg-mock-oidc-unit-test-data$'),
   },
   {
     label: 'Compose container',
     matches: (arguments_) =>
       arguments_[0] === 'container' &&
       arguments_.includes(
-        'label=com.docker.compose.project=tpg-test-provider-unit-test',
+        'label=com.docker.compose.project=tpg-mock-oidc-unit-test',
       ),
   },
   {
@@ -366,7 +364,7 @@ for (const residual of [
     matches: (arguments_) =>
       arguments_[0] === 'network' &&
       arguments_.includes(
-        'label=com.docker.compose.project=tpg-test-provider-unit-test',
+        'label=com.docker.compose.project=tpg-mock-oidc-unit-test',
       ),
   },
   {
@@ -374,7 +372,7 @@ for (const residual of [
     matches: (arguments_) =>
       arguments_[0] === 'volume' &&
       arguments_.includes(
-        'label=com.docker.compose.project=tpg-test-provider-unit-test',
+        'label=com.docker.compose.project=tpg-mock-oidc-unit-test',
       ),
   },
 ]) {
