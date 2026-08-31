@@ -1,7 +1,4 @@
-export type ConfigurationContractFixture = Readonly<{
-  name: string;
-  value: unknown;
-}>;
+import type { AdminContractFixture as ConfigurationContractFixture } from './admin-contract-fixture';
 
 export const MINIMAL_CONFIGURATION_RESPONSE = {
   administration: {

@@ -1,7 +1,4 @@
-export type OperatorSessionContractFixture = Readonly<{
-  name: string;
-  value: unknown;
-}>;
+import type { AdminContractFixture as OperatorSessionContractFixture } from './admin-contract-fixture';
 
 const MINIMAL_OPERATOR_SESSION = {
   absoluteExpiresAt: '2026-08-31T18:00:00.000Z',

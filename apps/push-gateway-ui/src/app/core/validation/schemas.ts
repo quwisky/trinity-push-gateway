@@ -2,15 +2,12 @@ import {
   boolean,
   enum as zodEnum,
   minLength,
-  number,
   object,
-  optional,
   refine,
   string,
 } from 'zod/mini';
 
 import {
-  ADMIN_PROBLEM_CODES,
   AUDIT_QUERY_POLICY,
   METRICS_QUERY_POLICY,
 } from '../../api/admin-contract.generated';
@@ -29,13 +26,6 @@ const isBoundedRange = (
     toTime - fromTime <= maximumMilliseconds
   );
 };
-
-export const apiProblemSchema = object({
-  code: optional(zodEnum(ADMIN_PROBLEM_CODES)),
-  title: optional(string()),
-  detail: optional(string()),
-  status: optional(number()),
-});
 
 export const confirmationSchema = object({
   confirmed: boolean().check(

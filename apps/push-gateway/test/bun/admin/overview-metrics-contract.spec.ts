@@ -5,10 +5,7 @@ import {
   OVERVIEW_RESPONSE_SCHEMA,
   parseMetricsRange,
 } from '../../../src/admin-contract/overview-metrics';
-import {
-  LEGACY_ADMIN_METRICS_SCHEMA,
-  LEGACY_ADMIN_OVERVIEW_SCHEMA,
-} from '../../../src/bun/admin/contract';
+import { expectContractFixtures } from './support/admin-contract-assertions';
 import {
   INVALID_METRICS_FIXTURES,
   INVALID_OVERVIEW_FIXTURES,
@@ -18,50 +15,22 @@ import {
 } from './support/overview-metrics-contract-fixtures';
 
 describe('Overview and metrics response contract', () => {
-  it('keeps canonical and migration Overview validators compatible', () => {
-    for (const fixture of VALID_OVERVIEW_FIXTURES) {
-      expect(
-        OVERVIEW_RESPONSE_SCHEMA.safeParse(fixture.value).success,
-        `canonical validator rejected ${fixture.name}`,
-      ).toBe(true);
-      expect(
-        LEGACY_ADMIN_OVERVIEW_SCHEMA.safeParse(fixture.value).success,
-        `migration validator rejected ${fixture.name}`,
-      ).toBe(true);
-    }
-    for (const fixture of INVALID_OVERVIEW_FIXTURES) {
-      expect(
-        OVERVIEW_RESPONSE_SCHEMA.safeParse(fixture.value).success,
-        `canonical validator accepted ${fixture.name}`,
-      ).toBe(false);
-      expect(
-        LEGACY_ADMIN_OVERVIEW_SCHEMA.safeParse(fixture.value).success,
-        `migration validator accepted ${fixture.name}`,
-      ).toBe(false);
-    }
+  it('keeps runtime and published Overview validation aligned', () => {
+    expectContractFixtures(
+      OVERVIEW_RESPONSE_SCHEMA,
+      'Overview',
+      VALID_OVERVIEW_FIXTURES,
+      INVALID_OVERVIEW_FIXTURES,
+    );
   });
 
-  it('keeps canonical and migration Metrics validators compatible', () => {
-    for (const fixture of VALID_METRICS_FIXTURES) {
-      expect(
-        METRICS_RESPONSE_SCHEMA.safeParse(fixture.value).success,
-        `canonical validator rejected ${fixture.name}`,
-      ).toBe(true);
-      expect(
-        LEGACY_ADMIN_METRICS_SCHEMA.safeParse(fixture.value).success,
-        `migration validator rejected ${fixture.name}`,
-      ).toBe(true);
-    }
-    for (const fixture of INVALID_METRICS_FIXTURES) {
-      expect(
-        METRICS_RESPONSE_SCHEMA.safeParse(fixture.value).success,
-        `canonical validator accepted ${fixture.name}`,
-      ).toBe(false);
-      expect(
-        LEGACY_ADMIN_METRICS_SCHEMA.safeParse(fixture.value).success,
-        `migration validator accepted ${fixture.name}`,
-      ).toBe(false);
-    }
+  it('keeps runtime and published Metrics validation aligned', () => {
+    expectContractFixtures(
+      METRICS_RESPONSE_SCHEMA,
+      'Metrics',
+      VALID_METRICS_FIXTURES,
+      INVALID_METRICS_FIXTURES,
+    );
   });
 
   it('enforces fixed aggregate relationships at the canonical boundary', () => {
