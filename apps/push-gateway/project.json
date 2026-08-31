@@ -210,7 +210,7 @@
       "executor": "nx:run-commands",
       "cache": true,
       "options": {
-        "command": "node --test provider-e2e/provider-gate-lifecycle.test.mjs",
+        "command": "node --test provider-e2e/*.test.mjs",
         "cwd": "apps/push-gateway"
       }
     },

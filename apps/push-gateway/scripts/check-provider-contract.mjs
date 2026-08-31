@@ -8,8 +8,6 @@ const providerRoot = path.join(workspaceRoot, 'apps/push-gateway/provider-e2e');
 const [
   workflow,
   project,
-  lifecycle,
-  pocketAdapter,
   pocketCompose,
   authentikCompose,
   blueprint,
@@ -20,8 +18,6 @@ const [
     'utf8',
   ),
   readFile(path.join(workspaceRoot, 'apps/push-gateway/project.json'), 'utf8'),
-  readFile(path.join(providerRoot, 'provider-gate-lifecycle.mjs'), 'utf8'),
-  readFile(path.join(providerRoot, 'pocket-id-adapter.mjs'), 'utf8'),
   readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
   readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
   readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
@@ -33,6 +29,8 @@ function requireContract(condition, message) {
     throw new Error(message);
   }
 }
+
+const projectConfiguration = JSON.parse(project);
 
 for (const [name, compose, image] of [
   [
@@ -102,43 +100,28 @@ requireContract(
   'Disposable provider credentials must be removed during cleanup.',
 );
 
-for (const required of [
-  '"provider-gate-pocket-id"',
-  '"provider-gate-pocket-id-cleanup"',
-  '"test-provider-gate-lifecycle"',
+for (const [target, command] of [
+  [
+    'provider-gate-pocket-id',
+    'node provider-e2e/run-provider-gate.mjs pocket-id run',
+  ],
+  [
+    'provider-gate-pocket-id-cleanup',
+    'node provider-e2e/run-provider-gate.mjs pocket-id cleanup',
+  ],
+  ['test-provider-gate-lifecycle', 'node --test provider-e2e/*.test.mjs'],
 ]) {
   requireContract(
-    project.includes(required),
-    `The push-gateway project is missing ${required}.`,
+    projectConfiguration.targets?.[target]?.options?.command === command,
+    `The push-gateway project target ${target} is not wired to its reviewed command.`,
   );
 }
-
-for (const required of [
-  'export async function runProviderGate',
-  'export async function cleanupProviderGate',
-  'await dependencies.browserContracts',
-  'await waitForProviderOutage',
-  'finally',
-  'mode: 0o600',
-]) {
-  requireContract(
-    lifecycle.includes(required),
-    `The deep provider lifecycle is missing ${required}.`,
-  );
-}
-
-for (const required of [
-  'createProviderSecrets',
-  'providerEnvironment',
-  'async provision',
-  'async authenticate',
-  'normalizeDeniedPage',
-]) {
-  requireContract(
-    pocketAdapter.includes(required),
-    `The Pocket ID adapter is missing ${required}.`,
-  );
-}
+requireContract(
+  projectConfiguration.targets?.['check-bun']?.dependsOn?.includes(
+    'test-provider-gate-lifecycle',
+  ),
+  'The Bun validation gate must execute the provider lifecycle and adapter tests.',
+);
 
 for (const required of [
   "import { randomBytes } from 'node:crypto'",

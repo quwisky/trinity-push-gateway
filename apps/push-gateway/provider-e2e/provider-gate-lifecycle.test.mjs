@@ -67,6 +67,7 @@ function successfulDependencies(configuration, options = {}) {
     if (arguments_.includes('stop') || arguments_.includes('down')) {
       providerUp = false;
     }
+    return { stderr: '', stdout: '' };
   };
   const fetchImplementation = async (url) => {
     const parsed = new URL(url);
@@ -222,6 +223,47 @@ test('credential preparation failures still remove the private work directory', 
   );
   assert.equal(evidence.status, 'failed');
   assert.equal(evidence.checks.cleanup, true);
+});
+
+test('cleanup command failures fail the gate and cannot be reported as clean', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const { dependencies } = successfulDependencies(configuration);
+  const successfulRunner = dependencies.processRunner;
+  let composeDowns = 0;
+  const testAdapter = {
+    ...adapter,
+    provision: async () => ({ allowed: {}, denied: {} }),
+  };
+
+  await assert.rejects(
+    runProviderGate(testAdapter, {
+      configuration,
+      dependencies: {
+        ...dependencies,
+        processRunner: async (command, arguments_, options) => {
+          if (arguments_.includes('down')) {
+            composeDowns += 1;
+            if (composeDowns === 2) {
+              throw new Error('compose teardown failed');
+            }
+          }
+          return successfulRunner(command, arguments_, options);
+        },
+      },
+      environment,
+    }),
+    /cleanup did not remove every disposable Docker resource/u,
+  );
+
+  await assert.rejects(access(configuration.workDirectory));
+  const evidence = JSON.parse(
+    await readFile(
+      path.join(configuration.evidenceDirectory, 'result.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(evidence.status, 'failed');
+  assert.equal(evidence.checks.cleanup, false);
 });
 
 test('the explicit cleanup entry point reuses lifecycle-owned resource names', async () => {

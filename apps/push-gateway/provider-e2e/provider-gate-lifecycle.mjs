@@ -167,15 +167,25 @@ async function prepareCredentials(
 }
 
 export async function runProcess(command, arguments_, options = {}) {
-  await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
     const child = spawn(command, arguments_, {
       env: options.environment ?? process.env,
-      stdio: options.quiet ? 'ignore' : 'inherit',
+      stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    });
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk;
     });
     child.once('error', reject);
     child.once('exit', (code, signal) => {
-      if (code === 0 || options.allowFailure === true) {
-        resolve();
+      if (code === 0) {
+        resolve({ stderr, stdout });
         return;
       }
       reject(
@@ -207,6 +217,7 @@ async function waitFor(label, operation, sleep) {
 }
 
 async function waitForProvider(adapter, fetchImplementation, sleep) {
+  let providerMetadata;
   await waitFor(
     adapter.displayName,
     async () => {
@@ -220,7 +231,7 @@ async function waitForProvider(adapter, fetchImplementation, sleep) {
         return false;
       }
       const discovery = await response.json();
-      return (
+      const valid =
         discovery.issuer === adapter.issuer &&
         [
           'authorization_endpoint',
@@ -230,11 +241,15 @@ async function waitForProvider(adapter, fetchImplementation, sleep) {
         ].every(
           (name) =>
             typeof discovery[name] === 'string' && discovery[name].length > 0,
-        )
-      );
+        );
+      if (valid) {
+        providerMetadata = discovery;
+      }
+      return valid;
     },
     sleep,
   );
+  return providerMetadata;
 }
 
 async function waitForGateway(configuration, fetchImplementation, sleep) {
@@ -283,6 +298,7 @@ async function exerciseAllowedBrowser(
   browser,
   identities,
   configuration,
+  providerMetadata,
 ) {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -346,19 +362,48 @@ async function exerciseAllowedBrowser(
         ?.slice('TRINITY_ADMIN_XSRF='.length),
     );
     requireCondition(xsrfToken !== undefined, 'XSRF cookie is missing.');
-    await page.evaluate(
-      async ({ origin, token }) => {
-        await fetch(`${origin}/admin/auth/logout`, {
-          headers: { 'x-xsrf-token': token },
-          method: 'POST',
-          redirect: 'manual',
-        });
-      },
-      { origin: configuration.gatewayOrigin, token: xsrfToken },
+    const expectedLogoutUrl = new URL(providerMetadata.end_session_endpoint);
+    expectedLogoutUrl.searchParams.set('client_id', adapter.clientId);
+    const [logoutResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.url() ===
+            `${configuration.gatewayOrigin}/admin/auth/logout` &&
+          response.request().method() === 'POST',
+      ),
+      page.evaluate(
+        async ({ origin, token }) => {
+          await fetch(`${origin}/admin/auth/logout`, {
+            headers: { 'x-xsrf-token': token },
+            method: 'POST',
+            redirect: 'manual',
+          });
+        },
+        { origin: configuration.gatewayOrigin, token: xsrfToken },
+      ),
+    ]);
+    requireCondition(
+      logoutResponse.status() === 303,
+      `Logout returned ${String(logoutResponse.status())} instead of a redirect.`,
+    );
+    requireCondition(
+      logoutResponse.headers().location === expectedLogoutUrl.href,
+      'Logout returned an unexpected provider URL.',
     );
     requireCondition(
       (await sessionStatus(page, configuration.gatewayOrigin)) === 401,
       'Logout did not revoke the Operator Session locally.',
+    );
+    const [providerLogoutResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) => response.url() === expectedLogoutUrl.href,
+      ),
+      page.goto(expectedLogoutUrl.href),
+    ]);
+    requireCondition(
+      providerLogoutResponse.status() >= 200 &&
+        providerLogoutResponse.status() < 400,
+      `Provider logout returned ${String(providerLogoutResponse.status())}.`,
     );
   } finally {
     await context.close();
@@ -407,11 +452,18 @@ export async function runBrowserContracts(
   adapter,
   identities,
   configuration,
+  providerMetadata,
   browserType = chromium,
 ) {
   const browser = await browserType.launch({ headless: true });
   try {
-    await exerciseAllowedBrowser(adapter, browser, identities, configuration);
+    await exerciseAllowedBrowser(
+      adapter,
+      browser,
+      identities,
+      configuration,
+      providerMetadata,
+    );
     await exerciseDeniedBrowser(adapter, browser, identities, configuration);
   } finally {
     await browser.close();
@@ -419,35 +471,125 @@ export async function runBrowserContracts(
 }
 
 async function cleanResources(adapter, configuration, processRunner) {
-  const operations = [
-    ['rm', '--force', configuration.containerName],
-    ['volume', 'rm', configuration.gatewayVolume],
-    [
-      'compose',
-      '--project-name',
-      configuration.projectName,
-      '--env-file',
-      configuration.providerEnvironmentPath,
-      '--file',
-      adapter.composeFile,
-      'down',
-      '--volumes',
-      '--remove-orphans',
-    ],
-  ];
-  let cleanupError;
-  for (const arguments_ of operations) {
+  const errors = [];
+  const attempt = async (operation) => {
     try {
-      await processRunner('docker', arguments_, {
-        allowFailure: true,
-        quiet: true,
-      });
+      return await operation();
     } catch (error) {
-      cleanupError ??= error;
+      errors.push(error);
+      return undefined;
     }
+  };
+  const captured = async (arguments_) => {
+    const result = await processRunner('docker', arguments_, { capture: true });
+    return result?.stdout.trim() ?? '';
+  };
+  const gatewayContainers = await attempt(() =>
+    captured([
+      'container',
+      'ls',
+      '--all',
+      '--quiet',
+      '--filter',
+      `name=^/${configuration.containerName}$`,
+    ]),
+  );
+  if (gatewayContainers === undefined || gatewayContainers !== '') {
+    await attempt(() =>
+      processRunner('docker', ['rm', '--force', configuration.containerName]),
+    );
   }
-  if (cleanupError !== undefined) {
-    throw cleanupError;
+  const gatewayVolumes = await attempt(() =>
+    captured([
+      'volume',
+      'ls',
+      '--quiet',
+      '--filter',
+      `name=^${configuration.gatewayVolume}$`,
+    ]),
+  );
+  if (gatewayVolumes === undefined || gatewayVolumes !== '') {
+    await attempt(() =>
+      processRunner('docker', ['volume', 'rm', configuration.gatewayVolume]),
+    );
+  }
+  await attempt(() =>
+    processRunner(
+      'docker',
+      [
+        'compose',
+        '--project-name',
+        configuration.projectName,
+        '--env-file',
+        configuration.providerEnvironmentPath,
+        '--file',
+        adapter.composeFile,
+        'down',
+        '--volumes',
+        '--remove-orphans',
+      ],
+      { capture: true },
+    ),
+  );
+  const remaining = await Promise.all([
+    attempt(() =>
+      captured([
+        'container',
+        'ls',
+        '--all',
+        '--quiet',
+        '--filter',
+        `label=com.docker.compose.project=${configuration.projectName}`,
+      ]),
+    ),
+    attempt(() =>
+      captured([
+        'network',
+        'ls',
+        '--quiet',
+        '--filter',
+        `label=com.docker.compose.project=${configuration.projectName}`,
+      ]),
+    ),
+    attempt(() =>
+      captured([
+        'volume',
+        'ls',
+        '--quiet',
+        '--filter',
+        `label=com.docker.compose.project=${configuration.projectName}`,
+      ]),
+    ),
+    attempt(() =>
+      captured([
+        'container',
+        'ls',
+        '--all',
+        '--quiet',
+        '--filter',
+        `name=^/${configuration.containerName}$`,
+      ]),
+    ),
+    attempt(() =>
+      captured([
+        'volume',
+        'ls',
+        '--quiet',
+        '--filter',
+        `name=^${configuration.gatewayVolume}$`,
+      ]),
+    ),
+  ]);
+  if (
+    errors.length > 0 ||
+    remaining.some(
+      (resourceIds) => resourceIds === undefined || resourceIds !== '',
+    )
+  ) {
+    throw new AggregateError(
+      errors,
+      'Provider gate cleanup did not remove every disposable Docker resource.',
+    );
   }
 }
 
@@ -523,7 +665,7 @@ export async function runProviderGate(adapter, options = {}) {
       '--detach',
       '--wait',
     ]);
-    await waitForProvider(
+    const providerMetadata = await waitForProvider(
       adapter,
       dependencies.fetchImplementation,
       dependencies.sleep,
@@ -565,7 +707,12 @@ export async function runProviderGate(adapter, options = {}) {
       dependencies.fetchImplementation,
       dependencies.sleep,
     );
-    await dependencies.browserContracts(adapter, identities, configuration);
+    await dependencies.browserContracts(
+      adapter,
+      identities,
+      configuration,
+      providerMetadata,
+    );
     checks.allowedLogin = true;
     checks.deepLinkReturn = true;
     checks.deniedLogin = true;
