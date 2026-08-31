@@ -1,5 +1,7 @@
 import * as z from 'zod/mini';
 
+import { OPERATION_SUMMARY_REASON_SCHEMA } from '../../admin-contract/overview-metrics';
+
 const SAFE_COUNT = z.number().check(z.int(), z.nonnegative());
 const POSITIVE_SAFE_INTEGER = z.number().check(z.int(), z.positive());
 const UTC_TIMESTAMP = z.iso.datetime();
@@ -45,7 +47,7 @@ const ADMIN_OPERATION_SUMMARY_SCHEMA = z.strictObject({
   completedAt: UTC_TIMESTAMP,
   cooldownEndsAt: UTC_TIMESTAMP,
   outcome: z.enum(['succeeded', 'failed', 'outcome_unknown']),
-  reason: z.optional(z.string().check(z.regex(/^[a-z][a-z0-9_]{0,63}$/u))),
+  reason: z.optional(OPERATION_SUMMARY_REASON_SCHEMA),
   startedAt: UTC_TIMESTAMP,
 });
 
@@ -57,7 +59,8 @@ export const ADMIN_OPERATION_RESULT_SCHEMA = z.strictObject({
   startedAt: UTC_TIMESTAMP,
 });
 
-export const ADMIN_OVERVIEW_SCHEMA = z.strictObject({
+/** Migration compatibility schema for Overview-response parity coverage. */
+export const LEGACY_ADMIN_OVERVIEW_SCHEMA = z.strictObject({
   administrationReady: z.boolean(),
   databaseBytes: z.strictObject({
     administration: SAFE_COUNT,
@@ -88,7 +91,8 @@ const LATENCY_HISTOGRAM_SCHEMA = z.strictObject({
   under_100_ms: SAFE_COUNT,
 });
 
-export const ADMIN_METRICS_SCHEMA = z.strictObject({
+/** Migration compatibility schema for Metrics-response parity coverage. */
+export const LEGACY_ADMIN_METRICS_SCHEMA = z.strictObject({
   fcmBuckets: z
     .array(
       z.strictObject({

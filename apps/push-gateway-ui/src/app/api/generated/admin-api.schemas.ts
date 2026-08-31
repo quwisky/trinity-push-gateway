@@ -3,13 +3,6 @@
  * Do not edit manually. Run pnpm nx run push-gateway-ui:generate-api.
  */
 /**
- * Non-negative JSON safe integer.
- * @minimum 0
- * @maximum 9007199254740991
- */
-export type SafeCount = number;
-
-/**
  * RFC 3339 timestamp normalized to UTC and ending in `Z`.
  * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
  */
@@ -74,8 +67,14 @@ export interface OperatorSessionList {
 }
 
 /**
- * Mutually exclusive Notification Request outcomes. Counts contain no
- * request, Matrix, Push Key, Account Route, or Client Installation labels.
+ * Non-negative JSON safe integer.
+ * @minimum 0
+ * @maximum 9007199254740991
+ */
+export type SafeCount = number;
+
+/**
+ * Mutually exclusive Notification Request outcomes. Counts contain no request, Matrix, Push Key, Account Route, or Client Installation labels.
  */
 export interface RequestOutcomeCounts {
   processed: SafeCount;
@@ -86,9 +85,7 @@ export interface RequestOutcomeCounts {
 }
 
 /**
- * Outcomes for actual FCM network calls only. `attempted` equals the sum
- * of the three mutually exclusive outcomes. `accepted` means accepted by
- * FCM, not delivered to a Client Installation.
+ * Outcomes for actual FCM network calls only. `attempted` equals the bounded sum of the three mutually exclusive outcomes. `accepted` means accepted by FCM, not delivered to a Client Installation.
  */
 export interface FcmOutcomeCounts {
   attempted: SafeCount;
@@ -111,40 +108,30 @@ export const OperationSummaryOutcome = {
   outcome_unknown: 'outcome_unknown',
 } as const;
 
+/**
+ * Finite privacy-safe reason for an administration operation summary.
+ */
+export type OperationSummaryReason =
+  (typeof OperationSummaryReason)[keyof typeof OperationSummaryReason];
+
+export const OperationSummaryReason = {
+  access_denied: 'access_denied',
+  audit_finalization_failed: 'audit_finalization_failed',
+  backup_failed: 'backup_failed',
+  backup_limit_exceeded: 'backup_limit_exceeded',
+  cleanup_failed: 'cleanup_failed',
+  firebase_validation_failed: 'firebase_validation_failed',
+  operation_timeout: 'operation_timeout',
+  request_rejected: 'request_rejected',
+  unavailable: 'unavailable',
+} as const;
+
 export interface OperationSummary {
   startedAt: UtcTimestamp;
   completedAt: UtcTimestamp;
   outcome: OperationSummaryOutcome;
   cooldownEndsAt: UtcTimestamp;
-  /**
-   * Optional coarse safe reason code; never a raw external or process error.
-   * @pattern ^[a-z][a-z0-9_]{0,63}$
-   */
-  reason?: string;
-}
-
-/**
- * Known result of the synchronous action.
- */
-export type OperationResultOutcome =
-  (typeof OperationResultOutcome)[keyof typeof OperationResultOutcome];
-
-export const OperationResultOutcome = {
-  succeeded: 'succeeded',
-  failed: 'failed',
-} as const;
-
-export interface OperationResult {
-  startedAt: UtcTimestamp;
-  completedAt: UtcTimestamp;
-  /** Known result of the synchronous action. */
-  outcome: OperationResultOutcome;
-  cooldownEndsAt: UtcTimestamp;
-  /**
-   * Optional coarse safe reason code; never a raw external or process error.
-   * @pattern ^[a-z][a-z0-9_]{0,63}$
-   */
-  reason?: string;
+  reason?: OperationSummaryReason;
 }
 
 /**
@@ -164,16 +151,9 @@ export interface Overview {
    */
   version: string;
   uptimeSeconds: SafeCount;
-  /**
-   * Delivery readiness last observed by the independent runtime during
-   * public health or delivery storage work. The overview does not probe
-   * gateway.sqlite.
-   */
+  /** Delivery readiness last observed by the independent runtime during public health or delivery storage work. The overview does not probe gateway.sqlite. */
   gatewayReady: boolean;
-  /**
-   * Whether the current authenticated request reached the isolated
-   * administration subsystem successfully.
-   */
+  /** Whether the current authenticated request reached the isolated administration subsystem successfully. */
   administrationReady: boolean;
   requestsLast24Hours: RequestOutcomeCounts;
   fcmAttemptsLast24Hours: FcmPlatformTotals;
@@ -219,16 +199,13 @@ export interface FcmLatencyHistogram {
 }
 
 /**
- * Approximate latency derived only from fixed histogram buckets. No raw
- * samples, per-request timings, arbitrary labels, or sums are returned.
+ * Approximate latency derived only from fixed histogram buckets. No raw samples, per-request timings, arbitrary labels, or sums are returned.
  */
 export interface FcmLatencyMetrics {
   sampleCount: SafeCount;
   histogram: FcmLatencyHistogram;
   /**
-   * Approximate p95 using the upper bound of the first histogram bucket
-   * reaching 95 percent. `10000` represents the open-ended final bucket;
-   * `null` means there were no samples.
+   * Approximate p95 using the upper bound of the first histogram bucket reaching 95 percent. `10000` represents the open-ended final bucket; `null` means there were no samples.
    * @minimum 0
    * @maximum 10000
    * @nullable
@@ -245,8 +222,7 @@ export interface FcmMetricBucket {
 }
 
 /**
- * Aggregate UTC buckets covering the effective `[from,to)` range. Empty
- * intervals may be omitted; all labels and outcomes are fixed by this schema.
+ * Aggregate UTC buckets covering the effective `[from,to)` range. Empty intervals may be omitted; all labels and outcomes are fixed by this schema.
  */
 export interface Metrics {
   from: UtcTimestamp;
@@ -256,6 +232,30 @@ export interface Metrics {
   requestBuckets: RequestMetricBucket[];
   /** @maxItems 1440 */
   fcmBuckets: FcmMetricBucket[];
+}
+
+/**
+ * Known result of the synchronous action.
+ */
+export type OperationResultOutcome =
+  (typeof OperationResultOutcome)[keyof typeof OperationResultOutcome];
+
+export const OperationResultOutcome = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+export interface OperationResult {
+  startedAt: UtcTimestamp;
+  completedAt: UtcTimestamp;
+  /** Known result of the synchronous action. */
+  outcome: OperationResultOutcome;
+  cooldownEndsAt: UtcTimestamp;
+  /**
+   * Optional coarse safe reason code; never a raw external or process error.
+   * @pattern ^[a-z][a-z0-9_]{0,63}$
+   */
+  reason?: string;
 }
 
 /**

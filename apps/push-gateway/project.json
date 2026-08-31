@@ -125,6 +125,13 @@
     "check-admin-contract": {
       "executor": "nx:run-commands",
       "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/apps/push-gateway-ui/src/app/api/admin-contract.generated.ts",
+        {
+          "runtime": "bun --version"
+        }
+      ],
       "options": {
         "command": "bun apps/push-gateway/scripts/generate-admin-contract.ts --check"
       }
