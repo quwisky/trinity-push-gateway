@@ -1,15 +1,7 @@
-import {
-  looseObject,
-  minLength,
-  pipe,
-  regex,
-  safeParse,
-  string,
-  type InferOutput,
-} from 'valibot';
+import * as z from 'zod/mini';
 
-const NON_EMPTY_STRING_SCHEMA = pipe(string(), minLength(1));
-const POSITIVE_INTEGER_STRING_SCHEMA = pipe(string(), regex(/^[1-9]\d*$/u));
+const NON_EMPTY_STRING_SCHEMA = z.string().check(z.minLength(1));
+const POSITIVE_INTEGER_STRING_SCHEMA = z.string().check(z.regex(/^[1-9]\d*$/u));
 const CONFIGURATION_ENVIRONMENT_SCHEMAS = {
   TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: NON_EMPTY_STRING_SCHEMA,
   TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL: NON_EMPTY_STRING_SCHEMA,
@@ -27,9 +19,9 @@ const CONFIGURATION_ENVIRONMENT_SCHEMAS = {
   TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: POSITIVE_INTEGER_STRING_SCHEMA,
 };
 
-const ENV_SCHEMA = looseObject(CONFIGURATION_ENVIRONMENT_SCHEMAS);
+const ENV_SCHEMA = z.looseObject(CONFIGURATION_ENVIRONMENT_SCHEMAS);
 
-export type ConfigurationEnvironment = InferOutput<typeof ENV_SCHEMA>;
+export type ConfigurationEnvironment = z.output<typeof ENV_SCHEMA>;
 export type ConfigurationEnvironmentName =
   keyof typeof CONFIGURATION_ENVIRONMENT_SCHEMAS;
 
@@ -58,11 +50,11 @@ function positiveInteger(value: string): number | undefined {
 export function runtimeConfig(
   env: ConfigurationEnvironment,
 ): RuntimeConfig | undefined {
-  const result = safeParse(ENV_SCHEMA, env);
+  const result = z.safeParse(ENV_SCHEMA, env);
   if (!result.success) {
     return undefined;
   }
-  const parsedEnv = result.output;
+  const parsedEnv = result.data;
   const maxBodyBytes = positiveInteger(
     parsedEnv.TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES,
   );
