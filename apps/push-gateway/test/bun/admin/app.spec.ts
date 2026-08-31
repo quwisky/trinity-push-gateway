@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { version as gatewayVersion } from '../../../../../package.json';
+import { adminProblem } from '../../../src/admin-contract/operator-actions';
 import {
   createAdminSurface,
   type AdminSurface,
@@ -745,6 +746,28 @@ describe('production administration HTTP surface', () => {
       authenticatedRequest('/admin/api/v1/metrics?label=secret', session),
     );
     expect(invalidMetrics.status).toBe(400);
+    expect(await invalidMetrics.json()).toEqual(
+      adminProblem('invalid_request'),
+    );
+    const invalidActionRequests = [
+      authenticatedRequest('/admin/api/v1/backups?unexpected=true', session),
+      mutationRequest('/admin/api/v1/backups?unexpected=true', session, {
+        method: 'POST',
+      }),
+      mutationRequest('/admin/api/v1/operations/cleanup', session, {
+        body: '{}',
+        method: 'POST',
+      }),
+      mutationRequest('/admin/api/v1/operations/firebase-validation', session, {
+        body: '{}',
+        method: 'POST',
+      }),
+    ];
+    for (const request of invalidActionRequests) {
+      const response = await harness.surface.fetch(request);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(adminProblem('invalid_request'));
+    }
     const projections = JSON.stringify({
       overview: overviewBody,
       session: currentSessionBody,

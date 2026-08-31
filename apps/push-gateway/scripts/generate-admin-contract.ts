@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { configurationOpenApiComponents } from '../src/admin-contract/configuration-openapi';
 import { operatorSessionOpenApiComponents } from '../src/admin-contract/operator-session-openapi';
 import {
-  ADMIN_PROBLEM_CODES,
+  ADMIN_PROBLEM_CATALOG,
+  ADMIN_PROBLEM_FIELD_POLICY,
   AUDIT_ENTRY_KINDS,
   AUDIT_ENTRY_OUTCOMES,
   AUDIT_QUERY_POLICY,
@@ -163,6 +164,16 @@ function generatedBrowserPolicy(): string {
     ' * and apps/push-gateway/src/admin-contract/operator-actions.ts.',
     ' * Do not edit manually. Run pnpm nx run push-gateway:generate-admin-contract.',
     ' */',
+    'import {',
+    '  literal,',
+    '  maxLength,',
+    '  minLength,',
+    '  optional,',
+    '  strictObject,',
+    '  string,',
+    '  union,',
+    "} from 'zod/mini';",
+    '',
     'export const METRICS_QUERY_POLICY = {',
     `  defaultInterval: '${METRICS_QUERY_POLICY.defaultInterval}',`,
     `  defaultRangeSeconds: ${String(METRICS_QUERY_POLICY.defaultRangeSeconds)},`,
@@ -187,9 +198,56 @@ function generatedBrowserPolicy(): string {
     `  outcomes: [${AUDIT_ENTRY_OUTCOMES.map((outcome) => `'${outcome}'`).join(', ')}],`,
     '} as const;',
     '',
-    'export const ADMIN_PROBLEM_CODES = [',
-    ...ADMIN_PROBLEM_CODES.map((code) => `  '${code}',`),
-    '] as const;',
+    'export const ADMIN_PROBLEM_CATALOG = {',
+    ...Object.entries(ADMIN_PROBLEM_CATALOG).flatMap(([code, definition]) => [
+      `  ${code}: {`,
+      `    status: ${String(definition.status)},`,
+      `    title: ${scalar(definition.title)},`,
+      `    type: ${scalar(`/admin/problems/${code}`)},`,
+      '  },',
+    ]),
+    '} as const;',
+    '',
+    'export const ADMIN_PROBLEM_FIELD_POLICY = {',
+    '  detail: {',
+    `    maximumLength: ${String(ADMIN_PROBLEM_FIELD_POLICY.detail.maximumLength)},`,
+    `    minimumLength: ${String(ADMIN_PROBLEM_FIELD_POLICY.detail.minimumLength)},`,
+    '  },',
+    '  instance: {',
+    `    maximumLength: ${String(ADMIN_PROBLEM_FIELD_POLICY.instance.maximumLength)},`,
+    '  },',
+    '} as const;',
+    '',
+    'export type AdminProblemCode = keyof typeof ADMIN_PROBLEM_CATALOG;',
+    '',
+    '// The inferred type retains the exact generated catalog literals.',
+    '// eslint-disable-next-line @typescript-eslint/explicit-function-return-type',
+    'const problemVariantSchema = <Code extends AdminProblemCode>(code: Code) => {',
+    '  const definition = ADMIN_PROBLEM_CATALOG[code];',
+    '  return strictObject({',
+    '    code: literal(code),',
+    '    detail: optional(',
+    '      string().check(',
+    '        minLength(ADMIN_PROBLEM_FIELD_POLICY.detail.minimumLength),',
+    '        maxLength(ADMIN_PROBLEM_FIELD_POLICY.detail.maximumLength),',
+    '      ),',
+    '    ),',
+    '    instance: optional(',
+    '      string().check(',
+    '        maxLength(ADMIN_PROBLEM_FIELD_POLICY.instance.maximumLength),',
+    '      ),',
+    '    ),',
+    '    status: literal(definition.status),',
+    '    title: literal(definition.title),',
+    '    type: literal(definition.type),',
+    '  });',
+    '};',
+    '',
+    'export const ADMIN_PROBLEM_SCHEMA = union([',
+    ...Object.keys(ADMIN_PROBLEM_CATALOG).map(
+      (code) => `  problemVariantSchema('${code}'),`,
+    ),
+    ']);',
     '',
   ].join('\n');
 }
@@ -198,6 +256,17 @@ const current = await readFile(openApiPath, 'utf8');
 const generated = generatedOpenApi(current);
 const currentBrowserPolicy = await readFile(browserPolicyPath, 'utf8');
 const generatedPolicy = generatedBrowserPolicy();
+const repeatedGenerated = generatedOpenApi(current);
+const repeatedGeneratedPolicy = generatedBrowserPolicy();
+
+if (
+  generated !== repeatedGenerated ||
+  generatedPolicy !== repeatedGeneratedPolicy
+) {
+  throw new Error(
+    'Administration contract generation is not deterministic across repeated projections.',
+  );
+}
 
 if (check) {
   if (current !== generated || currentBrowserPolicy !== generatedPolicy) {
@@ -205,7 +274,9 @@ if (check) {
       'Generated administration contracts have drifted; run the generate-admin-contract target.',
     );
   }
-  console.info('Generated administration contracts are current.');
+  console.info(
+    'Generated administration contracts are deterministic and current.',
+  );
 } else {
   if (current !== generated) {
     await writeFile(openApiPath, generated);

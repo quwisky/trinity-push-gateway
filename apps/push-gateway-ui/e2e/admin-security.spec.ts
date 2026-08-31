@@ -9,7 +9,10 @@ import {
   ADMIN_SPA_ROUTES,
   loadAdminAssets,
 } from '../../push-gateway/src/bun/admin/assets';
-import { AUDIT_QUERY_POLICY } from '../src/app/api/admin-contract.generated';
+import {
+  ADMIN_PROBLEM_CATALOG,
+  AUDIT_QUERY_POLICY,
+} from '../src/app/api/admin-contract.generated';
 import type {
   Backup,
   OperatorSession,
@@ -332,11 +335,12 @@ test.beforeAll(async () => {
           failOverviewRequests -= 1;
           served = new Response(
             JSON.stringify({
-              title: 'Overview temporarily unavailable.',
-              status: 503,
+              code: 'admin_unavailable',
+              detail: 'Overview temporarily unavailable.',
+              ...ADMIN_PROBLEM_CATALOG.admin_unavailable,
             }),
             {
-              status: 503,
+              status: ADMIN_PROBLEM_CATALOG.admin_unavailable.status,
               headers: { 'content-type': 'application/problem+json' },
             },
           );
@@ -407,12 +411,12 @@ test.beforeAll(async () => {
           failedOperationRequests -= 1;
           served = new Response(
             JSON.stringify({
-              title: 'Operator Action unavailable.',
+              code: 'cooldown_active',
               detail: 'Cooldown active; retry after the displayed boundary.',
-              status: 409,
+              ...ADMIN_PROBLEM_CATALOG.cooldown_active,
             }),
             {
-              status: 409,
+              status: ADMIN_PROBLEM_CATALOG.cooldown_active.status,
               headers: { 'content-type': 'application/problem+json' },
             },
           );

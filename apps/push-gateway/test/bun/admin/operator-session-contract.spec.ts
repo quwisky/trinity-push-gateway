@@ -4,35 +4,20 @@ import {
   OPERATOR_SESSION_LIST_RESPONSE_SCHEMA,
   OPERATOR_SESSION_RESPONSE_SCHEMA,
 } from '../../../src/admin-contract/operator-session';
-import { ADMIN_OPERATOR_SESSION_SCHEMA } from '../../../src/bun/admin/contract';
+import { expectContractFixtures } from './support/admin-contract-assertions';
 import {
   INVALID_OPERATOR_SESSION_FIXTURES,
   VALID_OPERATOR_SESSION_FIXTURES,
 } from './support/operator-session-contract-fixtures';
 
 describe('Operator Session response contract', () => {
-  it('keeps the canonical and legacy validators compatible', () => {
-    for (const fixture of VALID_OPERATOR_SESSION_FIXTURES) {
-      expect(
-        OPERATOR_SESSION_RESPONSE_SCHEMA.safeParse(fixture.value).success,
-        `canonical validator rejected ${fixture.name}`,
-      ).toBe(true);
-      expect(
-        ADMIN_OPERATOR_SESSION_SCHEMA.safeParse(fixture.value).success,
-        `legacy validator rejected ${fixture.name}`,
-      ).toBe(true);
-    }
-
-    for (const fixture of INVALID_OPERATOR_SESSION_FIXTURES) {
-      expect(
-        OPERATOR_SESSION_RESPONSE_SCHEMA.safeParse(fixture.value).success,
-        `canonical validator accepted ${fixture.name}`,
-      ).toBe(false);
-      expect(
-        ADMIN_OPERATOR_SESSION_SCHEMA.safeParse(fixture.value).success,
-        `legacy validator accepted ${fixture.name}`,
-      ).toBe(false);
-    }
+  it('keeps runtime and published validation aligned through shared fixtures', () => {
+    expectContractFixtures(
+      OPERATOR_SESSION_RESPONSE_SCHEMA,
+      'OperatorSession',
+      VALID_OPERATOR_SESSION_FIXTURES,
+      INVALID_OPERATOR_SESSION_FIXTURES,
+    );
   });
 
   it('owns the bounded session-list wrapper', () => {

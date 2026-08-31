@@ -1,5 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { apiProblemSchema } from '../core/validation/schemas';
+import {
+  ADMIN_PROBLEM_CATALOG,
+  ADMIN_PROBLEM_SCHEMA,
+} from './admin-contract.generated';
 
 export type SafeApiProblem = Readonly<{
   title: string;
@@ -18,24 +21,23 @@ export const toSafeApiProblem = (error: unknown): SafeApiProblem => {
     return { title: 'The Push Gateway UI request failed.' };
   }
 
-  const parsed = apiProblemSchema.safeParse(error.error);
+  const parsed = ADMIN_PROBLEM_SCHEMA.safeParse(error.error);
   if (!parsed.success) {
     return {
       title: 'The Push Gateway UI request failed.',
       status: error.status || undefined,
     };
   }
+  const definition = ADMIN_PROBLEM_CATALOG[parsed.data.code];
 
-  const title = parsed.data.title
-    ? cleanText(parsed.data.title, 160)
-    : 'The Push Gateway UI request failed.';
-  const detail = parsed.data.detail
-    ? cleanText(parsed.data.detail, 500)
-    : undefined;
+  const detail =
+    typeof parsed.data.detail === 'string'
+      ? cleanText(parsed.data.detail, 500)
+      : undefined;
 
   return {
-    title: title || 'The Push Gateway UI request failed.',
+    title: definition.title,
     ...(detail ? { detail } : {}),
-    status: parsed.data.status ?? (error.status || undefined),
+    status: definition.status,
   };
 };

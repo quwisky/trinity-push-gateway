@@ -237,9 +237,17 @@ export const ADMIN_PROBLEM_CODES = Object.freeze(
   Object.keys(ADMIN_PROBLEM_CATALOG) as AdminProblemCode[],
 );
 
+export const ADMIN_PROBLEM_FIELD_POLICY = Object.freeze({
+  detail: Object.freeze({ maximumLength: 512, minimumLength: 1 }),
+  instance: Object.freeze({ maximumLength: 2048 }),
+});
+
 const PROBLEM_DETAIL_SCHEMA = z
   .string()
-  .check(z.minLength(1), z.maxLength(512))
+  .check(
+    z.minLength(ADMIN_PROBLEM_FIELD_POLICY.detail.minimumLength),
+    z.maxLength(ADMIN_PROBLEM_FIELD_POLICY.detail.maximumLength),
+  )
   .register(ADMIN_CONTRACT_REGISTRY, {
     description:
       'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.',
@@ -247,7 +255,7 @@ const PROBLEM_DETAIL_SCHEMA = z
 
 const PROBLEM_INSTANCE_SCHEMA = z
   .string()
-  .check(z.maxLength(2048))
+  .check(z.maxLength(ADMIN_PROBLEM_FIELD_POLICY.instance.maximumLength))
   .register(ADMIN_CONTRACT_REGISTRY, {
     description:
       'Optional request-local problem URI containing no private identifier.',
