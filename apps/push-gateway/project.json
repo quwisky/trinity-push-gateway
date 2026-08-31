@@ -80,10 +80,11 @@
     },
     "check-container-contract": {
       "executor": "nx:run-commands",
-      "cache": true,
+      "cache": false,
       "inputs": [
         "default",
         "{workspaceRoot}/.dockerignore",
+        "{workspaceRoot}/.env.self-host.example",
         "{workspaceRoot}/.env.self-host-admin.example",
         "{workspaceRoot}/compose.admin.yml",
         "{workspaceRoot}/compose.yml"

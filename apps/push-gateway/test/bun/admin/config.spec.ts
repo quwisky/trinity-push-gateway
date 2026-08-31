@@ -3,14 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import {
-  ADMIN_CONFIGURATION_ENVIRONMENT_NAMES,
-  loadAdminConfiguration,
-} from '../../../src/bun/admin/config';
-import {
-  ADMIN_CONFIGURATION_DEFAULTS,
-  ADMIN_POLICY_DEFAULTS,
-} from '../../../src/configuration-defaults';
+import { loadAdminConfiguration } from '../../../src/bun/admin/config';
 
 const temporaryDirectories: string[] = [];
 
@@ -96,7 +89,20 @@ describe('Bun administration configuration', () => {
       oidcRequiredGroup: 'gateway-operators',
       oidcScopes: ['openid', 'profile', 'email', 'groups'],
       oidcTokenEndpointAuthMethod: 'client_secret_basic',
-      policy: ADMIN_POLICY_DEFAULTS,
+      policy: {
+        auditRetentionDays: 90,
+        backupCooldownSeconds: 3_600,
+        backupDeadlineSeconds: 120,
+        cleanupCooldownSeconds: 300,
+        cleanupDeadlineSeconds: 30,
+        firebaseValidationCooldownSeconds: 60,
+        firebaseValidationDeadlineSeconds: 20,
+        maximumDeploymentSessions: 100,
+        maximumSessionsPerIdentity: 5,
+        metricsRetentionDays: 30,
+        sessionAbsoluteSeconds: 28_800,
+        sessionIdleSeconds: 1_800,
+      },
       publicOrigin: 'https://gateway.example',
       sessionSecret: { source: 'env', value: 's'.repeat(32) },
     });
@@ -352,23 +358,6 @@ describe('Bun administration configuration', () => {
   ])('returns invalid rather than throwing for %s', (_label, overrides) => {
     expect(loadAdminConfiguration(enabledEnvironment(overrides))).toEqual({
       kind: 'invalid',
-    });
-  });
-
-  it('publishes every accepted administration environment name exactly once', () => {
-    expect(new Set(ADMIN_CONFIGURATION_ENVIRONMENT_NAMES).size).toBe(
-      ADMIN_CONFIGURATION_ENVIRONMENT_NAMES.length,
-    );
-    expect(ADMIN_CONFIGURATION_ENVIRONMENT_NAMES).toContain(
-      'TRINITY_PUSH_GATEWAY_ADMIN_ASSETS_PATH',
-    );
-    expect(ADMIN_CONFIGURATION_ENVIRONMENT_NAMES).toContain(
-      'TRINITY_PUSH_GATEWAY_ADMIN_MIGRATIONS_PATH',
-    );
-    expect(ADMIN_CONFIGURATION_DEFAULTS).toMatchObject({
-      TRINITY_PUSH_GATEWAY_ADMIN_ASSETS_PATH: '/app/admin',
-      TRINITY_PUSH_GATEWAY_ADMIN_MIGRATIONS_PATH: '/app/admin-migrations',
-      TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES: 'openid profile email groups',
     });
   });
 });

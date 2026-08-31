@@ -1,6 +1,6 @@
 import {
   loadSharedRuntimeConfiguration,
-  SHARED_CONFIGURATION_DEFAULTS,
+  sharedConfigurationDefault,
   type SharedConfigurationEnvironment,
 } from './shared';
 import {
@@ -134,7 +134,7 @@ export const BUN_CONFIGURATION_DEFINITIONS = Object.freeze([
   },
 ] as const);
 
-export const BUN_CONFIGURATION_DEFAULTS = catalogDefaults(
+const BUN_CONFIGURATION_DEFAULTS = catalogDefaults(
   BUN_CONFIGURATION_DEFINITIONS,
 );
 
@@ -291,21 +291,21 @@ export function loadBunRuntimeConfiguration(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES',
-        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES,
+        sharedConfigurationDefault('TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES'),
       ),
     ),
     TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS',
-        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS,
+        sharedConfigurationDefault('TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS'),
       ),
     ),
     TRINITY_PUSH_GATEWAY_MAX_DEVICES: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_MAX_DEVICES',
-        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MAX_DEVICES,
+        sharedConfigurationDefault('TRINITY_PUSH_GATEWAY_MAX_DEVICES'),
         49,
       ),
     ),
@@ -313,28 +313,36 @@ export function loadBunRuntimeConfiguration(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS',
-        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS,
+        sharedConfigurationDefault(
+          'TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS',
+        ),
       ),
     ),
     TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS',
-        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS,
+        sharedConfigurationDefault(
+          'TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS',
+        ),
       ),
     ),
     TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS',
-        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS,
+        sharedConfigurationDefault(
+          'TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS',
+        ),
       ),
     ),
     TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: String(
       positiveInteger(
         environment,
         'TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS',
-        SHARED_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS,
+        sharedConfigurationDefault(
+          'TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS',
+        ),
       ),
     ),
   };

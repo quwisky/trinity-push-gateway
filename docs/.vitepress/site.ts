@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { GATEWAY_CONFIGURATION_REFERENCE } from '../../apps/push-gateway/src/config-reference';
+import { PUSH_GATEWAY_CONFIGURATION_CATALOG } from '../../apps/push-gateway/src/configuration-catalog';
 
 export type DocsChannel = 'latest' | 'next' | `v${number}.${number}.${number}`;
 
@@ -82,21 +82,23 @@ export function renderConfigurationReference(): string {
     '| Setting | Runtime | Required | Secret | Default | Constraint | Description |',
     '| --- | --- | --- | --- | --- | --- | --- |',
   ];
-  const rows = GATEWAY_CONFIGURATION_REFERENCE.map((entry) =>
-    [
-      `\`${entry.name}\``,
-      entry.runtimes.join(', '),
-      entry.required ? 'Yes' : 'No',
-      entry.secret ? 'Secret' : 'No',
-      entry.defaultValue === undefined || entry.defaultValue.length === 0
-        ? '—'
-        : `\`${entry.defaultValue}\``,
-      entry.constraint ?? '—',
-      entry.description,
-    ]
-      .map(tableCell)
-      .join(' | '),
-  ).map((row) => `| ${row} |`);
+  const rows = PUSH_GATEWAY_CONFIGURATION_CATALOG.references()
+    .map((entry) =>
+      [
+        `\`${entry.name}\``,
+        entry.runtimes.join(', '),
+        entry.required ? 'Yes' : 'No',
+        entry.secret ? 'Secret' : 'No',
+        entry.defaultValue === undefined || entry.defaultValue.length === 0
+          ? '—'
+          : `\`${entry.defaultValue}\``,
+        entry.constraint ?? '—',
+        entry.description,
+      ]
+        .map(tableCell)
+        .join(' | '),
+    )
+    .map((row) => `| ${row} |`);
   return [...header, ...rows].join('\n');
 }
 
