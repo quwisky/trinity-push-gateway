@@ -31,10 +31,11 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
     </section>
 
     <section class="empty-state" aria-labelledby="overview-data-title">
-      <h2 id="overview-data-title">Operational data is not connected yet</h2>
+      <h2 id="overview-data-title">Administration foundation connected</h2>
       <p>
-        This foundation remains unreachable from the Bun gateway until the
-        authenticated administration service is implemented.
+        This authenticated shell is served by the isolated Bun administration
+        service. Delivery aggregates and operator actions arrive in the next
+        focused capabilities.
       </p>
     </section>
   `,

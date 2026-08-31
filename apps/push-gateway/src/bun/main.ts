@@ -1,4 +1,8 @@
 import { BUN_CONFIGURATION_DEFAULTS } from '../configuration-defaults';
+import {
+  migrateAdministration,
+  purgeAdministrationSessions,
+} from './admin/runtime';
 import { loadBunConfiguration } from './config';
 import { readMigrations } from './migrations';
 import { startBunGateway } from './server';
@@ -20,7 +24,19 @@ if (command === 'serve') {
 } else if (command === 'migrate') {
   const store = SqliteGatewayStore.open(config.databasePath, migrations);
   store.close();
+  if (config.administration.kind === 'enabled') {
+    migrateAdministration(config.administration, config.databasePath);
+  } else if (config.administration.kind === 'invalid') {
+    throw new Error('Administration configuration is invalid.');
+  }
   log({ event: 'migrations_applied' });
+} else if (command === 'session-purge') {
+  const revokedSessions = await purgeAdministrationSessions(
+    config.administration,
+    Math.floor(Date.now() / 1_000),
+    config.databasePath,
+  );
+  log({ event: 'admin_sessions_purged', revokedSessions });
 } else if (command === 'backup') {
   const targetPath = process.argv[3];
   if (targetPath === undefined) {

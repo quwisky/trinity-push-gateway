@@ -8,6 +8,7 @@ const maximumRawBytes = 64 * 1024 * 1024;
 const maximumGzipBytes = 3 * 1024 * 1024;
 const gatewayRuntimeDependencyNames = [
   'drizzle-orm',
+  'hono',
   'jose',
   'openid-client',
   'zod',
@@ -21,8 +22,6 @@ const browserRuntimeDependencyNames = [
   '@angular/platform-browser',
   '@angular/router',
   '@ng-forge/dynamic-forms',
-  '@ng-icons/core',
-  '@ng-icons/lucide',
   '@spartan-ng/brain',
   '@standard-schema/spec',
   'chart.js',
@@ -111,7 +110,7 @@ const normalizedSources = sourceMapJson.sources
   )
   .sort();
 const forbiddenWorkerSources = normalizedSources.filter((source) =>
-  /better-auth|oauth4webapi|oidc-provider|openid-client|src\/bun\//u.test(
+  /better-auth|node_modules\/hono\/|oauth4webapi|oidc-provider|openid-client|src\/bun\//u.test(
     source,
   ),
 );

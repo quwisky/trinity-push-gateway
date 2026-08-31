@@ -35,12 +35,6 @@ importers:
       '@ng-forge/dynamic-forms':
         specifier: 1.1.0
         version: 1.1.0(patch_hash=477f995f0436388cbb90e15c18cd9ea4d856dd9a891b975cea6de0319bd8a29a)(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@angular/forms@22.1.4(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@angular/platform-browser@22.1.4(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2)))(rxjs@7.8.2))(@standard-schema/spec@1.1.0)(rxjs@7.8.2)
-      '@ng-icons/core':
-        specifier: 33.4.0
-        version: 33.4.0(@angular-devkit/schematics@22.1.6(chokidar@5.0.0))(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@schematics/angular@22.1.6(chokidar@5.0.0))(rxjs@7.8.2)
-      '@ng-icons/lucide':
-        specifier: 33.4.0
-        version: 33.4.0
       '@spartan-ng/brain':
         specifier: 1.3.4
         version: 1.3.4(@angular/cdk@22.1.4(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@angular/platform-browser@22.1.4(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2)))(rxjs@7.8.2))(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@angular/forms@22.1.4(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@angular/platform-browser@22.1.4(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2)))(rxjs@7.8.2))(clsx@2.1.1)(luxon@3.7.2)(rxjs@7.8.2)(tailwindcss@4.3.3)(tw-animate-css@1.4.0)
@@ -59,6 +53,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(@cloudflare/workers-types@5.20260829.1)(bun-types@1.4.0)
+      hono:
+        specifier: 4.13.5
+        version: 4.13.5
       jose:
         specifier: 6.2.10
         version: 6.2.10
@@ -129,6 +126,9 @@ importers:
       '@nx/web':
         specifier: 23.1.2
         version: 23.1.2(@babel/traverse@7.29.8(supports-color@7.2.0))(@nx/eslint@23.1.2(@babel/traverse@7.29.8(supports-color@7.2.0))(@zkochan/js-yaml@0.0.7)(eslint@10.9.1(jiti@2.7.0)(supports-color@7.2.0))(nx@23.1.2)(supports-color@7.2.0))(debug@4.4.3(supports-color@7.2.0))(nx@23.1.2)(supports-color@7.2.0)
+      '@playwright/test':
+        specifier: 1.62.1
+        version: 1.62.1
       '@redocly/cli':
         specifier: 2.49.0
         version: 2.49.0
@@ -2769,18 +2769,6 @@ packages:
       '@standard-schema/spec': ^1.0.0
       rxjs: '>=7.0.0'
 
-  '@ng-icons/core@33.4.0':
-    resolution: {integrity: sha512-UGAs6q67mdS87qJE3u3iXVjnaKxxB8ALxCWvxQz+vDaE/3o9OpgCPrL4ZZIwPOYjBER0YUPctJNy6ng1C24FEA==}
-    peerDependencies:
-      '@angular-devkit/schematics': '>=21.0.0'
-      '@angular/common': '>=21.0.0'
-      '@angular/core': '>=21.0.0'
-      '@schematics/angular': '>=21.0.0'
-      rxjs: ^6.5.3 || ^7.4.0
-
-  '@ng-icons/lucide@33.4.0':
-    resolution: {integrity: sha512-fOztOy5T+Y07fru7nWq27PC96B35Y2DeJY357ZeKBr5R1yUJhxqQXPRcxOf+wrTJes8I20sKBqfWhHH1eiL9JQ==}
-
   '@nx/angular@23.1.2':
     resolution: {integrity: sha512-nwGbmPQibFDaDOHadSsjbFkCGh1iXgZ0DhE1wmqXbi+2KMdGl+PoNiCfxRv81A09p1vxaHMZk/eeXyw9swOq5Q==}
     peerDependencies:
@@ -3221,6 +3209,11 @@ packages:
     resolution: {integrity: sha512-Vo9nkhfZxDB/sBiqIY3pjDC4mOSyure+AFlEW5hcy/tRE82MqCXjRN4InnVNMldinRt0dLYqg4HAU2XPq5e1LA==}
     peerDependencies:
       typescript: '>3.0.0'
+
+  '@playwright/test@1.62.1':
+    resolution: {integrity: sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@poppinss/colors@4.1.6':
     resolution: {integrity: sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg==}
@@ -5110,6 +5103,11 @@ packages:
     resolution: {integrity: sha512-EQsFzMUJkCKGr1ePqlYADkIUmHW1s3ZXr5Yqy6wbGrfUCphpl2maM/kyOIRA2HpP3AaFQTZXD4ldjek+nccddA==}
     engines: {node: '>=14.14'}
 
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -6075,6 +6073,16 @@ packages:
   pkce-challenge@5.0.1:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
+
+  playwright-core@1.62.1:
+    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.62.1:
+    resolution: {integrity: sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   portfinder@1.0.38:
     resolution: {integrity: sha512-rEwq/ZHlJIKw++XtLAO8PPuOQA/zaPJOZJ37BVuN97nLpMJeuDVLVGRwbFoBgLudgdTMP2hdRJP++H+8QOA3vg==}
@@ -9405,19 +9413,6 @@ snapshots:
     transitivePeerDependencies:
       - '@use-gesture/vanilla'
 
-  '@ng-icons/core@33.4.0(@angular-devkit/schematics@22.1.6(chokidar@5.0.0))(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@schematics/angular@22.1.6(chokidar@5.0.0))(rxjs@7.8.2)':
-    dependencies:
-      '@angular-devkit/schematics': 22.1.6(chokidar@5.0.0)
-      '@angular/common': 22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2)
-      '@angular/core': 22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2)
-      '@schematics/angular': 22.1.6(chokidar@5.0.0)
-      rxjs: 7.8.2
-      tslib: 2.8.1
-
-  '@ng-icons/lucide@33.4.0':
-    dependencies:
-      tslib: 2.8.1
-
   '@nx/angular@23.1.2(@angular-devkit/core@22.1.6(chokidar@5.0.0))(@angular-devkit/schematics@22.1.6(chokidar@5.0.0))(@angular/build@22.1.6(@angular/compiler-cli@22.1.4(@angular/compiler@22.1.4)(typescript@6.0.3))(@angular/compiler@22.1.4)(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(@angular/platform-browser@22.1.4(@angular/common@22.1.4(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2))(rxjs@7.8.2))(@angular/core@22.1.4(@angular/compiler@22.1.4)(rxjs@7.8.2)))(@types/node@26.4.0)(chokidar@5.0.0)(jiti@2.7.0)(postcss@8.5.26)(rollup@4.63.1)(supports-color@7.2.0)(tailwindcss@4.3.3)(tslib@2.8.1)(tsx@4.23.13)(typescript@6.0.3)(vitest@4.1.11)(yaml@2.9.0))(@babel/traverse@7.29.8(supports-color@7.2.0))(@schematics/angular@22.1.6(chokidar@5.0.0))(@zkochan/js-yaml@0.0.7)(debug@4.4.3(supports-color@7.2.0))(eslint@10.9.1(jiti@2.7.0)(supports-color@7.2.0))(nx@23.1.2)(rxjs@7.8.2)(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
       '@angular-devkit/core': 22.1.6(chokidar@5.0.0)
@@ -9886,6 +9881,10 @@ snapshots:
       '@types/esquery': 1.5.4
       esquery: 1.7.0
       typescript: 6.0.3
+
+  '@playwright/test@1.62.1':
+    dependencies:
+      playwright: 1.62.1
 
   '@poppinss/colors@4.1.6':
     dependencies:
@@ -11691,6 +11690,9 @@ snapshots:
       jsonfile: 6.2.1
       universalify: 2.0.1
 
+  fsevents@2.3.2:
+    optional: true
+
   fsevents@2.3.3:
     optional: true
 
@@ -12833,6 +12835,14 @@ snapshots:
       '@napi-rs/nice': 1.1.1
 
   pkce-challenge@5.0.1: {}
+
+  playwright-core@1.62.1: {}
+
+  playwright@1.62.1:
+    dependencies:
+      playwright-core: 1.62.1
+    optionalDependencies:
+      fsevents: 2.3.2
 
   portfinder@1.0.38(supports-color@7.2.0):
     dependencies:

@@ -20,3 +20,32 @@ export const BUN_CONFIGURATION_DEFAULTS = Object.freeze({
   TRINITY_PUSH_GATEWAY_SOURCE_RATE_PERIOD_SECONDS: '10',
   TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS: '',
 });
+
+export const ADMIN_CONFIGURATION_DEFAULTS = Object.freeze({
+  TRINITY_PUSH_GATEWAY_ADMIN_ASSETS_PATH: '/app/admin',
+  TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_DIRECTORY: '/data/backups',
+  TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_LIMIT_BYTES: '1073741824',
+  TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_LIMIT_COUNT: '24',
+  TRINITY_PUSH_GATEWAY_ADMIN_DATABASE_PATH: '/data/admin.sqlite',
+  TRINITY_PUSH_GATEWAY_ADMIN_ENABLED: 'false',
+  TRINITY_PUSH_GATEWAY_ADMIN_MIGRATIONS_PATH: '/app/admin-migrations',
+  TRINITY_PUSH_GATEWAY_ADMIN_OIDC_GROUP_CLAIM: 'groups',
+  TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES: 'openid profile email groups',
+  TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD:
+    'client_secret_basic',
+});
+
+export const ADMIN_POLICY_DEFAULTS = Object.freeze({
+  auditRetentionDays: 90,
+  backupCooldownSeconds: 3_600,
+  backupDeadlineSeconds: 120,
+  cleanupCooldownSeconds: 300,
+  cleanupDeadlineSeconds: 30,
+  firebaseValidationCooldownSeconds: 60,
+  firebaseValidationDeadlineSeconds: 20,
+  maximumDeploymentSessions: 100,
+  maximumSessionsPerIdentity: 5,
+  metricsRetentionDays: 30,
+  sessionAbsoluteSeconds: 28_800,
+  sessionIdleSeconds: 1_800,
+});
