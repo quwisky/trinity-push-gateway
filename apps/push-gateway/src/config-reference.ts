@@ -1,10 +1,13 @@
+import type { AdminConfigurationEnvironmentName } from './admin-configuration-names';
 import type { ConfigurationEnvironmentName } from './config';
 import {
+  ADMIN_CONFIGURATION_DEFAULTS,
   BUN_CONFIGURATION_DEFAULTS,
   SHARED_CONFIGURATION_DEFAULTS,
 } from './configuration-defaults';
 
 type BunOnlyConfigurationName =
+  | AdminConfigurationEnvironmentName
   | 'TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS'
   | 'TRINITY_PUSH_GATEWAY_CLIENT_IP_HEADER'
   | 'TRINITY_PUSH_GATEWAY_DATABASE_PATH'
@@ -281,6 +284,179 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
       required: false,
       runtimes: bunRuntime,
       secret: false,
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_ENABLED',
+      description: 'Opt in to the isolated Bun administration surface.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_ENABLED,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint:
+        'Exact true or false; every other administration value is ignored while false.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN',
+      description:
+        'Exact same origin used by the Push Gateway UI and operator API.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint:
+        'Required when enabled; HTTPS without a path, query, or fragment, except loopback HTTP for development.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_DATABASE_PATH',
+      description: 'Path to the isolated administration SQLite database.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_DATABASE_PATH,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Absolute path distinct from the gateway database.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_ASSETS_PATH',
+      description: 'Internal directory containing production browser assets.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_ASSETS_PATH,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Absolute Bun-local path; excluded from the operator API.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_MIGRATIONS_PATH',
+      description:
+        'Internal directory containing administration database migrations.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_MIGRATIONS_PATH,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Absolute Bun-local path; excluded from the operator API.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_DIRECTORY',
+      description: 'Directory for verified gateway-database backups.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_DIRECTORY,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Absolute path on the persistent local volume.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_LIMIT_COUNT',
+      description: 'Maximum verified backups retained in the backup directory.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_LIMIT_COUNT,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Positive integer no greater than 1000.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_LIMIT_BYTES',
+      description: 'Maximum aggregate bytes allowed for verified backups.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_BACKUP_LIMIT_BYTES,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Positive safe integer.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_ISSUER',
+      description: 'Exact issuer URL discovered for Operator authentication.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint:
+        'Required when enabled; HTTPS, except loopback HTTP for development.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_ID',
+      description: 'Confidential OIDC client identifier.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Required when enabled.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET',
+      description: 'Confidential OIDC client secret.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: true,
+      constraint:
+        'Required directly or by file when enabled; mutually exclusive with its file alternative.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET_FILE',
+      description: 'Confidential OIDC client-secret file.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: true,
+      constraint:
+        'Required directly or by file when enabled; mutually exclusive with its direct alternative.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES',
+      description: 'Whitespace-separated OIDC scopes requested at login.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint:
+        'Unique scopes including openid; offline_access is forbidden.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_GROUP_CLAIM',
+      description: 'Top-level ID-token claim containing exact group values.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_OIDC_GROUP_CLAIM,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_REQUIRED_GROUP',
+      description: 'Exact case-sensitive group required for Operator access.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'Required when enabled.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD',
+      description: 'Confidential-client token endpoint authentication method.',
+      defaultValue:
+        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD,
+      required: false,
+      runtimes: bunRuntime,
+      secret: false,
+      constraint: 'client_secret_basic or client_secret_post.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET',
+      description: 'Independent secret used to protect Operator Sessions.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: true,
+      constraint:
+        'At least 32 UTF-8 bytes and required directly or by file when enabled; mutually exclusive with its file alternative.',
+    },
+    {
+      name: 'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET_FILE',
+      description: 'Operator Session secret file.',
+      required: false,
+      runtimes: bunRuntime,
+      secret: true,
+      constraint:
+        'Required directly or by file when enabled; mutually exclusive with its direct alternative.',
     },
     {
       name: 'TRINITY_PUSH_GATEWAY_HOST_PORT',

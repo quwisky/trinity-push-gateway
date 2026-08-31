@@ -4,7 +4,9 @@ import {
   GATEWAY_CONFIGURATION_REFERENCE,
   type GatewayConfigurationName,
 } from '../src/config-reference';
+import { ADMIN_CONFIGURATION_ENVIRONMENT_NAMES } from '../src/admin-configuration-names';
 import {
+  ADMIN_CONFIGURATION_DEFAULTS,
   BUN_CONFIGURATION_DEFAULTS,
   SHARED_CONFIGURATION_DEFAULTS,
 } from '../src/configuration-defaults';
@@ -45,6 +47,43 @@ describe('gateway configuration reference', () => {
     }
   });
 
+  it('covers every Bun administration input exactly once', () => {
+    const names = GATEWAY_CONFIGURATION_REFERENCE.map(({ name }) => name);
+
+    expect(names).toEqual(
+      expect.arrayContaining([...ADMIN_CONFIGURATION_ENVIRONMENT_NAMES]),
+    );
+    for (const name of ADMIN_CONFIGURATION_ENVIRONMENT_NAMES) {
+      expect(
+        GATEWAY_CONFIGURATION_REFERENCE.find((entry) => entry.name === name),
+      ).toMatchObject({ required: false, runtimes: ['bun'] });
+    }
+  });
+
+  it('marks administration credentials and file alternatives as secrets', () => {
+    const secretPairs = [
+      [
+        'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET',
+        'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET_FILE',
+      ],
+      [
+        'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET',
+        'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET_FILE',
+      ],
+    ] as const satisfies readonly (readonly [
+      GatewayConfigurationName,
+      GatewayConfigurationName,
+    ])[];
+
+    for (const pair of secretPairs) {
+      for (const name of pair) {
+        expect(
+          GATEWAY_CONFIGURATION_REFERENCE.find((entry) => entry.name === name),
+        ).toMatchObject({ required: false, runtimes: ['bun'], secret: true });
+      }
+    }
+  });
+
   it('keeps documented defaults aligned with the runtime contract', () => {
     const defaults = Object.fromEntries(
       GATEWAY_CONFIGURATION_REFERENCE.map(({ defaultValue, name }) => [
@@ -56,6 +95,7 @@ describe('gateway configuration reference', () => {
     expect(defaults).toMatchObject({
       ...SHARED_CONFIGURATION_DEFAULTS,
       ...BUN_CONFIGURATION_DEFAULTS,
+      ...ADMIN_CONFIGURATION_DEFAULTS,
     });
   });
 });

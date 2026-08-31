@@ -41,8 +41,12 @@ describe('Bun SQLite gateway store', () => {
     expect(await exerciseStoreContract(store)).toEqual({
       budget: [true, false, true],
       claims: ['acquired', 'pending', 'acquired', 'rejected', 'acquired'],
+      cleanupReleasesExpiredBudget: true,
       concurrentBudgetReservations: 1,
       concurrentClaims: ['acquired', 'pending', 'pending', 'pending'],
+      deliveredClaimSurvivesRelease: 'delivered',
+      pendingLeaseRecovery: ['acquired', 'pending', 'acquired'],
+      zeroAndOversizedBudget: [true, false],
     });
 
     store.close();

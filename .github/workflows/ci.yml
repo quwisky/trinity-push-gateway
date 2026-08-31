@@ -48,6 +48,28 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: pnpm exec commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+      - name: Detect administration browser check
+        id: admin-browser
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          affected_projects="$(
+            pnpm nx show projects --affected \
+              --base="$NX_BASE" \
+              --head="$NX_HEAD" \
+              --json
+          )"
+          if AFFECTED_PROJECTS="$affected_projects" node --input-type=module --eval '
+            const projects = JSON.parse(process.env.AFFECTED_PROJECTS ?? "[]");
+            process.exit(projects.includes("push-gateway-ui") ? 0 : 1);
+          '; then
+            echo 'required=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'required=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install Playwright 1.62.1 browsers
+        if: steps.admin-browser.outputs.required == 'true'
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
       - name: Check repository
         run: |
           set -Eeuo pipefail

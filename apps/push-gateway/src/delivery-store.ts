@@ -1,13 +1,12 @@
+import { and, eq, lte, or, sql } from 'drizzle-orm';
+
+import type { GatewayD1Database } from './d1-database';
 import { fingerprintFor } from './fingerprint';
 import type { DeliveryClaim, DeliveryIdentity } from './ports';
-
-type DeliveryRow = {
-  readonly lease_expires_at: number | null;
-  readonly outcome: 'delivered' | 'pending' | 'rejected';
-};
+import { deliveryRecords } from './schema';
 
 export async function claimDelivery(
-  database: D1Database,
+  database: GatewayD1Database,
   identity: DeliveryIdentity,
   fingerprintKey: string,
   nowSeconds: number,
@@ -15,35 +14,45 @@ export async function claimDelivery(
 ): Promise<DeliveryClaim> {
   const fingerprint = await fingerprintFor(identity, fingerprintKey);
   const leaseExpiresAt = nowSeconds + leaseSeconds;
-  const acquired = await database
-    .prepare(
-      `INSERT INTO delivery_records
-        (fingerprint, outcome, lease_expires_at, expires_at, reason_category)
-       VALUES (?1, 'pending', ?2, ?2, NULL)
-       ON CONFLICT (fingerprint) DO UPDATE SET
-         outcome = 'pending',
-         lease_expires_at = excluded.lease_expires_at,
-         expires_at = excluded.expires_at,
-         reason_category = NULL
-       WHERE delivery_records.expires_at <= ?3
-          OR (delivery_records.outcome = 'pending'
-              AND delivery_records.lease_expires_at <= ?3)
-       RETURNING fingerprint`,
-    )
-    .bind(fingerprint, leaseExpiresAt, nowSeconds)
-    .first<{ readonly fingerprint: string }>();
-  if (acquired !== null) {
+  const [acquired] = await database
+    .insert(deliveryRecords)
+    .values({
+      expiresAt: leaseExpiresAt,
+      fingerprint,
+      leaseExpiresAt,
+      outcome: 'pending',
+      reasonCategory: null,
+    })
+    .onConflictDoUpdate({
+      set: {
+        expiresAt: leaseExpiresAt,
+        leaseExpiresAt,
+        outcome: 'pending',
+        reasonCategory: null,
+      },
+      setWhere: sql`${or(
+        lte(deliveryRecords.expiresAt, nowSeconds),
+        and(
+          eq(deliveryRecords.outcome, 'pending'),
+          lte(deliveryRecords.leaseExpiresAt, nowSeconds),
+        ),
+      )}`,
+      target: deliveryRecords.fingerprint,
+    })
+    .returning({ fingerprint: deliveryRecords.fingerprint })
+    .all();
+  if (acquired !== undefined) {
     return { fingerprint, kind: 'acquired' };
   }
 
   const existing = await database
-    .prepare(
-      `SELECT outcome, lease_expires_at
-       FROM delivery_records
-       WHERE fingerprint = ?1`,
-    )
-    .bind(fingerprint)
-    .first<DeliveryRow>();
+    .select({
+      leaseExpiresAt: deliveryRecords.leaseExpiresAt,
+      outcome: deliveryRecords.outcome,
+    })
+    .from(deliveryRecords)
+    .where(eq(deliveryRecords.fingerprint, fingerprint))
+    .get();
   if (existing?.outcome === 'delivered') {
     return { kind: 'delivered' };
   }
@@ -55,7 +64,7 @@ export async function claimDelivery(
       kind: 'pending',
       retryAfterSeconds: Math.max(
         1,
-        (existing.lease_expires_at ?? nowSeconds + 1) - nowSeconds,
+        (existing.leaseExpiresAt ?? nowSeconds + 1) - nowSeconds,
       ),
     };
   }
@@ -63,34 +72,35 @@ export async function claimDelivery(
 }
 
 export async function completeDelivery(
-  database: D1Database,
+  database: GatewayD1Database,
   fingerprint: string,
   outcome: 'delivered' | 'rejected',
   reasonCategory: string | undefined,
   expiresAt: number,
 ): Promise<void> {
   await database
-    .prepare(
-      `UPDATE delivery_records
-       SET outcome = ?2,
-           lease_expires_at = NULL,
-           expires_at = ?3,
-           reason_category = ?4
-       WHERE fingerprint = ?1`,
-    )
-    .bind(fingerprint, outcome, expiresAt, reasonCategory ?? null)
+    .update(deliveryRecords)
+    .set({
+      expiresAt,
+      leaseExpiresAt: null,
+      outcome,
+      reasonCategory: reasonCategory ?? null,
+    })
+    .where(eq(deliveryRecords.fingerprint, fingerprint))
     .run();
 }
 
 export async function releaseDelivery(
-  database: D1Database,
+  database: GatewayD1Database,
   fingerprint: string,
 ): Promise<void> {
   await database
-    .prepare(
-      `DELETE FROM delivery_records
-       WHERE fingerprint = ?1 AND outcome = 'pending'`,
+    .delete(deliveryRecords)
+    .where(
+      and(
+        eq(deliveryRecords.fingerprint, fingerprint),
+        eq(deliveryRecords.outcome, 'pending'),
+      ),
     )
-    .bind(fingerprint)
     .run();
 }

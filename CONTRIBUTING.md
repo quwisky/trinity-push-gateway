@@ -13,12 +13,23 @@ Run the complete repository gate before opening a pull request:
 pnpm nx format:check --all
 pnpm nx run push-gateway:check
 pnpm nx run push-gateway:check-bun
+pnpm nx run push-gateway-ui:check
 pnpm nx run push-gateway-docs:check
 ```
 
-Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, `pnpm nx run push-gateway:dev`, and `pnpm nx run push-gateway-docs:serve`. The official ESLint and Vitest plugins infer the project-scoped `lint` and run-mode `test` targets; Wrangler, Bun, VitePress, TypeScript, migration, coverage, bundle-policy, and aggregate targets remain explicit. Nx uses only its local cache; deployment, migration, development-server, release, and Docker-daemon operations are never cached.
+Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, `pnpm nx run push-gateway:dev`, `pnpm nx run push-gateway-ui:serve`, `pnpm nx run push-gateway-ui:generate-api`, and `pnpm nx run push-gateway-docs:serve`. The official ESLint plugin infers project-scoped `lint`; Angular's native Vitest builder owns the UI `test` target, while the Nx Vitest plugin infers run-mode tests for the other projects. Wrangler, Bun, VitePress, TypeScript, migration, coverage, generated-client drift, bundle-policy, and aggregate targets remain explicit. Nx uses only its local cache; source generation, deployment, migration, development-server, release, and Docker-daemon operations are never cached.
 
 Pull-request and `master` CI use Nx affected execution. Shared dependencies, workspace configuration, Compose, and CI configuration affect `push-gateway`; documentation changes run `push-gateway-docs:check` while skipping unrelated gateway and container work. After successful `master` CI, the dedicated Pages workflow publishes `/next/` and, for a verified Release Please tag, the write-once release version plus `/latest/`.
+
+## Database migrations
+
+The D1 and Bun adapters share one Drizzle SQLite schema and one reviewed migration lineage. After changing `apps/push-gateway/src/schema.ts`, generate the next migration with an explicit name:
+
+```sh
+pnpm nx run push-gateway:generate-migration --name=add_delivery_note
+```
+
+The target runs the D1 and Bun generation profiles sequentially and inserts `-- minimum-reader: <previous migration filename>` as the first line. Review the SQL rather than applying it with `drizzle-kit push` or a Drizzle runtime migrator. Keep migrations expand-first, verify the generated minimum-reader metadata, and retain required physical SQLite clauses such as `WITHOUT ROWID` that Drizzle cannot model. Wrangler remains the D1 runner, while Bun keeps its compatibility-aware startup runner. `push-gateway:check-migrations` validates both profiles, the snapshot lineage, the immutable initial migration, and no-op regeneration.
 
 ## Commits and pull requests
 

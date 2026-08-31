@@ -6,12 +6,102 @@ import type { FcmDelivery } from '../src/fcm';
 import type { Env } from '../src/cloudflare-env';
 import worker, { createGateway } from '../src/index';
 
+const NOTIFY_URL = 'https://gateway.test/_matrix/push/v1/notify';
+
+type ValidClientInstallation = Readonly<{
+  app_id: string;
+  data: Readonly<{
+    format: string;
+    trinity_account_id: string;
+    trinity_push_version: string;
+  }>;
+  pushkey: string;
+}>;
+
+function notifyRequest(body: unknown): Request {
+  return new Request(NOTIFY_URL, {
+    body: JSON.stringify(body),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  });
+}
+
+function validClientInstallation(): ValidClientInstallation {
+  return {
+    app_id: 'ovh.qwky.trinity.android',
+    data: {
+      format: 'event_id_only',
+      trinity_account_id: 'account-route',
+      trinity_push_version: '1',
+    },
+    pushkey: 'fcm-push-key',
+  };
+}
+
+function recordingGateway(): {
+  readonly deliveries: FcmDelivery[];
+  readonly gateway: ReturnType<typeof createGateway>;
+} {
+  const deliveries: FcmDelivery[] = [];
+  const gateway = createGateway({
+    fcmClient: {
+      async send(delivery: FcmDelivery) {
+        deliveries.push(delivery);
+        return { kind: 'delivered' as const };
+      },
+    },
+    now: () => 2_000_000_000_000,
+  });
+
+  return { deliveries, gateway };
+}
+
 describe('gateway HTTP boundary', () => {
   beforeEach(async () => {
     await env.TRINITY_PUSH_GATEWAY_DB.batch([
       env.TRINITY_PUSH_GATEWAY_DB.prepare('DELETE FROM delivery_records'),
       env.TRINITY_PUSH_GATEWAY_DB.prepare('DELETE FROM daily_budgets'),
     ]);
+  });
+
+  it('records fixed outcomes only for actual FCM calls and not terminal dedup reads', async () => {
+    let now = 2_000_000_000_000;
+    const requests: string[] = [];
+    const attempts: (readonly [string, string, number])[] = [];
+    const gateway = createGateway({
+      fcmClient: {
+        async send() {
+          now += 249;
+          return { kind: 'delivered' as const };
+        },
+      },
+      metrics: {
+        recordFcmAttempt(platform, outcome, latencyMs) {
+          attempts.push([platform, outcome, latencyMs]);
+        },
+        recordRequest(outcome) {
+          requests.push(outcome);
+        },
+      },
+      now: () => now,
+    });
+    const request = (): Request =>
+      notifyRequest({
+        notification: {
+          devices: [validClientInstallation()],
+          event_id: '$metrics-event:example.test',
+          room_id: '!metrics-room:example.test',
+        },
+      });
+
+    expect(
+      (await gateway.fetch(request(), env, createExecutionContext())).status,
+    ).toBe(200);
+    expect(
+      (await gateway.fetch(request(), env, createExecutionContext())).status,
+    ).toBe(200);
+    expect(requests).toEqual(['processed', 'processed']);
+    expect(attempts).toEqual([['android', 'accepted', 249]]);
   });
 
   it('reports its version and readiness without contacting FCM', async () => {
@@ -70,6 +160,23 @@ describe('gateway HTTP boundary', () => {
     });
   });
 
+  it('normalizes invalid configuration for the Matrix POST boundary', async () => {
+    const response = await worker.fetch(
+      notifyRequest({ notification: { devices: [] } }),
+      {
+        ...env,
+        TRINITY_PUSH_GATEWAY_MAX_DEVICES: '50',
+      },
+      createExecutionContext(),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      errcode: 'M_UNKNOWN',
+      error: 'Gateway is not configured.',
+    });
+  });
+
   it('uses the Matrix unrecognized error for an unsupported method', async () => {
     const response = await worker.fetch(
       new Request('https://gateway.test/_matrix/push/v1/notify'),
@@ -119,6 +226,240 @@ describe('gateway HTTP boundary', () => {
       error: 'Invalid Matrix notification request.',
     });
   });
+
+  it.each([
+    ['missing devices', {}],
+    ['non-array devices', { devices: {} }],
+    ['null counts', { counts: null, devices: [] }],
+    ['negative unread count', { counts: { unread: -1 }, devices: [] }],
+    [
+      'fractional missed-call count',
+      { counts: { missed_calls: 0.5 }, devices: [] },
+    ],
+    [
+      'unsafe unread count',
+      { counts: { unread: 9_007_199_254_740_992 }, devices: [] },
+    ],
+    ['unsupported priority', { devices: [], prio: 'urgent' }],
+    ['event without a room', { devices: [], event_id: '$event:example.test' }],
+    ['non-string room', { devices: [], room_id: 42 }],
+  ] satisfies readonly [string, unknown][])(
+    'uses the generic Matrix error for %s',
+    async (_description, notification) => {
+      const response = await worker.fetch(
+        notifyRequest({ notification }),
+        env,
+        createExecutionContext(),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        errcode: 'M_BAD_JSON',
+        error: 'Invalid Matrix notification request.',
+      });
+    },
+  );
+
+  it('preserves loose fields, schema bounds, and notification defaults', async () => {
+    const { deliveries, gateway } = recordingGateway();
+    const accountRoute = `A_-${'a'.repeat(45)}`;
+    const pushKey = '😀'.repeat(2048);
+    const response = await gateway.fetch(
+      notifyRequest({
+        future_root_field: true,
+        notification: {
+          counts: { future_count_field: true },
+          devices: [
+            {
+              app_id: 'ovh.qwky.trinity.android',
+              data: {
+                format: 'event_id_only',
+                future_data_field: true,
+                trinity_account_id: accountRoute,
+                trinity_push_version: '1',
+              },
+              future_client_installation_field: true,
+              pushkey: pushKey,
+              tweaks: 7,
+            },
+          ],
+          event_id: '$event:example.test',
+          future_notification_field: true,
+          room_id: '!room:example.test',
+        },
+      }),
+      env,
+      createExecutionContext(),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ rejected: [] });
+    expect(deliveries).toEqual([
+      {
+        accountRoute,
+        eventId: '$event:example.test',
+        kind: 'event',
+        missedCalls: 0,
+        platform: 'android',
+        priority: 'high',
+        pushKey,
+        roomId: '!room:example.test',
+        sound: false,
+        unread: 0,
+      },
+    ]);
+  });
+
+  it('accepts an array counts value and applies zero-count defaults', async () => {
+    const { deliveries, gateway } = recordingGateway();
+    const response = await gateway.fetch(
+      notifyRequest({
+        notification: { counts: [], devices: [validClientInstallation()] },
+      }),
+      env,
+      createExecutionContext(),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ rejected: [] });
+    expect(deliveries).toEqual([
+      {
+        accountRoute: 'account-route',
+        kind: 'counts',
+        missedCalls: 0,
+        platform: 'android',
+        priority: 'low',
+        pushKey: 'fcm-push-key',
+        sound: false,
+        unread: 0,
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      'non-string app ID',
+      { ...validClientInstallation(), app_id: 7 },
+      'fcm-push-key',
+    ],
+    [
+      'unsupported app ID',
+      { ...validClientInstallation(), app_id: 'future.app' },
+      'fcm-push-key',
+    ],
+    [
+      'non-object data',
+      { ...validClientInstallation(), data: null },
+      'fcm-push-key',
+    ],
+    [
+      'unsupported data format',
+      {
+        ...validClientInstallation(),
+        data: { ...validClientInstallation().data, format: 'full' },
+      },
+      'fcm-push-key',
+    ],
+    [
+      'non-string account route',
+      {
+        ...validClientInstallation(),
+        data: {
+          ...validClientInstallation().data,
+          trinity_account_id: 7,
+        },
+      },
+      'fcm-push-key',
+    ],
+    [
+      'empty account route',
+      {
+        ...validClientInstallation(),
+        data: { ...validClientInstallation().data, trinity_account_id: '' },
+      },
+      'fcm-push-key',
+    ],
+    [
+      'non-base64url account route',
+      {
+        ...validClientInstallation(),
+        data: {
+          ...validClientInstallation().data,
+          trinity_account_id: 'matrix user id',
+        },
+      },
+      'fcm-push-key',
+    ],
+    [
+      'account route longer than 48 characters',
+      {
+        ...validClientInstallation(),
+        data: {
+          ...validClientInstallation().data,
+          trinity_account_id: 'a'.repeat(49),
+        },
+      },
+      'fcm-push-key',
+    ],
+    [
+      'non-string push version',
+      {
+        ...validClientInstallation(),
+        data: {
+          ...validClientInstallation().data,
+          trinity_push_version: 1,
+        },
+      },
+      'fcm-push-key',
+    ],
+    [
+      'unsupported push version',
+      {
+        ...validClientInstallation(),
+        data: {
+          ...validClientInstallation().data,
+          trinity_push_version: '2',
+        },
+      },
+      'fcm-push-key',
+    ],
+    ['empty push key', { ...validClientInstallation(), pushkey: '' }, ''],
+    [
+      'push key longer than 4096 characters',
+      { ...validClientInstallation(), pushkey: 'p'.repeat(4097) },
+      'p'.repeat(4097),
+    ],
+    [
+      'push key longer than 4096 UTF-16 code units',
+      { ...validClientInstallation(), pushkey: '😀'.repeat(2049) },
+      '😀'.repeat(2049),
+    ],
+    [
+      'non-string push key',
+      { ...validClientInstallation(), pushkey: 7 },
+      undefined,
+    ],
+  ] satisfies readonly [
+    string,
+    Readonly<Record<string, unknown>>,
+    string | undefined,
+  ][])(
+    'rejects a client installation with %s',
+    async (_description, clientInstallation, rejectedPushKey) => {
+      const { deliveries, gateway } = recordingGateway();
+      const response = await gateway.fetch(
+        notifyRequest({ notification: { devices: [clientInstallation] } }),
+        env,
+        createExecutionContext(),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        rejected: rejectedPushKey === undefined ? [] : [rejectedPushKey],
+      });
+      expect(deliveries).toEqual([]);
+    },
+  );
 
   it('starts the complete notification deadline at request entry', async () => {
     let clockReads = 0;

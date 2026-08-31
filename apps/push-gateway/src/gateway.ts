@@ -1,20 +1,4 @@
-import {
-  array,
-  literal,
-  looseObject,
-  maxLength,
-  minLength,
-  minValue,
-  number,
-  optional,
-  picklist,
-  pipe,
-  regex,
-  safeInteger,
-  safeParse,
-  string,
-  unknown as unknownValue,
-} from 'valibot';
+import * as z from 'zod/mini';
 
 import { version as gatewayVersion } from '../../../package.json';
 
@@ -31,44 +15,47 @@ import type {
   FcmOutcome,
 } from './fcm';
 import type { GatewayStore, SourceLimiter } from './ports';
+import type { GatewayMetricsSink } from './metrics';
 
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
 } as const;
 const NOTIFY_PATH = '/_matrix/push/v1/notify';
-const NON_NEGATIVE_INTEGER_SCHEMA = pipe(number(), safeInteger(), minValue(0));
-const NOTIFICATION_REQUEST_SCHEMA = looseObject({
-  notification: looseObject({
-    counts: optional(
-      looseObject({
-        missed_calls: optional(NON_NEGATIVE_INTEGER_SCHEMA),
-        unread: optional(NON_NEGATIVE_INTEGER_SCHEMA),
-      }),
-    ),
-    devices: array(unknownValue()),
-    event_id: optional(string()),
-    prio: optional(picklist(['high', 'low'])),
-    room_id: optional(string()),
+const NON_NEGATIVE_INTEGER_SCHEMA = z.int().check(z.nonnegative());
+const COUNTS_OBJECT_SCHEMA = z.looseObject({
+  missed_calls: z.optional(NON_NEGATIVE_INTEGER_SCHEMA),
+  unread: z.optional(NON_NEGATIVE_INTEGER_SCHEMA),
+});
+const COUNTS_SCHEMA = z.union([COUNTS_OBJECT_SCHEMA, z.array(z.unknown())]);
+const NOTIFICATION_REQUEST_SCHEMA = z.looseObject({
+  notification: z.looseObject({
+    counts: z.optional(COUNTS_SCHEMA),
+    devices: z.array(z.unknown()),
+    event_id: z.optional(z.string()),
+    prio: z.optional(z.enum(['high', 'low'])),
+    room_id: z.optional(z.string()),
   }),
 });
-const DEVICE_SCHEMA = looseObject({
-  app_id: string(),
-  data: looseObject({
-    format: literal('event_id_only'),
-    trinity_account_id: pipe(
-      string(),
-      regex(/^[A-Za-z0-9_-]+$/u),
-      maxLength(48),
-    ),
-    trinity_push_version: literal('1'),
+const CLIENT_INSTALLATION_SCHEMA = z.looseObject({
+  app_id: z.string(),
+  data: z.looseObject({
+    format: z.literal('event_id_only'),
+    trinity_account_id: z
+      .string()
+      .check(z.regex(/^[A-Za-z0-9_-]+$/u), z.maxLength(48)),
+    trinity_push_version: z.literal('1'),
   }),
-  pushkey: pipe(string(), minLength(1), maxLength(4096)),
-  tweaks: optional(unknownValue()),
+  pushkey: z.string().check(
+    z.minLength(1),
+    z.refine<string>((value) => value.length <= 4096),
+  ),
+  tweaks: z.optional(z.unknown()),
 });
 
 export type GatewayDependencies = {
   readonly fcmClient?: FcmClient;
   readonly log?: (event: GatewayLog) => void;
+  readonly metrics?: GatewayMetricsSink;
   readonly now: () => number;
 };
 
@@ -109,8 +96,8 @@ type ParsedNotification = {
 };
 
 type DeliveryEntry = {
+  readonly clientInstallation: Readonly<Record<string, unknown>>;
   readonly delivery: FcmDelivery;
-  readonly device: Readonly<Record<string, unknown>>;
 };
 
 type ProcessedOutcome =
@@ -254,28 +241,31 @@ async function readJsonBody(
 }
 
 function parseNotification(body: unknown): ParsedNotification | undefined {
-  const result = safeParse(NOTIFICATION_REQUEST_SCHEMA, body);
+  const result = z.safeParse(NOTIFICATION_REQUEST_SCHEMA, body);
   if (!result.success) {
     return undefined;
   }
-  const notification = result.output.notification;
+  const notification = result.data.notification;
   if (
     notification.event_id !== undefined &&
     notification.room_id === undefined
   ) {
     return undefined;
   }
+  const counts = Array.isArray(notification.counts)
+    ? undefined
+    : notification.counts;
   return {
     devices: notification.devices,
     ...(notification.event_id === undefined
       ? {}
       : { eventId: notification.event_id }),
-    missedCalls: notification.counts?.missed_calls ?? 0,
+    missedCalls: counts?.missed_calls ?? 0,
     priority: notification.prio === 'low' ? 'low' : 'high',
     ...(notification.room_id === undefined
       ? {}
       : { roomId: notification.room_id }),
-    unread: notification.counts?.unread ?? 0,
+    unread: counts?.unread ?? 0,
   };
 }
 
@@ -293,22 +283,24 @@ function platformFor(
 }
 
 function deliveryFor(
-  device: unknown,
+  clientInstallation: unknown,
   notification: ParsedNotification,
   env: ConfigurationEnvironment,
 ): FcmDelivery | undefined {
-  const result = safeParse(DEVICE_SCHEMA, device);
+  const result = z.safeParse(CLIENT_INSTALLATION_SCHEMA, clientInstallation);
   if (!result.success) {
     return undefined;
   }
-  const parsedDevice = result.output;
-  const platform = platformFor(parsedDevice.app_id, env);
+  const parsedClientInstallation = result.data;
+  const platform = platformFor(parsedClientInstallation.app_id, env);
   if (platform === undefined) {
     return undefined;
   }
-  const tweaks = isRecord(parsedDevice.tweaks) ? parsedDevice.tweaks : {};
+  const tweaks = isRecord(parsedClientInstallation.tweaks)
+    ? parsedClientInstallation.tweaks
+    : {};
   const deliveryBase = {
-    accountRoute: parsedDevice.data.trinity_account_id,
+    accountRoute: parsedClientInstallation.data.trinity_account_id,
     ...(typeof tweaks.highlight === 'boolean'
       ? { highlight: tweaks.highlight }
       : {}),
@@ -316,7 +308,7 @@ function deliveryFor(
     platform,
     priority:
       notification.eventId === undefined ? 'low' : notification.priority,
-    pushKey: parsedDevice.pushkey,
+    pushKey: parsedClientInstallation.pushkey,
     sound:
       notification.eventId !== undefined && typeof tweaks.sound === 'string',
     unread: notification.unread,
@@ -365,17 +357,18 @@ async function processDelivery(
   env: GatewayRuntimeEnvironment,
   config: RuntimeConfig,
   fcmClient: FcmClient,
-  now: number,
+  metrics: GatewayMetricsSink | undefined,
+  now: () => number,
   deadlineMs: number,
 ): Promise<ProcessedOutcome> {
-  const { delivery, device } = entry;
-  const nowSeconds = Math.floor(now / 1000);
+  const { clientInstallation, delivery } = entry;
+  const nowSeconds = Math.floor(now() / 1000);
   const claim =
     delivery.kind === 'event'
       ? await env.store.claimDelivery(
           {
             accountRoute: delivery.accountRoute,
-            appId: String(device.app_id),
+            appId: String(clientInstallation.app_id),
             eventId: delivery.eventId,
             pushKey: delivery.pushKey,
           },
@@ -394,7 +387,22 @@ async function processDelivery(
     return claim;
   }
 
+  const attemptStartedAt = now();
   const outcome = await fcmClient.send(delivery, deadlineMs);
+  try {
+    metrics?.recordFcmAttempt(
+      delivery.platform,
+      outcome.kind === 'delivered'
+        ? 'accepted'
+        : outcome.kind === 'rejected'
+          ? 'permanentlyRejected'
+          : 'transientFailure',
+      Math.max(0, now() - attemptStartedAt),
+      attemptStartedAt,
+    );
+  } catch {
+    // Observability is deliberately best effort on the notification hot path.
+  }
   if (outcome.kind === 'rejected' && claim?.kind === 'acquired') {
     await env.store.completeDelivery(
       claim.fingerprint,
@@ -425,6 +433,20 @@ export function createRuntimeGateway(
       const requestStartedAt = dependencies.now();
       const url = new URL(request.url);
       const config = runtimeConfig(env);
+      let requestMetricRecorded = false;
+      const recordRequest = (
+        outcome: Parameters<GatewayMetricsSink['recordRequest']>[0],
+      ): void => {
+        if (requestMetricRecorded) {
+          return;
+        }
+        requestMetricRecorded = true;
+        try {
+          dependencies.metrics?.recordRequest(outcome, requestStartedAt);
+        } catch {
+          // Metrics must never alter a Matrix response.
+        }
+      };
 
       if (request.method === 'GET' && url.pathname === '/health') {
         const ready = config !== undefined && (await env.store.ready());
@@ -438,6 +460,7 @@ export function createRuntimeGateway(
       }
 
       if (url.pathname === NOTIFY_PATH && request.method !== 'POST') {
+        recordRequest('invalid');
         return matrixError(405, 'M_UNRECOGNIZED', 'Method not allowed.');
       }
 
@@ -446,16 +469,18 @@ export function createRuntimeGateway(
       }
 
       if (config === undefined) {
+        recordRequest('storageUnavailable');
         return matrixError(503, 'M_UNKNOWN', 'Gateway is not configured.');
       }
 
       const deadlineMs =
         requestStartedAt + config.requestDeadlineSeconds * 1000;
       const abortController = new AbortController();
-      return responseBeforeDeadline(
+      const response = await responseBeforeDeadline(
         async () => {
           const sourceLimit = await env.limiter.limit(env.sourceKey(request));
           if (!sourceLimit.success) {
+            recordRequest('rateLimited');
             return rateLimitResponse(
               'Source rate limit exceeded.',
               sourceLimit.retryAfterSeconds * 1000,
@@ -468,6 +493,7 @@ export function createRuntimeGateway(
             abortController.signal,
           );
           if (jsonBody.kind === 'too-large') {
+            recordRequest('invalid');
             return matrixError(
               413,
               'M_TOO_LARGE',
@@ -475,6 +501,7 @@ export function createRuntimeGateway(
             );
           }
           if (jsonBody.kind === 'invalid') {
+            recordRequest('invalid');
             return matrixError(
               400,
               'M_NOT_JSON',
@@ -484,6 +511,7 @@ export function createRuntimeGateway(
 
           const notification = parseNotification(jsonBody.value);
           if (notification === undefined) {
+            recordRequest('invalid');
             return matrixError(
               400,
               'M_BAD_JSON',
@@ -491,6 +519,7 @@ export function createRuntimeGateway(
             );
           }
           if (notification.devices.length > config.maxDevices) {
+            recordRequest('invalid');
             return matrixError(
               413,
               'M_TOO_LARGE',
@@ -500,14 +529,17 @@ export function createRuntimeGateway(
 
           const rejected: string[] = [];
           const deliveries: DeliveryEntry[] = [];
-          for (const device of notification.devices) {
-            const delivery = deliveryFor(device, notification, env);
+          for (const clientInstallation of notification.devices) {
+            const delivery = deliveryFor(clientInstallation, notification, env);
             if (delivery === undefined) {
-              if (isRecord(device) && typeof device.pushkey === 'string') {
-                rejected.push(device.pushkey);
+              if (
+                isRecord(clientInstallation) &&
+                typeof clientInstallation.pushkey === 'string'
+              ) {
+                rejected.push(clientInstallation.pushkey);
               }
-            } else if (isRecord(device)) {
-              deliveries.push({ delivery, device });
+            } else if (isRecord(clientInstallation)) {
+              deliveries.push({ clientInstallation, delivery });
             }
           }
           const now = requestStartedAt;
@@ -529,6 +561,7 @@ export function createRuntimeGateway(
             config.maxDailyAttempts,
           );
           if (!reserved) {
+            recordRequest('safetyBudgetExhausted');
             const date = new Date(now);
             const nextMidnight = Date.UTC(
               date.getUTCFullYear(),
@@ -555,6 +588,7 @@ export function createRuntimeGateway(
               deadlineMs
             ) {
               logOutcome(delivered, deliveries.length - offset);
+              recordRequest('processed');
               return matrixError(
                 502,
                 'M_UNKNOWN',
@@ -569,7 +603,8 @@ export function createRuntimeGateway(
                   env,
                   config,
                   fcmClient,
-                  dependencies.now(),
+                  dependencies.metrics,
+                  dependencies.now,
                   deadlineMs,
                 ),
               ),
@@ -601,11 +636,13 @@ export function createRuntimeGateway(
             }
             if (retryResponse !== undefined) {
               logOutcome(delivered, retryable);
+              recordRequest('processed');
               return retryResponse;
             }
           }
 
           logOutcome(delivered, retryable);
+          recordRequest('processed');
           return Response.json(
             { rejected },
             { headers: JSON_HEADERS, status: 200 },
@@ -617,6 +654,8 @@ export function createRuntimeGateway(
           abortController.abort();
         },
       );
+      recordRequest('processed');
+      return response;
     },
     async cleanup(env, now): Promise<void> {
       const nowSeconds = Math.floor(now / 1000);

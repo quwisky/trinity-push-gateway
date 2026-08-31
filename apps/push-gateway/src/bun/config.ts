@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { runtimeConfig, type ConfigurationEnvironment } from '../config';
 import {
@@ -9,10 +10,25 @@ import {
   trustedProxyConfigurationValid,
   type ClientIpHeader,
 } from './client-address';
+import {
+  loadAdminConfiguration,
+  type AdminConfigurationState,
+} from './admin/config';
+
+export type CredentialSource = 'env' | 'file';
+
+export type GatewayCredentialSources = Readonly<{
+  firebaseClientEmail: CredentialSource;
+  firebasePrivateKey: CredentialSource;
+  firebaseProjectId: CredentialSource;
+  fingerprintKey: CredentialSource;
+}>;
 
 export type BunConfiguration = {
+  readonly administration: AdminConfigurationState;
   readonly cleanupIntervalSeconds: number;
   readonly clientIpHeader: ClientIpHeader;
+  readonly credentialSources: GatewayCredentialSources;
   readonly databasePath: string;
   readonly environment: ConfigurationEnvironment;
   readonly host: string;
@@ -51,6 +67,13 @@ function credential(environment: Environment, name: string): string {
     return value;
   }
   return required(environment, name);
+}
+
+function credentialSource(
+  environment: Environment,
+  name: string,
+): CredentialSource {
+  return environment[`${name}_FILE`] === undefined ? 'env' : 'file';
 }
 
 function positiveInteger(
@@ -175,17 +198,44 @@ export function loadBunConfiguration(
       'TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS contains an invalid network.',
     );
   }
+  const databasePath =
+    environment.TRINITY_PUSH_GATEWAY_DATABASE_PATH ??
+    BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_DATABASE_PATH;
+  const loadedAdministration = loadAdminConfiguration(environment);
+  const administration =
+    loadedAdministration.kind === 'enabled' &&
+    path.resolve(loadedAdministration.configuration.databasePath) ===
+      path.resolve(databasePath)
+      ? ({ kind: 'invalid' } as const)
+      : loadedAdministration;
 
   return {
+    administration,
     cleanupIntervalSeconds: positiveInteger(
       environment,
       'TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS',
       BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_CLEANUP_INTERVAL_SECONDS,
     ),
     clientIpHeader,
-    databasePath:
-      environment.TRINITY_PUSH_GATEWAY_DATABASE_PATH ??
-      BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_DATABASE_PATH,
+    credentialSources: {
+      firebaseClientEmail: credentialSource(
+        environment,
+        'TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL',
+      ),
+      firebasePrivateKey: credentialSource(
+        environment,
+        'TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY',
+      ),
+      firebaseProjectId: credentialSource(
+        environment,
+        'TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID',
+      ),
+      fingerprintKey: credentialSource(
+        environment,
+        'TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY',
+      ),
+    },
+    databasePath,
     environment: runtimeEnvironment,
     host:
       environment.TRINITY_PUSH_GATEWAY_HOST ??

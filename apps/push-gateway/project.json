@@ -16,25 +16,115 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/apps/push-gateway/bun"],
       "options": {
-        "command": "bun build src/bun/main.ts --target bun --outdir ../../dist/apps/push-gateway/bun",
+        "command": "bun build src/bun/main.ts src/bun/metrics-writer.worker.ts --target bun --minify --sourcemap=none --outdir ../../dist/apps/push-gateway/bun --metafile=../../dist/apps/push-gateway/bun/meta.json",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "build-auth-selection": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/push-gateway/auth-selection"],
+      "options": {
+        "command": "bun build --target=bun --minify --outfile=../../dist/apps/push-gateway/auth-selection/index.js --metafile=../../dist/apps/push-gateway/auth-selection/meta.json src/bun/auth/oidc-client.ts",
         "cwd": "apps/push-gateway"
       }
     },
     "check": {
       "executor": "nx:noop",
       "cache": false,
-      "dependsOn": ["lint", "typecheck", "test-coverage", "check-bundle"]
+      "dependsOn": [
+        "lint",
+        "typecheck",
+        "test-coverage",
+        "check-migrations",
+        "check-bundle",
+        "check-openapi"
+      ]
     },
     "check-bun": {
       "executor": "nx:noop",
       "cache": false,
-      "dependsOn": ["typecheck-bun", "test-bun", "build-bun"]
+      "dependsOn": [
+        "typecheck-bun",
+        "test-bun",
+        "build-bun",
+        "smoke-metrics-worker",
+        "check-auth-selection",
+        "check-container-contract",
+        "check-provider-contract",
+        "check-migrations"
+      ]
+    },
+    "check-auth-selection": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build-auth-selection", "build-bun"],
+      "options": {
+        "command": "node scripts/check-auth-selection.mjs",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "smoke-metrics-worker": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build-bun"],
+      "options": {
+        "command": "bun scripts/smoke-metrics-worker.mjs",
+        "cwd": "apps/push-gateway"
+      }
     },
     "check-bundle": {
       "executor": "nx:run-commands",
       "options": {
         "command": "node scripts/check-bundle.mjs",
         "cwd": "apps/push-gateway"
+      }
+    },
+    "check-container-contract": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/.dockerignore",
+        "{workspaceRoot}/.env.self-host-admin.example",
+        "{workspaceRoot}/compose.admin.yml",
+        "{workspaceRoot}/compose.yml"
+      ],
+      "options": {
+        "command": "node apps/push-gateway/scripts/check-container-contract.mjs"
+      }
+    },
+    "check-provider-contract": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/.github/workflows/provider-compatibility.yml"
+      ],
+      "options": {
+        "command": "node apps/push-gateway/scripts/check-provider-contract.mjs"
+      }
+    },
+    "benchmark-admin-isolation": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "outputs": ["{workspaceRoot}/test-output/benchmarks/admin-isolation.md"],
+      "options": {
+        "command": "mkdir -p ../../test-output/benchmarks && bun scripts/benchmark-admin-isolation.ts > ../../test-output/benchmarks/admin-isolation.md && cat ../../test-output/benchmarks/admin-isolation.md",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "check-openapi": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "{workspaceRoot}/redocly.yaml"],
+      "options": {
+        "command": "redocly lint --config ../../redocly.yaml admin@v1",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "check-migrations": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "options": {
+        "command": "node apps/push-gateway/scripts/check-migrations.mjs"
       }
     },
     "deploy": {
@@ -70,10 +160,25 @@
         "cwd": "apps/push-gateway"
       }
     },
+    "generate-migration": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node apps/push-gateway/scripts/generate-migration.mjs"
+      }
+    },
     "test-bun": {
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test test/bun",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "test-oidc-provider": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test test/bun/auth test/bun/admin/app.spec.ts",
         "cwd": "apps/push-gateway"
       }
     },
@@ -88,7 +193,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
+        "command": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json && tsc --noEmit --project tsconfig.tooling.json",
         "cwd": "apps/push-gateway"
       }
     },

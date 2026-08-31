@@ -1,0 +1,803 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "aa7fd94b-4d4b-451d-b1f8-9532620d77e1",
+  "prevId": "4c92f833-3253-4ac2-b0a0-aac73b8aef4c",
+  "tables": {
+    "fcm_metrics_hourly": {
+      "name": "fcm_metrics_hourly",
+      "columns": {
+        "hour": {
+          "name": "hour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "platform": {
+          "name": "platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempted": {
+          "name": "attempted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "accepted": {
+          "name": "accepted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "permanently_rejected": {
+          "name": "permanently_rejected",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "transient_failure": {
+          "name": "transient_failure",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_under_100": {
+          "name": "latency_under_100",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_100_to_249": {
+          "name": "latency_100_to_249",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_250_to_499": {
+          "name": "latency_250_to_499",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_500_to_999": {
+          "name": "latency_500_to_999",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_1000_to_2499": {
+          "name": "latency_1000_to_2499",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_2500_to_4999": {
+          "name": "latency_2500_to_4999",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_5000_to_9999": {
+          "name": "latency_5000_to_9999",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "latency_10000_or_more": {
+          "name": "latency_10000_or_more",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "fcm_metrics_hourly_hour_platform_pk": {
+          "columns": ["hour", "platform"],
+          "name": "fcm_metrics_hourly_hour_platform_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "fcm_metrics_hourly_values_check": {
+          "name": "fcm_metrics_hourly_values_check",
+          "value": "\"fcm_metrics_hourly\".\"hour\" >= 0 AND \"fcm_metrics_hourly\".\"hour\" % 3600 = 0\n        AND \"fcm_metrics_hourly\".\"platform\" IN ('android', 'ios')\n        AND \"fcm_metrics_hourly\".\"attempted\" >= 0\n        AND \"fcm_metrics_hourly\".\"accepted\" >= 0\n        AND \"fcm_metrics_hourly\".\"permanently_rejected\" >= 0\n        AND \"fcm_metrics_hourly\".\"transient_failure\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_under_100\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_100_to_249\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_250_to_499\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_500_to_999\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_1000_to_2499\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_2500_to_4999\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_5000_to_9999\" >= 0\n        AND \"fcm_metrics_hourly\".\"latency_10000_or_more\" >= 0"
+        }
+      }
+    },
+    "oidc_login_attempts": {
+      "name": "oidc_login_attempts",
+      "columns": {
+        "state_digest": {
+          "name": "state_digest",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cookie_digest": {
+          "name": "cookie_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "code_verifier": {
+          "name": "code_verifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "oidc_login_attempts_cookie_digest_idx": {
+          "name": "oidc_login_attempts_cookie_digest_idx",
+          "columns": ["cookie_digest"],
+          "isUnique": true
+        },
+        "oidc_login_attempts_expiry_idx": {
+          "name": "oidc_login_attempts_expiry_idx",
+          "columns": ["expires_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "oidc_login_attempts_expiry_check": {
+          "name": "oidc_login_attempts_expiry_check",
+          "value": "\"oidc_login_attempts\".\"expires_at\" >= 0"
+        },
+        "oidc_login_attempts_values_check": {
+          "name": "oidc_login_attempts_values_check",
+          "value": "length(\"oidc_login_attempts\".\"state_digest\") >= 1\n        AND (\"oidc_login_attempts\".\"cookie_digest\" IS NULL OR length(\"oidc_login_attempts\".\"cookie_digest\") >= 1)\n        AND length(\"oidc_login_attempts\".\"code_verifier\") >= 1\n        AND length(\"oidc_login_attempts\".\"nonce\") >= 1"
+        }
+      }
+    },
+    "operation_leases": {
+      "name": "operation_leases",
+      "columns": {
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lease_id": {
+          "name": "lease_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "acquired_at": {
+          "name": "acquired_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lease_expires_at": {
+          "name": "lease_expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cooldown_ends_at": {
+          "name": "cooldown_ends_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "operation_leases_lease_id_idx": {
+          "name": "operation_leases_lease_id_idx",
+          "columns": ["lease_id"],
+          "isUnique": true
+        },
+        "operation_leases_expiry_idx": {
+          "name": "operation_leases_expiry_idx",
+          "columns": ["lease_expires_at", "cooldown_ends_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "operation_leases_kind_check": {
+          "name": "operation_leases_kind_check",
+          "value": "\"operation_leases\".\"kind\" IN ('firebase_validation', 'cleanup', 'backup')"
+        },
+        "operation_leases_timestamps_check": {
+          "name": "operation_leases_timestamps_check",
+          "value": "\"operation_leases\".\"acquired_at\" >= 0\n        AND \"operation_leases\".\"lease_expires_at\" > \"operation_leases\".\"acquired_at\"\n        AND \"operation_leases\".\"cooldown_ends_at\" >= \"operation_leases\".\"lease_expires_at\""
+        },
+        "operation_leases_values_check": {
+          "name": "operation_leases_values_check",
+          "value": "length(\"operation_leases\".\"lease_id\") BETWEEN 16 AND 128"
+        }
+      }
+    },
+    "operation_results": {
+      "name": "operation_results",
+      "columns": {
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lease_id": {
+          "name": "lease_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "operation_results_lease_fk": {
+          "name": "operation_results_lease_fk",
+          "tableFrom": "operation_results",
+          "tableTo": "operation_leases",
+          "columnsFrom": ["kind"],
+          "columnsTo": ["kind"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "operation_results_values_check": {
+          "name": "operation_results_values_check",
+          "value": "\"operation_results\".\"kind\" IN ('firebase_validation', 'cleanup', 'backup')\n        AND length(\"operation_results\".\"lease_id\") BETWEEN 16 AND 128\n        AND \"operation_results\".\"completed_at\" >= 0\n        AND \"operation_results\".\"outcome\" IN ('succeeded', 'failed', 'outcome_unknown')\n        AND (\"operation_results\".\"reason\" IS NULL OR (\n          length(\"operation_results\".\"reason\") BETWEEN 1 AND 64\n          AND substr(\"operation_results\".\"reason\", 1, 1) GLOB '[a-z]'\n          AND \"operation_results\".\"reason\" NOT GLOB '*[^a-z0-9_]*'\n        ))"
+        }
+      }
+    },
+    "operator_audit_entries": {
+      "name": "operator_audit_entries",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "operator_audit_entries_occurred_idx": {
+          "name": "operator_audit_entries_occurred_idx",
+          "columns": ["occurred_at", "id"],
+          "isUnique": false
+        },
+        "operator_audit_entries_identity_idx": {
+          "name": "operator_audit_entries_identity_idx",
+          "columns": ["issuer", "subject", "occurred_at"],
+          "isUnique": false
+        },
+        "operator_audit_entries_kind_occurred_idx": {
+          "name": "operator_audit_entries_kind_occurred_idx",
+          "columns": ["kind", "occurred_at", "id"],
+          "isUnique": false
+        },
+        "operator_audit_entries_outcome_occurred_idx": {
+          "name": "operator_audit_entries_outcome_occurred_idx",
+          "columns": ["outcome", "occurred_at", "id"],
+          "isUnique": false
+        },
+        "operator_audit_entries_kind_outcome_occurred_idx": {
+          "name": "operator_audit_entries_kind_outcome_occurred_idx",
+          "columns": ["kind", "outcome", "occurred_at", "id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "operator_audit_entries_identity_fk": {
+          "name": "operator_audit_entries_identity_fk",
+          "tableFrom": "operator_audit_entries",
+          "tableTo": "operator_identities",
+          "columnsFrom": ["issuer", "subject"],
+          "columnsTo": ["issuer", "subject"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "operator_audit_entries_identity_check": {
+          "name": "operator_audit_entries_identity_check",
+          "value": "(\"operator_audit_entries\".\"issuer\" IS NULL AND \"operator_audit_entries\".\"subject\" IS NULL)\n        OR (\"operator_audit_entries\".\"issuer\" IS NOT NULL AND \"operator_audit_entries\".\"subject\" IS NOT NULL)"
+        },
+        "operator_audit_entries_kind_check": {
+          "name": "operator_audit_entries_kind_check",
+          "value": "\"operator_audit_entries\".\"kind\" IN ('login', 'logout', 'session_expired', 'session_revoked', 'session_cap_eviction', 'policy_rejected', 'session_purge', 'firebase_validation', 'cleanup', 'backup')"
+        },
+        "operator_audit_entries_outcome_check": {
+          "name": "operator_audit_entries_outcome_check",
+          "value": "\"operator_audit_entries\".\"outcome\" IN ('succeeded', 'failed', 'started', 'outcome_unknown')"
+        },
+        "operator_audit_entries_reason_check": {
+          "name": "operator_audit_entries_reason_check",
+          "value": "\"operator_audit_entries\".\"reason\" IS NULL OR (\n        length(\"operator_audit_entries\".\"reason\") BETWEEN 1 AND 64\n        AND substr(\"operator_audit_entries\".\"reason\", 1, 1) GLOB '[a-z]'\n        AND \"operator_audit_entries\".\"reason\" NOT GLOB '*[^a-z0-9_]*'\n      )"
+        },
+        "operator_audit_entries_values_check": {
+          "name": "operator_audit_entries_values_check",
+          "value": "length(\"operator_audit_entries\".\"id\") BETWEEN 16 AND 128 AND \"operator_audit_entries\".\"occurred_at\" >= 0"
+        }
+      }
+    },
+    "operator_identities": {
+      "name": "operator_identities",
+      "columns": {
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "operator_identities_issuer_subject_pk": {
+          "columns": ["issuer", "subject"],
+          "name": "operator_identities_issuer_subject_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "operator_identities_timestamps_check": {
+          "name": "operator_identities_timestamps_check",
+          "value": "\"operator_identities\".\"created_at\" >= 0 AND \"operator_identities\".\"updated_at\" >= \"operator_identities\".\"created_at\""
+        },
+        "operator_identities_values_check": {
+          "name": "operator_identities_values_check",
+          "value": "length(\"operator_identities\".\"issuer\") BETWEEN 1 AND 2048\n        AND length(\"operator_identities\".\"subject\") BETWEEN 1 AND 512\n        AND (\"operator_identities\".\"display_name\" IS NULL OR length(\"operator_identities\".\"display_name\") BETWEEN 1 AND 256)\n        AND (\"operator_identities\".\"email\" IS NULL OR length(\"operator_identities\".\"email\") BETWEEN 3 AND 320)"
+        }
+      }
+    },
+    "operator_sessions": {
+      "name": "operator_sessions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "session_digest": {
+          "name": "session_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "xsrf_digest": {
+          "name": "xsrf_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idle_expires_at": {
+          "name": "idle_expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "absolute_expires_at": {
+          "name": "absolute_expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "policy_fingerprint": {
+          "name": "policy_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "operator_sessions_session_digest_idx": {
+          "name": "operator_sessions_session_digest_idx",
+          "columns": ["session_digest"],
+          "isUnique": true
+        },
+        "operator_sessions_xsrf_digest_idx": {
+          "name": "operator_sessions_xsrf_digest_idx",
+          "columns": ["xsrf_digest"],
+          "isUnique": true
+        },
+        "operator_sessions_identity_idx": {
+          "name": "operator_sessions_identity_idx",
+          "columns": ["issuer", "subject", "created_at", "id"],
+          "isUnique": false
+        },
+        "operator_sessions_last_seen_idx": {
+          "name": "operator_sessions_last_seen_idx",
+          "columns": ["last_seen_at", "id"],
+          "isUnique": false
+        },
+        "operator_sessions_expiry_idx": {
+          "name": "operator_sessions_expiry_idx",
+          "columns": ["idle_expires_at", "absolute_expires_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "operator_sessions_identity_fk": {
+          "name": "operator_sessions_identity_fk",
+          "tableFrom": "operator_sessions",
+          "tableTo": "operator_identities",
+          "columnsFrom": ["issuer", "subject"],
+          "columnsTo": ["issuer", "subject"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "operator_sessions_timestamps_check": {
+          "name": "operator_sessions_timestamps_check",
+          "value": "\"operator_sessions\".\"created_at\" >= 0\n        AND \"operator_sessions\".\"last_seen_at\" >= \"operator_sessions\".\"created_at\"\n        AND \"operator_sessions\".\"idle_expires_at\" > \"operator_sessions\".\"created_at\"\n        AND \"operator_sessions\".\"absolute_expires_at\" > \"operator_sessions\".\"created_at\"\n        AND \"operator_sessions\".\"idle_expires_at\" <= \"operator_sessions\".\"absolute_expires_at\"\n        AND (\"operator_sessions\".\"revoked_at\" IS NULL OR \"operator_sessions\".\"revoked_at\" >= \"operator_sessions\".\"created_at\")"
+        },
+        "operator_sessions_values_check": {
+          "name": "operator_sessions_values_check",
+          "value": "length(\"operator_sessions\".\"id\") BETWEEN 16 AND 128\n        AND length(\"operator_sessions\".\"session_digest\") >= 1\n        AND length(\"operator_sessions\".\"xsrf_digest\") >= 1\n        AND \"operator_sessions\".\"session_digest\" <> \"operator_sessions\".\"xsrf_digest\"\n        AND length(\"operator_sessions\".\"policy_fingerprint\") >= 1"
+        }
+      }
+    },
+    "request_metrics_hourly": {
+      "name": "request_metrics_hourly",
+      "columns": {
+        "hour": {
+          "name": "hour",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "processed": {
+          "name": "processed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "invalid": {
+          "name": "invalid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "rate_limited": {
+          "name": "rate_limited",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "safety_budget_exhausted": {
+          "name": "safety_budget_exhausted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "storage_unavailable": {
+          "name": "storage_unavailable",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "request_metrics_hourly_values_check": {
+          "name": "request_metrics_hourly_values_check",
+          "value": "\"request_metrics_hourly\".\"hour\" >= 0 AND \"request_metrics_hourly\".\"hour\" % 3600 = 0\n        AND \"request_metrics_hourly\".\"processed\" >= 0\n        AND \"request_metrics_hourly\".\"invalid\" >= 0\n        AND \"request_metrics_hourly\".\"rate_limited\" >= 0\n        AND \"request_metrics_hourly\".\"safety_budget_exhausted\" >= 0\n        AND \"request_metrics_hourly\".\"storage_unavailable\" >= 0"
+        }
+      }
+    },
+    "verified_backups": {
+      "name": "verified_backups",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "verified_backups_name_idx": {
+          "name": "verified_backups_name_idx",
+          "columns": ["name"],
+          "isUnique": true
+        },
+        "verified_backups_created_idx": {
+          "name": "verified_backups_created_idx",
+          "columns": ["created_at", "id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "verified_backups_identity_fk": {
+          "name": "verified_backups_identity_fk",
+          "tableFrom": "verified_backups",
+          "tableTo": "operator_identities",
+          "columnsFrom": ["issuer", "subject"],
+          "columnsTo": ["issuer", "subject"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "verified_backups_values_check": {
+          "name": "verified_backups_values_check",
+          "value": "length(\"verified_backups\".\"id\") BETWEEN 16 AND 128\n        AND length(\"verified_backups\".\"name\") BETWEEN 1 AND 128\n        AND \"verified_backups\".\"name\" NOT LIKE '%/%'\n        AND \"verified_backups\".\"name\" NOT LIKE '%\\%'\n        AND \"verified_backups\".\"created_at\" >= 0\n        AND \"verified_backups\".\"size_bytes\" > 0\n        AND length(\"verified_backups\".\"sha256\") = 64\n        AND lower(\"verified_backups\".\"sha256\") = \"verified_backups\".\"sha256\"\n        AND \"verified_backups\".\"sha256\" NOT GLOB '*[^a-f0-9]*'\n        AND ((\"verified_backups\".\"issuer\" IS NULL AND \"verified_backups\".\"subject\" IS NULL)\n          OR (\"verified_backups\".\"issuer\" IS NOT NULL AND \"verified_backups\".\"subject\" IS NOT NULL))"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

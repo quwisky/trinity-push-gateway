@@ -8,9 +8,19 @@ import {
 } from '../gateway';
 import { clientAddress } from './client-address';
 import type { BunConfiguration } from './config';
+import {
+  createAdministrationRuntime,
+  type AdministrationRuntime,
+  isAdministrationRequest,
+} from './admin/runtime';
+import {
+  adminNotFoundResponse,
+  adminUnavailableResponse,
+} from './admin/responses';
 import { createMemorySourceLimiter } from './source-limiter';
 import { SqliteGatewayStore } from './sqlite-store';
 import type { SqlMigration } from './sqlite-store';
+import type { GatewayMetricsSink } from '../metrics';
 
 type RuntimeEvent = Readonly<Record<string, unknown>>;
 
@@ -19,6 +29,7 @@ type StartOptions = {
   readonly installSignalHandlers?: boolean;
   readonly log?: (event: RuntimeEvent) => void;
   readonly now?: () => number;
+  readonly operationEntryPath?: string;
   readonly shutdownGraceMs?: number;
   readonly terminate?: (exitCode: number) => void;
 };
@@ -46,11 +57,26 @@ export async function startBunGateway(
     now,
     periodSeconds: config.sourcePeriodSeconds,
   });
+  let administration: AdministrationRuntime | undefined;
+  const metrics: GatewayMetricsSink = {
+    recordFcmAttempt(platform, outcome, latencyMs, occurredAtMs): void {
+      administration?.metrics.recordFcmAttempt(
+        platform,
+        outcome,
+        latencyMs,
+        occurredAtMs,
+      );
+    },
+    recordRequest(outcome, occurredAtMs): void {
+      administration?.metrics.recordRequest(outcome, occurredAtMs);
+    },
+  };
   const gateway = createRuntimeGateway({
     ...(options.fcmClient === undefined
       ? {}
       : { fcmClient: options.fcmClient }),
     log,
+    metrics,
     now,
   });
   const directAddresses = new WeakMap<Request, string>();
@@ -78,44 +104,110 @@ export async function startBunGateway(
     store.close();
     throw error;
   }
-
-  const server: Server<undefined> = Bun.serve({
-    async fetch(request, bunServer): Promise<Response> {
-      if (shuttingDown) {
-        return gatewayStorageUnavailableResponse();
-      }
-      activeRequests += 1;
-      const directAddress = bunServer.requestIP(request)?.address;
-      if (directAddress !== undefined) {
-        directAddresses.set(request, directAddress);
-      }
-      try {
-        return await gateway.fetch(request, runtimeEnvironment);
-      } catch {
-        log({ event: 'storage_failure', outcome: 'retryable' });
-        return gatewayStorageUnavailableResponse();
-      } finally {
-        directAddresses.delete(request);
-        activeRequests -= 1;
-        if (activeRequests === 0) {
-          for (const resolve of drainWaiters) {
-            resolve();
-          }
-          drainWaiters.clear();
+  let gatewayReady = true;
+  let administrationClosed = false;
+  let server: Server<undefined>;
+  try {
+    server = Bun.serve({
+      async fetch(request, bunServer): Promise<Response> {
+        const administrationRequest = isAdministrationRequest(request);
+        if (shuttingDown) {
+          return administrationRequest
+            ? adminUnavailableResponse()
+            : gatewayStorageUnavailableResponse();
         }
+        activeRequests += 1;
+        const directAddress = bunServer.requestIP(request)?.address;
+        if (directAddress !== undefined) {
+          directAddresses.set(request, directAddress);
+        }
+        try {
+          if (administrationRequest) {
+            if (administration === undefined) {
+              return config.administration.kind === 'disabled'
+                ? adminNotFoundResponse()
+                : adminUnavailableResponse();
+            }
+            try {
+              return await administration.fetch(request);
+            } catch {
+              log({ event: 'admin_request_failed', outcome: 'unavailable' });
+              return adminUnavailableResponse();
+            }
+          }
+          try {
+            const response = await gateway.fetch(request, runtimeEnvironment);
+            if (new URL(request.url).pathname === '/health') {
+              gatewayReady = response.ok;
+            }
+            return response;
+          } catch {
+            gatewayReady = false;
+            metrics.recordRequest('storageUnavailable', now());
+            log({ event: 'storage_failure', outcome: 'retryable' });
+            return gatewayStorageUnavailableResponse();
+          }
+        } finally {
+          directAddresses.delete(request);
+          activeRequests -= 1;
+          if (activeRequests === 0) {
+            for (const resolve of drainWaiters) {
+              resolve();
+            }
+            drainWaiters.clear();
+          }
+        }
+      },
+      hostname: config.host,
+      idleTimeout: 30,
+      port: config.port,
+    });
+  } catch (error) {
+    store.close();
+    throw error;
+  }
+
+  const administrationInitialization = Promise.resolve()
+    .then(() =>
+      createAdministrationRuntime(config, {
+        gatewayReady: () => gatewayReady,
+        log,
+        now,
+        ...(options.operationEntryPath === undefined
+          ? {}
+          : { operationEntryPath: options.operationEntryPath }),
+      }),
+    )
+    .then((runtime) => {
+      if (administrationClosed) {
+        runtime.close();
+      } else {
+        administration = runtime;
       }
-    },
-    hostname: config.host,
-    idleTimeout: 30,
-    port: config.port,
-  });
+      return runtime;
+    });
 
   const cleanupTimer = setInterval(() => {
-    void gateway.cleanup(runtimeEnvironment, now()).catch(() => {
-      log({ event: 'cleanup_failed', outcome: 'retryable' });
-    });
+    void gateway
+      .cleanup(runtimeEnvironment, now())
+      .then(() => {
+        gatewayReady = true;
+      })
+      .catch(() => {
+        gatewayReady = false;
+        log({ event: 'cleanup_failed', outcome: 'retryable' });
+      });
   }, config.cleanupIntervalSeconds * 1000);
   cleanupTimer.unref();
+  const adminCleanupTimer = setInterval(
+    () => {
+      void administration
+        ?.cleanup(Math.floor(now() / 1_000))
+        .catch(() => undefined);
+    },
+    5 * 60 * 1000,
+  );
+  adminCleanupTimer.unref();
 
   let stopped = false;
   let stopRequest: Promise<void> | undefined;
@@ -131,6 +223,7 @@ export async function startBunGateway(
     }
     stopRequest = (async () => {
       clearInterval(cleanupTimer);
+      clearInterval(adminCleanupTimer);
       shuttingDown = true;
       let forceServerStop = force;
       if (!force && activeRequests > 0) {
@@ -158,7 +251,13 @@ export async function startBunGateway(
       if (!forceServerStop) {
         await serverStop;
       }
-      store.close();
+      administrationClosed = true;
+      try {
+        administration?.close();
+        await administrationInitialization;
+      } finally {
+        store.close();
+      }
       stopped = true;
       process.off('SIGINT', handleSignal);
       process.off('SIGTERM', handleSignal);

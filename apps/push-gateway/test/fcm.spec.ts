@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { createFcmClient } from '../src/fcm';
+import {
+  createFcmClient,
+  createFirebaseValidator,
+  type FcmClient,
+} from '../src/fcm';
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -49,7 +53,127 @@ function decodeBase64Url(encoded: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
+const countsDelivery = {
+  accountRoute: 'account-route',
+  kind: 'counts',
+  missedCalls: 0,
+  platform: 'android',
+  priority: 'low',
+  pushKey: 'fcm-registration',
+  sound: false,
+  unread: 1,
+} as const;
+
+type SchemaResponseClient = Readonly<{
+  client: FcmClient;
+  messageAuthorization: () => string | null;
+  messageRequests: () => number;
+}>;
+
+let schemaPrivateKeyPem = '';
+
+function schemaResponseClient(
+  oauthBody: unknown,
+  fcmBody: unknown,
+  fcmStatus = 200,
+): SchemaResponseClient {
+  let authorization: string | null = null;
+  let requests = 0;
+  const fetcher: typeof fetch = async (input, init) => {
+    const request = new Request(input, init);
+    if (request.url === 'https://oauth2.googleapis.com/token') {
+      return Response.json(oauthBody);
+    }
+    requests += 1;
+    authorization = request.headers.get('authorization');
+    return Response.json(fcmBody, { status: fcmStatus });
+  };
+  return {
+    client: createFcmClient({
+      clientEmail: 'gateway@example.test',
+      fetch: fetcher,
+      now: () => 2_000_000_000_000,
+      privateKey: schemaPrivateKeyPem,
+      projectId: 'test-project',
+    }),
+    messageAuthorization: () => authorization,
+    messageRequests: () => requests,
+  };
+}
+
 describe('FCM adapter', () => {
+  beforeAll(async () => {
+    schemaPrivateKeyPem = await createPrivateKeyPem();
+  });
+
+  it('validates access without using a real installation or claiming delivery', async () => {
+    let validationBody: unknown;
+    const validator = createFirebaseValidator({
+      clientEmail: 'gateway@example.test',
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        if (request.url === 'https://oauth2.googleapis.com/token') {
+          return Response.json({ access_token: 'token', expires_in: 3600 });
+        }
+        validationBody = await request.json();
+        return Response.json(
+          {
+            error: {
+              details: [
+                {
+                  '@type':
+                    'type.googleapis.com/google.firebase.fcm.v1.FcmError',
+                  errorCode: 'INVALID_ARGUMENT',
+                },
+              ],
+            },
+          },
+          { status: 400 },
+        );
+      },
+      now: () => 2_000_000_000_000,
+      privateKey: schemaPrivateKeyPem,
+      projectId: 'test-project',
+    });
+
+    await expect(validator.validate(2_000_000_020_000)).resolves.toEqual({
+      kind: 'succeeded',
+    });
+    expect(validationBody).toEqual({
+      message: { token: 'trinity-push-gateway-validation-only' },
+      validate_only: true,
+    });
+  });
+
+  it('does not confuse a malformed dry-run request with FCM access', async () => {
+    const validator = createFirebaseValidator({
+      clientEmail: 'gateway@example.test',
+      fetch: async (input) =>
+        new URL(new Request(input).url).hostname === 'oauth2.googleapis.com'
+          ? Response.json({ access_token: 'token', expires_in: 3600 })
+          : Response.json(
+              {
+                error: {
+                  details: [
+                    {
+                      '@type': 'type.googleapis.com/google.rpc.BadRequest',
+                    },
+                  ],
+                },
+              },
+              { status: 400 },
+            ),
+      now: () => 2_000_000_000_000,
+      privateKey: schemaPrivateKeyPem,
+      projectId: 'test-project',
+    });
+
+    await expect(validator.validate(2_000_000_020_000)).resolves.toEqual({
+      kind: 'failed',
+      reason: 'request_rejected',
+    });
+  });
+
   it('shares one OAuth refresh across concurrent deliveries', async () => {
     let oauthRequests = 0;
     let messageRequests = 0;
@@ -204,14 +328,18 @@ describe('FCM adapter', () => {
           error: {
             code: 404,
             details: [
+              [],
               {
                 '@type': 'type.googleapis.com/google.firebase.fcm.v1.FcmError',
                 errorCode: 'UNREGISTERED',
+                future_detail_field: true,
               },
             ],
+            future_error_field: true,
             message: 'Requested entity was not found.',
             status: 'NOT_FOUND',
           },
+          future_response_field: true,
         },
         { status: 404 },
       );
@@ -291,6 +419,51 @@ describe('FCM adapter', () => {
       reason: 'invalid-registration',
     });
   });
+
+  it.each([
+    [
+      'details is not an array',
+      {
+        error: {
+          details: {
+            '@type': 'type.googleapis.com/google.firebase.fcm.v1.FcmError',
+            errorCode: 'UNREGISTERED',
+          },
+        },
+      },
+    ],
+    ['a detail is null', { error: { details: [null] } }],
+    [
+      'the detail type is not a string',
+      { error: { details: [{ '@type': 7, errorCode: 'UNREGISTERED' }] } },
+    ],
+    [
+      'the detail code is not a string',
+      {
+        error: {
+          details: [
+            {
+              '@type': 'type.googleapis.com/google.firebase.fcm.v1.FcmError',
+              errorCode: 7,
+            },
+          ],
+        },
+      },
+    ],
+  ] satisfies readonly [string, unknown][])(
+    'does not reject a Push Key when FCM error %s',
+    async (_description, fcmBody) => {
+      const responseClient = schemaResponseClient(
+        { access_token: 'access-token', expires_in: 3600 },
+        fcmBody,
+        400,
+      );
+
+      await expect(responseClient.client.send(countsDelivery)).resolves.toEqual(
+        { kind: 'transient', reason: 'unavailable' },
+      );
+    },
+  );
 
   it('preserves retry guidance for a transient FCM failure', async () => {
     const fetcher: typeof fetch = async (input) => {
@@ -382,104 +555,70 @@ describe('FCM adapter', () => {
     });
   });
 
-  it('treats a malformed successful FCM response as retryable', async () => {
-    const fetcher: typeof fetch = async (input) => {
-      const url = new URL(
-        typeof input === 'string' ? input : new Request(input).url,
+  it.each([
+    ['name is missing', { unexpected: true }],
+    ['name is not a string', { name: 7 }],
+    ['body is null', null],
+  ] satisfies readonly [string, unknown][])(
+    'treats a successful FCM response whose %s as retryable',
+    async (_description, fcmBody) => {
+      const responseClient = schemaResponseClient(
+        { access_token: 'access-token', expires_in: 3600 },
+        fcmBody,
       );
-      return url.origin === 'https://oauth2.googleapis.com'
-        ? Response.json({ access_token: 'access-token', expires_in: 3600 })
-        : Response.json({ unexpected: true });
-    };
-    const client = createFcmClient({
-      clientEmail: 'gateway@example.test',
-      fetch: fetcher,
-      now: () => 2_000_000_000_000,
-      privateKey: await createPrivateKeyPem(),
-      projectId: 'test-project',
-    });
 
-    await expect(
-      client.send({
-        accountRoute: 'account-route',
-        kind: 'counts',
-        missedCalls: 0,
-        platform: 'android',
-        priority: 'low',
-        pushKey: 'fcm-registration',
-        sound: false,
-        unread: 1,
-      }),
-    ).resolves.toEqual({ kind: 'transient', reason: 'unavailable' });
-  });
-
-  it('treats a malformed OAuth response as retryable', async () => {
-    let messageRequests = 0;
-    const fetcher: typeof fetch = async (input) => {
-      const url = new URL(
-        typeof input === 'string' ? input : new Request(input).url,
+      await expect(responseClient.client.send(countsDelivery)).resolves.toEqual(
+        { kind: 'transient', reason: 'unavailable' },
       );
-      if (url.origin === 'https://oauth2.googleapis.com') {
-        return Response.json({
-          access_token: 'access-token',
-          expires_in: '3600',
-        });
-      }
-      messageRequests += 1;
-      return Response.json({ name: 'must-not-send' });
-    };
-    const client = createFcmClient({
-      clientEmail: 'gateway@example.test',
-      fetch: fetcher,
-      now: () => 2_000_000_000_000,
-      privateKey: await createPrivateKeyPem(),
-      projectId: 'test-project',
-    });
+    },
+  );
 
-    await expect(
-      client.send({
-        accountRoute: 'account-route',
-        kind: 'counts',
-        missedCalls: 0,
-        platform: 'android',
-        priority: 'low',
-        pushKey: 'fcm-registration',
-        sound: false,
-        unread: 1,
-      }),
-    ).resolves.toEqual({ kind: 'transient', reason: 'unavailable' });
-    expect(messageRequests).toBe(0);
-  });
+  it.each([
+    ['access token is missing', { expires_in: 3600 }],
+    ['access token is not a string', { access_token: 7, expires_in: 3600 }],
+    ['expiration is missing', { access_token: 'access-token' }],
+    [
+      'expiration is not a number',
+      { access_token: 'access-token', expires_in: '3600' },
+    ],
+    ['expiration is zero', { access_token: 'access-token', expires_in: 0 }],
+    [
+      'expiration is fractional',
+      { access_token: 'access-token', expires_in: 1.5 },
+    ],
+    [
+      'expiration exceeds the safe-integer range',
+      { access_token: 'access-token', expires_in: 9_007_199_254_740_992 },
+    ],
+  ] satisfies readonly [string, unknown][])(
+    'treats an OAuth response whose %s as retryable',
+    async (_description, oauthBody) => {
+      const responseClient = schemaResponseClient(oauthBody, {
+        name: 'must-not-send',
+      });
 
-  it('tolerates unknown fields in a successful FCM response', async () => {
-    const fetcher: typeof fetch = async (input) => {
-      const url = new URL(
-        typeof input === 'string' ? input : new Request(input).url,
+      await expect(responseClient.client.send(countsDelivery)).resolves.toEqual(
+        { kind: 'transient', reason: 'unavailable' },
       );
-      return url.origin === 'https://oauth2.googleapis.com'
-        ? Response.json({ access_token: 'access-token', expires_in: 3600 })
-        : Response.json({ future_field: true, name: 'message-1' });
-    };
-    const client = createFcmClient({
-      clientEmail: 'gateway@example.test',
-      fetch: fetcher,
-      now: () => 2_000_000_000_000,
-      privateKey: await createPrivateKeyPem(),
-      projectId: 'test-project',
-    });
+      expect(responseClient.messageRequests()).toBe(0);
+    },
+  );
 
-    await expect(
-      client.send({
-        accountRoute: 'account-route',
-        kind: 'counts',
-        missedCalls: 0,
-        platform: 'android',
-        priority: 'low',
-        pushKey: 'fcm-registration',
-        sound: false,
-        unread: 1,
-      }),
-    ).resolves.toEqual({ kind: 'delivered' });
+  it('accepts loose OAuth and FCM responses at their empty and minimum bounds', async () => {
+    const responseClient = schemaResponseClient(
+      {
+        access_token: '',
+        expires_in: 1,
+        future_oauth_field: true,
+      },
+      { future_fcm_field: true, name: '' },
+    );
+
+    await expect(responseClient.client.send(countsDelivery)).resolves.toEqual({
+      kind: 'delivered',
+    });
+    expect(responseClient.messageRequests()).toBe(1);
+    expect(responseClient.messageAuthorization()).toBe('Bearer');
   });
 
   it('refreshes OAuth credentials after an authentication failure', async () => {

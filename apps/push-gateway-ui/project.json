@@ -1,0 +1,195 @@
+{
+  "name": "push-gateway-ui",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "tpg",
+  "sourceRoot": "apps/push-gateway-ui/src",
+  "implicitDependencies": ["push-gateway"],
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/push-gateway-ui",
+        "browser": "apps/push-gateway-ui/src/main.ts",
+        "baseHref": "/admin/",
+        "tsConfig": "apps/push-gateway-ui/tsconfig.app.json",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/push-gateway-ui/public"
+          }
+        ],
+        "styles": ["apps/push-gateway-ui/src/styles.css"]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "352kb",
+              "maximumError": "384kb"
+            },
+            {
+              "type": "anyScript",
+              "maximumWarning": "192kb",
+              "maximumError": "224kb"
+            },
+            {
+              "type": "allScript",
+              "maximumWarning": "900kb",
+              "maximumError": "960kb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "4kb",
+              "maximumError": "6kb"
+            },
+            {
+              "type": "all",
+              "maximumWarning": "960kb",
+              "maximumError": "1mb"
+            }
+          ],
+          "extractLicenses": true,
+          "optimization": {
+            "scripts": true,
+            "styles": {
+              "inlineCritical": false,
+              "minify": true,
+              "removeSpecialComments": true
+            },
+            "fonts": false
+          },
+          "outputHashing": "all",
+          "sourceMap": false,
+          "statsJson": true
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      }
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
+      "configurations": {
+        "production": {
+          "buildTarget": "push-gateway-ui:build:production"
+        },
+        "development": {
+          "buildTarget": "push-gateway-ui:build:development"
+        }
+      }
+    },
+    "test": {
+      "executor": "@angular/build:unit-test",
+      "options": {
+        "watch": false
+      }
+    },
+    "test-coverage": {
+      "executor": "@angular/build:unit-test",
+      "outputs": ["{workspaceRoot}/coverage/push-gateway-ui"],
+      "options": {
+        "watch": false,
+        "coverage": true,
+        "coverageExclude": ["src/app/api/generated/**", "src/app/ui/helm/**"],
+        "coverageReporters": ["text", "lcov", "json-summary"],
+        "coverageThresholds": {
+          "statements": 80,
+          "branches": 80,
+          "functions": 80,
+          "lines": 80
+        }
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit --project tsconfig.app.json && tsc --noEmit --project tsconfig.spec.json && tsc --noEmit --project tsconfig.e2e.json",
+        "cwd": "apps/push-gateway-ui"
+      }
+    },
+    "generate-api": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "pnpm exec orval --config apps/push-gateway-ui/orval.config.ts --project adminApi --fail-on-warnings"
+      }
+    },
+    "check-api": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/apps/push-gateway/openapi/admin-v1.yaml"
+      ],
+      "options": {
+        "command": "node scripts/check-generated-api.mjs",
+        "cwd": "apps/push-gateway-ui"
+      }
+    },
+    "check-source": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/patches/@ng-forge__dynamic-forms@1.1.0.patch"
+      ],
+      "options": {
+        "command": "node scripts/check-source-policy.mjs",
+        "cwd": "apps/push-gateway-ui"
+      }
+    },
+    "check-bundle": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "node scripts/check-browser-bundle.mjs",
+        "cwd": "apps/push-gateway-ui"
+      }
+    },
+    "browser-security": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build"],
+      "outputs": ["{workspaceRoot}/test-output/test-results/push-gateway-ui"],
+      "options": {
+        "commands": [
+          "pnpm exec prettier --check apps/push-gateway-ui/playwright.config.ts apps/push-gateway-ui/e2e/admin-security.spec.ts",
+          "pnpm exec tsc --noEmit --project apps/push-gateway-ui/tsconfig.e2e.json",
+          "pnpm exec playwright test --config apps/push-gateway-ui/playwright.config.ts"
+        ],
+        "parallel": false
+      }
+    },
+    "check": {
+      "executor": "nx:noop",
+      "cache": false,
+      "dependsOn": [
+        "lint",
+        "typecheck",
+        "test-coverage",
+        "check-api",
+        "check-source",
+        "check-bundle",
+        "browser-security"
+      ]
+    },
+    "serve-static": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "push-gateway-ui:build",
+        "staticFilePath": "dist/apps/push-gateway-ui/browser",
+        "spa": true
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ services:
       context: .
       dockerfile: apps/push-gateway/Dockerfile
     init: true
+    user: '1000:1000'
     restart: unless-stopped
     read_only: true
     cap_drop:

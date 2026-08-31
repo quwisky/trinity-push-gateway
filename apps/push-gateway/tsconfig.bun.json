@@ -9,6 +9,7 @@
     "src/bun/**/*.ts",
     "src/fingerprint.ts",
     "src/ports.ts",
+    "scripts/benchmark-admin-isolation.ts",
     "test/bun/**/*.ts"
   ]
 }

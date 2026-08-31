@@ -1,4 +1,7 @@
+import { eq, lt, lte, sql } from 'drizzle-orm';
+
 import { reserveDailyAttempts } from './budget';
+import { createGatewayD1Database } from './d1-database';
 import {
   claimDelivery,
   completeDelivery,
@@ -8,34 +11,37 @@ import type { Env } from './cloudflare-env';
 import type { GatewayStore, SourceLimiter } from './ports';
 import {
   BUDGET_COLUMNS,
+  dailyBudgets,
   DELIVERY_COLUMNS,
   DELIVERY_EXPIRY_INDEX,
+  deliveryRecords,
   HEALTH_CHECK_DATE,
 } from './schema';
 
 function d1Store(database: D1Database): GatewayStore {
+  const queryDatabase = createGatewayD1Database(database);
   return {
     claimDelivery: (identity, fingerprintKey, nowSeconds, leaseSeconds) =>
       claimDelivery(
-        database,
+        queryDatabase,
         identity,
         fingerprintKey,
         nowSeconds,
         leaseSeconds,
       ),
     async cleanup(nowSeconds, utcDate) {
-      await database.batch([
-        database
-          .prepare('DELETE FROM delivery_records WHERE expires_at <= ?1')
-          .bind(nowSeconds),
-        database
-          .prepare('DELETE FROM daily_budgets WHERE utc_date < ?1')
-          .bind(utcDate),
+      await queryDatabase.batch([
+        queryDatabase
+          .delete(deliveryRecords)
+          .where(lte(deliveryRecords.expiresAt, nowSeconds)),
+        queryDatabase
+          .delete(dailyBudgets)
+          .where(lt(dailyBudgets.utcDate, utcDate)),
       ]);
     },
     completeDelivery: (fingerprint, outcome, reasonCategory, expiresAt) =>
       completeDelivery(
-        database,
+        queryDatabase,
         fingerprint,
         outcome,
         reasonCategory,
@@ -43,62 +49,44 @@ function d1Store(database: D1Database): GatewayStore {
       ),
     async ready() {
       try {
-        const [deliveryInfo, budgetInfo, index, write, cleanup] =
-          await database.batch([
-            database.prepare(
-              "SELECT name FROM pragma_table_info('delivery_records')",
-            ),
-            database.prepare(
-              "SELECT name FROM pragma_table_info('daily_budgets')",
-            ),
-            database
-              .prepare(
-                `SELECT COUNT(*) AS count
-               FROM sqlite_master
-               WHERE type = 'index'
-                 AND name = ?1`,
-              )
-              .bind(DELIVERY_EXPIRY_INDEX),
-            database
-              .prepare(
-                `INSERT INTO daily_budgets (utc_date, attempts)
-               VALUES (?1, 0)
-               ON CONFLICT (utc_date) DO UPDATE SET attempts = excluded.attempts`,
-              )
-              .bind(HEALTH_CHECK_DATE),
-            database
-              .prepare('DELETE FROM daily_budgets WHERE utc_date = ?1')
-              .bind(HEALTH_CHECK_DATE),
-          ]);
-        if (
-          deliveryInfo === undefined ||
-          budgetInfo === undefined ||
-          index === undefined ||
-          write === undefined ||
-          cleanup === undefined
-        ) {
-          return false;
-        }
-        const deliveryColumns = deliveryInfo.results.map(
-          (row) => (row as { readonly name: string }).name,
-        );
-        const budgetColumns = budgetInfo.results.map(
-          (row) => (row as { readonly name: string }).name,
-        );
+        const [deliveryInfo, budgetInfo, index] = await queryDatabase.batch([
+          queryDatabase
+            .select({ name: sql<string>`name` })
+            .from(sql`pragma_table_info('delivery_records')`),
+          queryDatabase
+            .select({ name: sql<string>`name` })
+            .from(sql`pragma_table_info('daily_budgets')`),
+          queryDatabase
+            .select({ count: sql<number>`COUNT(*)` })
+            .from(sql`sqlite_master`)
+            .where(sql`type = 'index' AND name = ${DELIVERY_EXPIRY_INDEX}`),
+          queryDatabase
+            .insert(dailyBudgets)
+            .values({ attempts: 0, utcDate: HEALTH_CHECK_DATE })
+            .onConflictDoUpdate({
+              set: { attempts: 0 },
+              target: dailyBudgets.utcDate,
+            }),
+          queryDatabase
+            .delete(dailyBudgets)
+            .where(eq(dailyBudgets.utcDate, HEALTH_CHECK_DATE)),
+        ]);
+        const deliveryColumns = deliveryInfo.map(({ name }) => name);
+        const budgetColumns = budgetInfo.map(({ name }) => name);
         return (
           DELIVERY_COLUMNS.every((name) => deliveryColumns.includes(name)) &&
           BUDGET_COLUMNS.every((name) => budgetColumns.includes(name)) &&
-          (index.results[0] as { readonly count?: number } | undefined)
-            ?.count === 1
+          index[0]?.count === 1
         );
       } catch {
         return false;
       }
     },
-    releaseDelivery: (fingerprint) => releaseDelivery(database, fingerprint),
+    releaseDelivery: (fingerprint) =>
+      releaseDelivery(queryDatabase, fingerprint),
     reserveDailyAttempts: (utcDate, requestedAttempts, maximumAttempts) =>
       reserveDailyAttempts(
-        database,
+        queryDatabase,
         utcDate,
         requestedAttempts,
         maximumAttempts,

@@ -10,9 +10,12 @@ describe('configuration documentation coverage', () => {
     const sources = [
       '../../apps/push-gateway/src/config.ts',
       '../../apps/push-gateway/src/bun/config.ts',
+      '../../apps/push-gateway/src/admin-configuration-names.ts',
       '../../apps/push-gateway/src/bun/main.ts',
       '../../compose.yml',
+      '../../compose.admin.yml',
       '../../.env.self-host.example',
+      '../../.env.self-host-admin.example',
     ].map((relativePath) =>
       readFileSync(new URL(relativePath, import.meta.url), 'utf8'),
     );

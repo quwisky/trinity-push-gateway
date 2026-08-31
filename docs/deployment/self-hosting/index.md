@@ -93,6 +93,55 @@ Compose additionally defaults `TRINITY_PUSH_GATEWAY_HOST_PORT` to `3000`. It is 
 
 The short source limiter is process-local and may reset on restart. The SQLite daily budget remains authoritative. SQLite uses strict bindings, WAL, full synchronous durability, foreign keys, and a five-second busy timeout. Keep the database, `-wal`, and `-shm` files together on local storage.
 
+## Optional administration UI
+
+The Bun runtime contains a same-origin Angular shell and Hono BFF under
+`/admin/`. It is disabled by default: with
+`TRINITY_PUSH_GATEWAY_ADMIN_ENABLED=false`, every other administration setting
+is ignored and `/admin/*` returns `404`. The Cloudflare Worker neither imports
+nor serves this surface.
+
+When enabled with complete valid configuration, Operator identities, opaque
+sessions, one-use OIDC attempts, aggregate metrics, audit entries, operation
+leases, and verified-backup metadata use a separate
+`/data/admin.sqlite` database. An invalid configuration or an administration
+database, migration, authentication, or asset failure returns a generic `503`
+only below `/admin/*`; Matrix requests and public `/health` continue to use the
+independent delivery path and `gateway.sqlite` database. The public origin must
+be exact HTTPS, except for loopback HTTP during development. The complete
+setting contract is in the [configuration reference](/reference/configuration).
+Follow the
+[administration enablement guide](/deployment/self-hosting/administration) for
+the Compose override, Docker secrets, Pocket ID, Authentik, group mapping, and
+external TLS/HSTS/compression setup.
+
+The runtime rejects symlink, hardlink, and SQLite `-wal` or `-shm` aliases of
+the delivery database before applying administration migrations. Online
+administration writes wait no more than 50 ms for a lock. Expired attempts and
+sessions are pruned on UTC-hour boundaries; 30-day metric and 90-day audit
+retention is applied on UTC-day boundaries, at most 100 rows per table and
+pass. A blocked or failed cleanup makes only the administration surface
+unavailable.
+
+The authenticated API exposes fixed hourly or daily request/FCM aggregates,
+privacy-safe audit pages, verified-backup metadata, and three bounded Operator
+Actions: Firebase credential/project/API validation, delivery-state cleanup,
+and a new verified `gateway.sqlite` backup. These actions use per-kind leases,
+deadlines, and cooldowns. Cleanup and backup run in terminated-on-timeout child
+processes; Firebase validation uses FCM `validate_only` with a synthetic target
+and proves access only, never app registration or delivery. An action is not
+executed unless its audit intent commits first. A failed result finalization is
+reported as non-retriable `outcome_unknown`; no action is automatically retried.
+
+Notification counters stay on the delivery path only long enough for a
+non-blocking fixed-cardinality increment. One bounded Bun Worker flushes them
+best effort to `admin.sqlite`; writer startup, queue, lock, corruption, or death
+failures drop metrics without changing a Matrix response or public health.
+
+The Bun entry point also exposes `session-purge`, which revokes every Operator
+session and refuses to run unless administration is enabled with valid
+configuration. It does not provide a local or break-glass login.
+
 ## Observed footprint
 
 A development measurement on x86-64 Linux with Bun 1.4.0 used 35.2 MiB RSS after startup and 48.7 MiB RSS after a concurrent burst of 50 SQLite-coordinated notification requests. The resulting database was 20 KiB with the schema and 50 terminal delivery records. The automated Bun suite requires the same 50-request burst to finish in under two seconds; the observed local run completed in under 100 ms.
@@ -140,6 +189,6 @@ Migrations are expand-first and preserve a one-version rollback path. An additiv
 - `502` means OAuth or FCM was unavailable or timed out.
 - `503` means configuration, storage, schema, or concurrent delivery was unavailable.
 - A full disk, SQLite busy timeout, I/O error, or runtime storage failure fails requests explicitly; the gateway never bypasses delivery coordination or budgets.
-- Rotate configuration and credentials by recreating the container. There is no live reload or HTTP administration endpoint.
+- Rotate delivery configuration and credentials by recreating the container. There is no live reload; the optional administration surface reports safe configuration but does not mutate it.
 - On shutdown, the gateway rejects new work and drains in-flight requests for up to 30 seconds. At the ceiling, or after a second termination signal, it closes SQLite and explicitly terminates; Compose uses the same 30-second grace period.
 - Do not use an automatic container updater. Back up, upgrade, and verify explicitly.

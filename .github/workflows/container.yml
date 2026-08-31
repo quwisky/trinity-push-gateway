@@ -54,10 +54,10 @@ jobs:
               --base="$NX_BASE" \
               --head="$NX_HEAD"
           )"
-          if grep --fixed-strings --line-regexp --quiet \
-            'push-gateway' <<<"$affected_projects"; then
+          if grep --extended-regexp --line-regexp --quiet \
+            'push-gateway(-ui)?' <<<"$affected_projects"; then
             printf 'push_gateway=true\n' >> "$GITHUB_OUTPUT"
-            printf '%s\n' 'push-gateway is affected; container validation is required.'
+            printf '%s\n' 'The gateway or its bundled UI is affected; container validation is required.'
           else
             printf 'push_gateway=false\n' >> "$GITHUB_OUTPUT"
             printf '%s\n' 'push-gateway is not affected; container validation is a no-op.'
@@ -68,7 +68,7 @@ jobs:
     if: always() && inputs.release_tag == ''
     needs: affected
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Require successful affected detection
         if: needs.affected.result != 'success'
@@ -85,6 +85,46 @@ jobs:
           needs.affected.result == 'success' &&
           needs.affected.outputs.push_gateway == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install pnpm
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Install Node.js
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          cache: pnpm
+          node-version-file: .nvmrc
+      - name: Install Bun
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.0
+      - name: Install dependencies
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Validate disabled and administration Compose configurations
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        env:
+          TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: example.android
+          TRINITY_PUSH_GATEWAY_IOS_APP_ID: example.ios
+        run: |
+          set -Eeuo pipefail
+          docker compose -f compose.yml config --quiet
+          docker compose \
+            --env-file .env.self-host-admin.example \
+            -f compose.yml \
+            -f compose.admin.yml \
+            config --quiet
       - name: Set up Docker Buildx
         if: >-
           needs.affected.result == 'success' &&
@@ -112,35 +152,27 @@ jobs:
           echo "Unpacked image: $unpacked_bytes bytes"
           echo "Compressed image: $compressed_bytes bytes"
           test "$compressed_bytes" -le 157286400
-      - name: Smoke test container health
+      - name: Smoke test assembled container contracts
         if: >-
           needs.affected.result == 'success' &&
           needs.affected.outputs.push_gateway == 'true'
-        run: |
-          docker run --detach --name gateway-smoke \
-            --cap-drop ALL \
-            --init \
-            --read-only \
-            --publish 127.0.0.1:3000:3000 \
-            --security-opt no-new-privileges \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            --env TRINITY_PUSH_GATEWAY_ANDROID_APP_ID=example.android \
-            --env TRINITY_PUSH_GATEWAY_IOS_APP_ID=example.ios \
-            --env TRINITY_PUSH_GATEWAY_FCM_CLIENT_EMAIL=gateway@example.test \
-            --env TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY=test-private-key \
-            --env TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID=example-project \
-            --env TRINITY_PUSH_GATEWAY_FINGERPRINT_KEY=test-fingerprint-key-32-bytes-long \
-            --mount type=volume,destination=/data \
-            trinity-push-gateway:check
-          trap 'docker rm --force gateway-smoke' EXIT
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:3000/health; then
-              exit 0
-            fi
-            sleep 1
-          done
-          docker logs gateway-smoke
-          exit 1
+        run: apps/push-gateway/scripts/container-smoke.sh trinity-push-gateway:check
+      - name: Benchmark administration isolation
+        if: >-
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        run: NX_DAEMON=false pnpm nx run push-gateway:benchmark-admin-isolation --skipNxCache
+      - name: Upload redacted benchmark evidence
+        if: >-
+          always() &&
+          needs.affected.result == 'success' &&
+          needs.affected.outputs.push_gateway == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          if-no-files-found: ignore
+          name: admin-isolation-benchmark-${{ github.run_id }}
+          path: test-output/benchmarks/admin-isolation.md
+          retention-days: 14
 
   publication-dry-run:
     name: publication graph (no push)

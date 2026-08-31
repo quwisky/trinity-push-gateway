@@ -6,6 +6,7 @@ coverage/
 .env*
 !.env.example
 !.env.self-host.example
+!.env.self-host-admin.example
 secrets/
 backups/
 *.sqlite*
@@ -15,3 +16,6 @@ backups/
 .nx/migrate-runs
 apps/push-gateway/worker-configuration.d.ts
 vitest.config.*.timestamp*
+
+.angular/
+test-output/

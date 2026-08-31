@@ -1,0 +1,130 @@
+diff --git a/fesm2022/ng-forge-dynamic-forms-ng-forge-dynamic-forms-Du3V5AOb.mjs b/fesm2022/ng-forge-dynamic-forms-ng-forge-dynamic-forms-Du3V5AOb.mjs
+index 6deb1cb7fc0a8ba89e24c04042c7636a5c93051e..5bc5b19acaefed03ccc4bda072464d1a0a63a858 100644
+--- a/fesm2022/ng-forge-dynamic-forms-ng-forge-dynamic-forms-Du3V5AOb.mjs
++++ b/fesm2022/ng-forge-dynamic-forms-ng-forge-dynamic-forms-Du3V5AOb.mjs
+@@ -831,12 +831,9 @@ class PageOrchestratorComponent {
+         }
+       }
+     }
+-  `, isInline: true, styles: [":host{display:block;position:relative;width:100%}\n"], changeDetection: i0.ChangeDetectionStrategy.OnPush, deferBlockDependencies: [() => [/* @ts-ignore */
+-                import('./ng-forge-dynamic-forms-page-field.component-amWhCdHL.mjs').then(m => m.default)], () => [/* @ts-ignore */
+-                import('./ng-forge-dynamic-forms-page-field.component-amWhCdHL.mjs').then(m => m.default)]] });
++  `, isInline: true, styles: [":host{display:block;position:relative;width:100%}\n"], changeDetection: i0.ChangeDetectionStrategy.OnPush, deferBlockDependencies: [() => [Promise.resolve(undefined)], () => [Promise.resolve(undefined)]] });
+ }
+-i0.ɵɵngDeclareClassMetadataAsync({ minVersion: "18.0.0", version: "22.0.1", ngImport: i0, type: PageOrchestratorComponent, resolveDeferredDeps: () => [/* @ts-ignore */
+-        import('./ng-forge-dynamic-forms-page-field.component-amWhCdHL.mjs').then(m => m.default)], resolveMetadata: PageFieldComponent => ({ decorators: [{
++i0.ɵɵngDeclareClassMetadataAsync({ minVersion: "18.0.0", version: "22.0.1", ngImport: i0, type: PageOrchestratorComponent, resolveDeferredDeps: () => [Promise.resolve(undefined)], resolveMetadata: PageFieldComponent => ({ decorators: [{
+                 type: Component,
+                 args: [{ selector: 'div[page-orchestrator]', imports: [PageFieldComponent], template: `
+     @for (pageField of pageFields(); track pageField.key; let i = $index) {
+@@ -4558,42 +4555,7 @@ function countContainersRecursive(fields) {
+     return count;
+ }
+ 
+-const BUILT_IN_ADDON_TYPES = [
+-    {
+-        type: 'text',
+-        loadComponent: () => Promise.resolve().then(function () { return textAddon_component; }).then((m) => m.TextAddonComponent),
+-        validate: (addon, fieldKey) => {
+-            const text = addon.text;
+-                                                            if (text === undefined || text === null) {
+-                throw new DynamicFormError(`Addon type 'text' requires a 'text' field (field: '${fieldKey}').`);
+-            }
+-            if (typeof text === 'string' && text.length === 0) {
+-                throw new DynamicFormError(`Addon type 'text' requires a non-empty 'text' string (field: '${fieldKey}').`);
+-            }
+-        },
+-    },
+-    {
+-        type: 'template',
+-        loadComponent: () => Promise.resolve().then(function () { return templateAddon_component; }).then((m) => m.TemplateAddonComponent),
+-        validate: (addon, fieldKey) => {
+-            const key = addon.templateKey;
+-            if (typeof key !== 'string' || key.length === 0) {
+-                throw new DynamicFormError(`Addon type 'template' requires a non-empty 'templateKey' string (field: '${fieldKey}').`);
+-            }
+-        },
+-    },
+-    {
+-        type: 'component',
+-                        jsonSafe: false,
+-        loadComponent: () => Promise.resolve().then(function () { return componentAddon_component; }).then((m) => m.ComponentAddonComponent),
+-        validate: (addon, fieldKey) => {
+-            const loader = addon.component;
+-            if (typeof loader !== 'function') {
+-                throw new DynamicFormError(`Addon type 'component' requires a 'component' loader function (field: '${fieldKey}').`);
+-            }
+-        },
+-    },
+-];
++const BUILT_IN_ADDON_TYPES = [];
+ 
+ const CONTAINER_FIELD_TYPES_BASE = {
+     renderReadyWhen: ['field'],
+@@ -4601,64 +4563,8 @@ const CONTAINER_FIELD_TYPES_BASE = {
+ const DISPLAY_FIELD_TYPES_BASE = {
+     renderReadyWhen: [],
+ };
+-const BUILT_IN_FIELDS = [
+-    {
+-        name: 'row',
+-                                loadComponent: () => import('./ng-forge-dynamic-forms-container-field.component-DZfVWjiM.mjs'),
+-        mapper: rowFieldMapper,
+-        valueHandling: 'flatten',
+-        ...CONTAINER_FIELD_TYPES_BASE,
+-    },
+-    {
+-        name: 'group',
+-        loadComponent: () => import('./ng-forge-dynamic-forms-group-field.component-CPFgu3pM.mjs'),
+-        mapper: groupFieldMapper,
+-        valueHandling: 'include',
+-        ...CONTAINER_FIELD_TYPES_BASE,
+-    },
+-    {
+-        name: 'array',
+-        loadComponent: () => import('./ng-forge-dynamic-forms-array-field.component-CvjDqYyq.mjs'),
+-        mapper: arrayFieldMapper,
+-        valueHandling: 'include',
+-        ...CONTAINER_FIELD_TYPES_BASE,
+-    },
+-    {
+-        name: 'page',
+-        loadComponent: () => import('./ng-forge-dynamic-forms-page-field.component-amWhCdHL.mjs'),
+-        mapper: pageFieldMapper,
+-        valueHandling: 'flatten',
+-        ...CONTAINER_FIELD_TYPES_BASE,
+-    },
+-    {
+-        name: 'text',
+-        loadComponent: () => import('./ng-forge-dynamic-forms-text-field.component-C-f80sbk.mjs'),
+-        mapper: textFieldMapper,
+-        valueHandling: 'exclude',
+-        ...DISPLAY_FIELD_TYPES_BASE,
+-    },
+-    {
+-        name: 'hidden',
+-                valueHandling: 'include',
+-    },
+-    {
+-        name: 'container',
+-        loadComponent: () => import('./ng-forge-dynamic-forms-container-field.component-DZfVWjiM.mjs'),
+-        mapper: containerFieldMapper,
+-        valueHandling: 'flatten',
+-        ...CONTAINER_FIELD_TYPES_BASE,
+-    },
+-];
+-const BUILT_IN_WRAPPERS = [
+-    {
+-        wrapperName: 'css',
+-        loadComponent: () => import('./ng-forge-dynamic-forms-css-wrapper.component-D_yRuLpu.mjs'),
+-    },
+-    {
+-        wrapperName: 'row',
+-        loadComponent: () => import('./ng-forge-dynamic-forms-row-wrapper.component-BBWmqQA_.mjs'),
+-    },
+-];
++const BUILT_IN_FIELDS = [];
++const BUILT_IN_WRAPPERS = [];
+ 
+ function isDynamicFormFeature(value) {
+     return (typeof value === 'object' &&
