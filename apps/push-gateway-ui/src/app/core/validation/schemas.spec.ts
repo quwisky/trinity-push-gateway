@@ -1,11 +1,10 @@
 import {
-  apiProblemSchema,
   auditFilterSchema,
   confirmationSchema,
   metricsFilterSchema,
 } from './schemas';
 
-describe('UI validation schemas', () => {
+describe('UI form validation schemas', () => {
   it('accepts only bounded, ordered metrics ranges', () => {
     expect(
       metricsFilterSchema.safeParse({
@@ -49,27 +48,12 @@ describe('UI validation schemas', () => {
     ).toBe(false);
   });
 
-  it('requires affirmative confirmation and safely shapes API problems', () => {
+  it('requires affirmative Operator Action confirmation', () => {
     expect(confirmationSchema.safeParse({ confirmed: true }).success).toBe(
       true,
     );
     expect(confirmationSchema.safeParse({ confirmed: false }).success).toBe(
       false,
     );
-    expect(
-      apiProblemSchema.safeParse({
-        code: 'admin_unavailable',
-        title: 'Unavailable',
-        detail: 'Try again.',
-        status: 503,
-      }).success,
-    ).toBe(true);
-    expect(
-      apiProblemSchema.safeParse({
-        code: 'private_key_contents',
-        title: 'Unavailable',
-      }).success,
-    ).toBe(false);
-    expect(apiProblemSchema.safeParse({ title: 503 }).success).toBe(false);
   });
 });

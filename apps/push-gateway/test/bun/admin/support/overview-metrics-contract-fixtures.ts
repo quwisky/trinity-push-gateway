@@ -1,7 +1,4 @@
-export type OverviewMetricsContractFixture = Readonly<{
-  name: string;
-  value: unknown;
-}>;
+import type { AdminContractFixture as OverviewMetricsContractFixture } from './admin-contract-fixture';
 
 const ZERO_REQUEST_OUTCOMES = {
   invalid: 0,

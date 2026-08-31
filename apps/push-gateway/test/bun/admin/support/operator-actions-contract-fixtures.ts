@@ -1,7 +1,4 @@
-export type OperatorActionsContractFixture = Readonly<{
-  name: string;
-  value: unknown;
-}>;
+import type { AdminContractFixture as OperatorActionsContractFixture } from './admin-contract-fixture';
 
 const OPERATOR = {
   issuer: 'https://issuer.example/',

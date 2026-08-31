@@ -37,10 +37,12 @@ response validation and generate their marked OpenAPI components. The canonical
 Metrics and audit queries own their vocabularies, defaults, and bounded UTC
 range policies; generation publishes the matching OpenAPI parameters plus
 `src/app/api/admin-contract.generated.ts`, and the browser uses those policies
-for ranges, page size, interval options, filters, and copy. The Operator Action
-contract also owns finite safe reason codes and the fixed problem-code, status,
-and title catalog. Legacy validators are parity-test-only and are not used by a
-runtime route.
+for ranges, page size, interval options, filters, copy, and exact safe Problem
+tuples. The Operator Action contract also owns finite safe reason codes and the
+fixed problem-code, status, and title catalog. Shared valid and invalid fixtures
+exercise both the canonical runtime validators and their generated OpenAPI
+projections; no Bun or browser response schema remains beside the canonical
+module.
 
 Regenerate the canonical administration component before regenerating its
 Angular HttpClient client:
@@ -54,9 +56,9 @@ pnpm nx run push-gateway-ui:check-api
 
 Generated files under `src/app/api/generated` and the browser policy beside it
 are committed, deterministic, and never edited by hand. The contract drift
-check verifies the policy against its canonical source; the client drift check
-regenerates Orval twice in temporary Nx workspace data, validates the owned
-output set, and compares content hashes.
+check verifies repeated canonical projections and the committed policy; the
+client drift check regenerates Orval twice in temporary Nx workspace data,
+validates the owned output set, and compares content hashes.
 
 The read-only Configuration route consumes the catalog-backed safe projection
 through the same canonical response contract that generates its client type.

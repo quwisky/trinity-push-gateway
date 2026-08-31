@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 
 import {
   adminProblemOpenApiResponses,
@@ -77,8 +75,22 @@ describe('Operator Action published contract', () => {
         schema: { default: 50, maximum: 100, minimum: 1 },
       },
     });
-    expect(JSON.stringify(parameters.AuditFrom)).toContain('90 days');
-    expect(JSON.stringify(parameters.AuditTo)).toContain('90 days');
+    expect(parameters.AuditFrom).toEqual({
+      description:
+        'Inclusive UTC start of the audit range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 90 days.',
+      in: 'query',
+      name: 'from',
+      required: false,
+      schema: { $ref: '#/components/schemas/UtcTimestamp' },
+    });
+    expect(parameters.AuditTo).toEqual({
+      description:
+        'Exclusive UTC end of the audit range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 90 days.',
+      in: 'query',
+      name: 'to',
+      required: false,
+      schema: { $ref: '#/components/schemas/UtcTimestamp' },
+    });
   });
 
   it('projects exact problem tuples and documents every invalid action request', () => {
@@ -102,31 +114,27 @@ describe('Operator Action published contract', () => {
         },
       },
     });
-    expect(
-      JSON.stringify(responses.MutationForbidden).match(
-        /"code":\{"const":"(?:forbidden|csrf_failed)"\}/gu,
-      ),
-    ).toHaveLength(2);
-
-    const openApi = readFileSync(
-      path.join(import.meta.dir, '../../../openapi/admin-v1.yaml'),
-      'utf8',
-    );
-    for (const [route, nextRoute] of [
-      ['/backups:', '/operations/cleanup:'],
-      ['/operations/cleanup:', '/operations/firebase-validation:'],
-      ['/operations/firebase-validation:', 'components:'],
-    ] as const) {
-      const operation = openApi.slice(
-        openApi.indexOf(`  ${route}`),
-        openApi.indexOf(`  ${nextRoute}`),
-      );
-      const expectedInvalidResponses = route === '/backups:' ? 2 : 1;
-      expect(
-        operation.match(
-          /'400':\n\s+\$ref: '#\/components\/responses\/InvalidRequest'/gu,
-        ),
-      ).toHaveLength(expectedInvalidResponses);
-    }
+    expect(responses.MutationForbidden).toMatchObject({
+      content: {
+        'application/problem+json': {
+          schema: {
+            oneOf: [
+              {
+                allOf: [
+                  { $ref: '#/components/schemas/Problem' },
+                  { properties: { code: { const: 'forbidden' } } },
+                ],
+              },
+              {
+                allOf: [
+                  { $ref: '#/components/schemas/Problem' },
+                  { properties: { code: { const: 'csrf_failed' } } },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
   });
 });
