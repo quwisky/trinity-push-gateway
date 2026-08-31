@@ -35,3 +35,44 @@ to the container port.
 Keep the database, `-wal`, and `-shm` files together on local storage. Check
 UID/GID 1000 ownership, free disk space, integrity, and migration compatibility.
 Network filesystems and horizontal replicas are unsupported.
+
+## `/admin/*` returns 404
+
+Administration is disabled. Apply both Compose files and both environment files,
+or deliberately leave it disabled. Other administration variables and secrets
+are ignored in disabled mode.
+
+## `/admin/*` returns 503 but `/health` is ready
+
+Delivery is correctly isolated from an invalid or failed administration
+subsystem. Check exact public origin and issuer values, both secret files,
+`admin.sqlite` ownership/separation, administration migrations, browser assets,
+and available disk space. Never point administration at `gateway.sqlite`.
+
+## Login returns unavailable
+
+Fetch the configured issuer's discovery document from the gateway host. Verify
+its exact issuer, authorization/token/JWKS endpoints, client authentication
+method, client secret, PKCE support, and callback URL. Check provider and gateway
+clock synchronization. Provider tokens and raw claims are intentionally not
+logged.
+
+## Login returns forbidden
+
+Authentication succeeded but the configured group claim was missing or did not
+contain the exact required group. Pocket ID requires the `groups` scope and an
+allowed group assignment. Authentik requires the profile mapping and groups in
+the ID token. Test a known member and non-member.
+
+## The UI loads but a deep link or asset fails
+
+Proxy every `/admin/*` request to the gateway without rewriting its path. Do not
+configure a proxy-level SPA fallback: the gateway serves only its fixed deep
+links and returns 404 for unknown routes. Hashed JS/CSS assets are immutable;
+HTML is no-store. Purge any proxy rule that caches HTML as an asset.
+
+## An Operator Action is busy or unknown
+
+Respect the returned lease/cooldown. Do not retry `outcome_unknown`
+automatically because execution may have completed before audit finalization.
+Review audit outcomes, `/data/backups`, health, and redacted logs first.

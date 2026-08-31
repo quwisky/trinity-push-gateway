@@ -1,0 +1,66 @@
+services:
+  postgresql:
+    image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD:?generated database password required}
+      POSTGRES_USER: authentik
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -d authentik -U authentik]
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 10s
+    restart: 'no'
+    volumes:
+      - authentik-database:/var/lib/postgresql/data
+
+  server:
+    image: ghcr.io/goauthentik/server:2026.8.0@sha256:7421753cfea67e89a6d295a1f0173ccea3866b33768c88dad90453b151cdcfd5
+    command: server
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment: &authentik-environment
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:?generated bootstrap password required}
+      AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN:?generated bootstrap token required}
+      AUTHENTIK_GATEWAY_ALLOWED_PASSWORD: ${AUTHENTIK_GATEWAY_ALLOWED_PASSWORD:?generated allowed-user password required}
+      AUTHENTIK_GATEWAY_CLIENT_ID: gateway-live-client
+      AUTHENTIK_GATEWAY_CLIENT_SECRET: ${AUTHENTIK_GATEWAY_CLIENT_SECRET:?generated client secret required}
+      AUTHENTIK_GATEWAY_DENIED_PASSWORD: ${AUTHENTIK_GATEWAY_DENIED_PASSWORD:?generated denied-user password required}
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?generated Authentik secret key required}
+    healthcheck:
+      test: [CMD, ak, healthcheck]
+      interval: 5s
+      timeout: 10s
+      retries: 90
+      start_period: 30s
+    ports:
+      - 127.0.0.1:9000:9000
+    restart: 'no'
+    volumes:
+      - ./authentik-blueprint.yaml:/blueprints/custom/trinity-push-gateway.yaml:ro
+
+  worker:
+    image: ghcr.io/goauthentik/server:2026.8.0@sha256:7421753cfea67e89a6d295a1f0173ccea3866b33768c88dad90453b151cdcfd5
+    command: worker
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment: *authentik-environment
+    healthcheck:
+      test: [CMD, ak, healthcheck]
+      interval: 5s
+      timeout: 10s
+      retries: 90
+      start_period: 30s
+    restart: 'no'
+    volumes:
+      - ./authentik-blueprint.yaml:/blueprints/custom/trinity-push-gateway.yaml:ro
+
+volumes:
+  authentik-database:

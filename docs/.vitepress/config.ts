@@ -88,12 +88,20 @@ export default defineConfigWithTheme<DefaultTheme.Config & TrinityThemeConfig>({
         items: [
           { text: 'Cloudflare', link: '/deployment/cloudflare/' },
           { text: 'Docker and Bun', link: '/deployment/self-hosting/' },
+          {
+            text: 'Administration UI',
+            link: '/deployment/self-hosting/administration',
+          },
         ],
       },
       {
         text: 'Operations',
         items: [
           { text: 'Operate the gateway', link: '/operations/' },
+          {
+            text: 'Administration operations',
+            link: '/operations/administration',
+          },
           {
             text: 'Backup and restore',
             link: '/operations/backup-and-restore',

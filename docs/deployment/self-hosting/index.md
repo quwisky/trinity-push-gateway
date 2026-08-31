@@ -93,7 +93,7 @@ Compose additionally defaults `TRINITY_PUSH_GATEWAY_HOST_PORT` to `3000`. It is 
 
 The short source limiter is process-local and may reset on restart. The SQLite daily budget remains authoritative. SQLite uses strict bindings, WAL, full synchronous durability, foreign keys, and a five-second busy timeout. Keep the database, `-wal`, and `-shm` files together on local storage.
 
-## Optional administration foundation
+## Optional administration UI
 
 The Bun runtime contains a same-origin Angular shell and Hono BFF under
 `/admin/`. It is disabled by default: with
@@ -110,8 +110,10 @@ only below `/admin/*`; Matrix requests and public `/health` continue to use the
 independent delivery path and `gateway.sqlite` database. The public origin must
 be exact HTTPS, except for loopback HTTP during development. The complete
 setting contract is in the [configuration reference](/reference/configuration).
-Container assembly and provider-specific onboarding are intentionally outside
-this foundation section.
+Follow the
+[administration enablement guide](/deployment/self-hosting/administration) for
+the Compose override, Docker secrets, Pocket ID, Authentik, group mapping, and
+external TLS/HSTS/compression setup.
 
 The runtime rejects symlink, hardlink, and SQLite `-wal` or `-shm` aliases of
 the delivery database before applying administration migrations. Online
