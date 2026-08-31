@@ -219,81 +219,29 @@ jobs:
           path: ${{ runner.temp }}/provider-image
       - name: Load assembled image
         run: gzip --decompress --stdout "$RUNNER_TEMP/provider-image/provider-image.tar.gz" | docker load
-      - name: Prepare disposable credentials
-        run: node apps/push-gateway/provider-e2e/prepare-authentik.mjs "$RUNNER_TEMP/authentik-gate"
-      - name: Start Authentik and wait for OIDC readiness
-        run: |
-          set -Eeuo pipefail
-          docker compose \
-            --project-name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/authentik-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.authentik.yml \
-            up --detach --wait
-          for attempt in $(seq 1 180); do
-            if curl --fail --silent http://127.0.0.1:9000/-/health/ready/ >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-          curl --fail --silent http://127.0.0.1:9000/-/health/ready/ >/dev/null
-          node apps/push-gateway/provider-e2e/wait-provider.mjs \
-            http://127.0.0.1:9000/application/o/trinity-push-gateway/
-      - name: Start assembled gateway
-        run: |
-          set -Eeuo pipefail
-          docker volume create "gateway-authentik-data-${GITHUB_RUN_ID}" >/dev/null
-          docker run --detach \
-            --name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --network host \
-            --cap-drop ALL \
-            --init \
-            --read-only \
-            --security-opt no-new-privileges \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000 \
-            --mount "type=volume,source=gateway-authentik-data-${GITHUB_RUN_ID},destination=/data" \
-            --env-file "$RUNNER_TEMP/authentik-gate/gateway.env" \
-            trinity-push-gateway:provider-gate >/dev/null
-          for attempt in $(seq 1 90); do
-            if [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/admin/)" == 200 ]]; then
-              exit 0
-            fi
-            sleep 1
-          done
-          exit 1
-      - name: Exercise Authentik browser contracts
+      - name: Run the Authentik provider lifecycle
         env:
-          PROVIDER_SCREENSHOT_PATH: ${{ runner.temp }}/authentik-gate/overview.png
-        run: node apps/push-gateway/provider-e2e/browser-authentik-gate.mjs "$RUNNER_TEMP/authentik-gate/browser-state.json"
-      - name: Prove provider failure isolation
-        run: |
-          set -Eeuo pipefail
-          docker compose \
-            --project-name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/authentik-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.authentik.yml \
-            stop server worker
-          curl --fail --silent http://127.0.0.1:3000/health >/dev/null
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            --header 'content-type: application/json' \
-            --data '{"notification":{"devices":[]}}' \
-            http://127.0.0.1:3000/_matrix/push/v1/notify)" = 200
-      - name: Upload visual proof
+          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/authentik-evidence
+          PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
+          PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
+          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/authentik-credentials
+        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate-authentik --skipNxCache
+      - name: Upload Authentik evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: authentik-visual-proof-${{ github.run_id }}
-          path: ${{ runner.temp }}/authentik-gate/overview.png
+          if-no-files-found: error
+          name: authentik-provider-gate-${{ github.run_id }}
+          path: ${{ runner.temp }}/authentik-evidence
           retention-days: 14
       - name: Clean Authentik gate
         if: always()
-        run: |
-          docker rm --force "gateway-authentik-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
-          docker volume rm "gateway-authentik-data-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
-          docker compose \
-            --project-name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/authentik-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.authentik.yml \
-            down --volumes --remove-orphans >/dev/null 2>&1 || true
-          rm -rf -- "$RUNNER_TEMP/authentik-gate"
+        env:
+          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/authentik-evidence
+          PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
+          PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
+          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/authentik-credentials
+        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate-authentik-cleanup --skipNxCache
 
   release-gates:
     name: release-gates

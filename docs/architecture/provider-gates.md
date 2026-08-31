@@ -5,9 +5,10 @@ protocol tests, a real Pocket ID gate, and a real Authentik gate. The real
 provider jobs exercise the assembled production image rather than a development
 server. They use disposable provider data and do not contact Firebase.
 
-## Pocket ID lifecycle
+## Shared provider lifecycle
 
-One provider-gate lifecycle owns the Pocket ID run from start to finish:
+One provider-gate lifecycle owns each Pocket ID and Authentik run from start to
+finish:
 
 1. create masked credentials in a mode-`0600` work directory;
 2. start the pinned provider and validate its discovery document;
@@ -15,14 +16,23 @@ One provider-gate lifecycle owns the Pocket ID run from start to finish:
 4. start the hardened assembled gateway image;
 5. verify allowed login, group denial, deep-link return, and local logout in a
    headless browser;
-6. stop Pocket ID and prove that `/health` and Matrix notification handling
+6. stop the provider and prove that `/health` and Matrix notification handling
    remain available;
 7. write sanitized evidence and destroy containers, volumes, and credentials.
 
-The Pocket ID adapter contains only Pocket ID API and browser variance. GitHub
-Actions and local runs invoke the same Nx target. CI uploads the sanitized JSON
-result and browser screenshot directly as a workflow artifact; neither belongs
-in Git.
+Each adapter contains only genuine provider variance. Pocket ID provisions
+through its HTTP API and exchanges one-time access tokens before following the
+gateway redirect. Authentik provisions atomically through its mounted blueprint,
+verifies the resulting users, group, and application through its API, and enters
+credentials after following the redirect. Both adapters use the same lifecycle
+for readiness, gateway launch, allowed and denied access, deep-link return,
+exact logout, outage isolation, evidence, and cleanup. Pocket ID alone uses an
+optional adapter hook to normalize its provider-hosted group-denial page;
+Authentik returns denied identities through the gateway callback directly.
+
+GitHub Actions and local runs invoke the same provider-specific Nx entry points.
+CI uploads each sanitized JSON result and browser screenshot directly as a
+workflow artifact; neither belongs in Git.
 
 ## Run it locally
 
@@ -43,6 +53,9 @@ Then run the lifecycle with a stable run ID:
 ```sh
 PROVIDER_GATE_RUN_ID=local-pocket-id \
   pnpm nx run push-gateway:provider-gate-pocket-id --skipNxCache
+
+PROVIDER_GATE_RUN_ID=local-authentik \
+  pnpm nx run push-gateway:provider-gate-authentik --skipNxCache
 ```
 
 Evidence is written below the ignored `test-output/provider-gates/` directory.
@@ -52,6 +65,9 @@ forcibly interrupted, reuse the same run ID with the cleanup entry point:
 ```sh
 PROVIDER_GATE_RUN_ID=local-pocket-id \
   pnpm nx run push-gateway:provider-gate-pocket-id-cleanup --skipNxCache
+
+PROVIDER_GATE_RUN_ID=local-authentik \
+  pnpm nx run push-gateway:provider-gate-authentik-cleanup --skipNxCache
 ```
 
 `PROVIDER_GATE_WORK_DIRECTORY` and `PROVIDER_GATE_EVIDENCE_DIRECTORY` select

@@ -144,7 +144,7 @@ export const pocketIdAdapter = Object.freeze({
     });
   },
 
-  async authenticate({ context, identity }) {
+  async authenticate({ context, identity, navigate }) {
     const response = await context.request.post(
       `${pocketIdAdapter.providerOrigin}/api/one-time-access-token/${encodeURIComponent(identity.oneTimeToken)}`,
     );
@@ -153,16 +153,16 @@ export const pocketIdAdapter = Object.freeze({
         `Pocket ID one-time token exchange returned ${response.status()}.`,
       );
     }
+    await navigate();
   },
 
-  isDeniedProviderUrl(url) {
-    return (
-      url.origin === pocketIdAdapter.providerOrigin &&
-      url.pathname === '/interaction/error'
+  async normalizeProviderDenial({ gatewayOrigin, page }) {
+    await page.waitForURL(
+      (url) =>
+        url.origin === pocketIdAdapter.providerOrigin &&
+        url.pathname === '/interaction/error',
+      { timeout: 60_000 },
     );
-  },
-
-  async normalizeDeniedPage(page, gatewayOrigin) {
     const denial = new URL(page.url());
     if (
       !denial.searchParams.get('error')?.toLowerCase().includes('not allowed')
