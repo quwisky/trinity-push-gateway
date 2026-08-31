@@ -10,7 +10,16 @@ import {
 } from 'hono/cookie';
 
 import { version as gatewayVersion } from '../../../../../package.json';
-import { OPERATOR_SESSION_RESPONSE_SCHEMA } from '../../admin-contract/operator-session';
+import {
+  CONFIGURATION_RESPONSE_SCHEMA,
+  type ConfigurationResponse,
+} from '../../admin-contract/configuration';
+import {
+  OPERATOR_SESSION_ID_SCHEMA,
+  OPERATOR_SESSION_LIST_RESPONSE_SCHEMA,
+  OPERATOR_SESSION_RESPONSE_SCHEMA,
+  type OperatorSessionResponse,
+} from '../../admin-contract/operator-session';
 import type { BunConfiguration } from '../config';
 import {
   createOidcAuthenticator,
@@ -24,12 +33,9 @@ import type { AdminConfiguration, SafeAdminConfiguration } from './config';
 import {
   ADMIN_BACKUP_LIST_SCHEMA,
   ADMIN_BACKUP_SCHEMA,
-  ADMIN_CONFIGURATION_RESPONSE_SCHEMA,
   ADMIN_METRICS_SCHEMA,
   ADMIN_OPERATION_RESULT_SCHEMA,
-  ADMIN_OPERATOR_SESSION_LIST_SCHEMA,
   ADMIN_OVERVIEW_SCHEMA,
-  ADMIN_SESSION_ID_SCHEMA,
   validatedAdminResponse,
 } from './contract';
 import {
@@ -123,7 +129,7 @@ function secondsToTimestamp(seconds: number): string {
 function sessionProjection(
   session: AdminOperatorSession,
   currentSessionId: string,
-): unknown {
+): OperatorSessionResponse {
   return {
     absoluteExpiresAt: secondsToTimestamp(session.absoluteExpiresAt),
     createdAt: secondsToTimestamp(session.createdAt),
@@ -498,7 +504,7 @@ function callbackFailureReason(error: unknown): string {
 function configurationProjection(
   options: AdminApplicationOptions,
   observedAt: string,
-): unknown {
+): ConfigurationResponse {
   return {
     administration: options.safeConfiguration.administration,
     credentials: {
@@ -706,7 +712,7 @@ export function createAdminSurface(
         options.configuration.policyFingerprint,
       );
       return adminJsonResponse(
-        validatedAdminResponse(ADMIN_OPERATOR_SESSION_LIST_SCHEMA, {
+        validatedAdminResponse(OPERATOR_SESSION_LIST_RESPONSE_SCHEMA, {
           sessions: sessions.map((session) =>
             sessionProjection(session, currentSession.id),
           ),
@@ -718,7 +724,7 @@ export function createAdminSurface(
   app.delete(
     '/admin/api/v1/sessions/:sessionId',
     mutationRoute(async (context, currentSession) => {
-      const parsedSessionId = ADMIN_SESSION_ID_SCHEMA.safeParse(
+      const parsedSessionId = OPERATOR_SESSION_ID_SCHEMA.safeParse(
         context.req.param('sessionId'),
       );
       if (!parsedSessionId.success) {
@@ -749,7 +755,7 @@ export function createAdminSurface(
       const observedAt = new Date(now()).toISOString();
       return adminJsonResponse(
         validatedAdminResponse(
-          ADMIN_CONFIGURATION_RESPONSE_SCHEMA,
+          CONFIGURATION_RESPONSE_SCHEMA,
           configurationProjection(options, observedAt),
         ),
       );

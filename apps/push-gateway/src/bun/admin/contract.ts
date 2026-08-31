@@ -1,12 +1,10 @@
 import * as z from 'zod/mini';
 
-import { OPERATOR_SESSION_RESPONSE_SCHEMA } from '../../admin-contract/operator-session';
-
 const SAFE_COUNT = z.number().check(z.int(), z.nonnegative());
 const POSITIVE_SAFE_INTEGER = z.number().check(z.int(), z.positive());
 const UTC_TIMESTAMP = z.iso.datetime();
 
-export const ADMIN_SESSION_ID_SCHEMA = z
+const ADMIN_SESSION_ID_SCHEMA = z
   .string()
   .check(z.regex(/^[A-Za-z0-9_-]{16,128}$/u));
 
@@ -26,10 +24,6 @@ export const ADMIN_OPERATOR_SESSION_SCHEMA = z.strictObject({
   idleExpiresAt: UTC_TIMESTAMP,
   lastSeenAt: UTC_TIMESTAMP,
   operator: ADMIN_OPERATOR_IDENTITY_SCHEMA,
-});
-
-export const ADMIN_OPERATOR_SESSION_LIST_SCHEMA = z.strictObject({
-  sessions: z.array(OPERATOR_SESSION_RESPONSE_SCHEMA).check(z.maxLength(100)),
 });
 
 const REQUEST_OUTCOME_COUNTS_SCHEMA = z.strictObject({
@@ -169,40 +163,53 @@ const SECRET_PRESENCE_SCHEMA = z.strictObject({
   configured: z.boolean(),
   source: z.enum(['env', 'file']),
 });
+const CONFIGURATION_POSITIVE_SAFE_INTEGER = z
+  .number()
+  .check(z.int(), z.positive(), z.lte(Number.MAX_SAFE_INTEGER));
+const CONFIGURATION_PATH = z
+  .string()
+  .check(z.minLength(2), z.maxLength(4096), z.regex(/^\//u));
+const CONFIGURATION_FIXED_INTEGER = (value: number): z.ZodMiniType<number> =>
+  z.number().check(z.int(), z.gte(value), z.lte(value));
 
-export const ADMIN_CONFIGURATION_RESPONSE_SCHEMA = z.strictObject({
+/** Migration compatibility schema for configuration-response parity coverage. */
+export const LEGACY_ADMIN_CONFIGURATION_RESPONSE_SCHEMA = z.strictObject({
   administration: z.strictObject({
-    administrationDatabasePath: z.string().check(z.regex(/^\//u)),
-    auditRetentionDays: POSITIVE_SAFE_INTEGER,
-    backupCooldownSeconds: POSITIVE_SAFE_INTEGER,
-    backupDeadlineSeconds: POSITIVE_SAFE_INTEGER,
-    backupDirectory: z.string().check(z.regex(/^\//u)),
-    backupLimitBytes: POSITIVE_SAFE_INTEGER,
+    administrationDatabasePath: CONFIGURATION_PATH,
+    auditRetentionDays: CONFIGURATION_FIXED_INTEGER(90),
+    backupCooldownSeconds: CONFIGURATION_FIXED_INTEGER(3_600),
+    backupDeadlineSeconds: CONFIGURATION_FIXED_INTEGER(120),
+    backupDirectory: CONFIGURATION_PATH,
+    backupLimitBytes: CONFIGURATION_POSITIVE_SAFE_INTEGER,
     backupLimitCount: z.number().check(z.int(), z.gte(1), z.lte(1_000)),
-    cleanupCooldownSeconds: POSITIVE_SAFE_INTEGER,
-    cleanupDeadlineSeconds: POSITIVE_SAFE_INTEGER,
+    cleanupCooldownSeconds: CONFIGURATION_FIXED_INTEGER(300),
+    cleanupDeadlineSeconds: CONFIGURATION_FIXED_INTEGER(30),
     enabled: z.literal(true),
-    firebaseValidationCooldownSeconds: POSITIVE_SAFE_INTEGER,
-    firebaseValidationDeadlineSeconds: POSITIVE_SAFE_INTEGER,
-    maxSessionsDeployment: z.literal(100),
-    maxSessionsPerIdentity: z.literal(5),
-    metricsRetentionDays: POSITIVE_SAFE_INTEGER,
+    firebaseValidationCooldownSeconds: CONFIGURATION_FIXED_INTEGER(60),
+    firebaseValidationDeadlineSeconds: CONFIGURATION_FIXED_INTEGER(20),
+    maxSessionsDeployment: CONFIGURATION_FIXED_INTEGER(100),
+    maxSessionsPerIdentity: CONFIGURATION_FIXED_INTEGER(5),
+    metricsRetentionDays: CONFIGURATION_FIXED_INTEGER(30),
     oidcClientId: z.string().check(z.minLength(1), z.maxLength(512)),
     oidcGroupClaim: z
       .string()
       .check(z.regex(/^[A-Za-z_][A-Za-z0-9_-]{0,127}$/u)),
-    oidcIssuer: z.string().check(z.minLength(1), z.maxLength(2048)),
+    oidcIssuer: z.url().check(z.minLength(1), z.maxLength(2048)),
     oidcRequiredGroup: z.string().check(z.minLength(1), z.maxLength(256)),
     oidcScopes: z
       .array(z.string().check(z.regex(/^[A-Za-z0-9._:-]{1,128}$/u)))
-      .check(z.minLength(1), z.maxLength(16)),
+      .check(
+        z.minLength(1),
+        z.maxLength(16),
+        z.refine((values) => new Set(values).size === values.length),
+      ),
     oidcTokenEndpointAuthMethod: z.enum([
       'client_secret_basic',
       'client_secret_post',
     ]),
-    publicOrigin: z.string().check(z.minLength(8), z.maxLength(2048)),
-    sessionAbsoluteSeconds: z.literal(28_800),
-    sessionIdleSeconds: z.literal(1_800),
+    publicOrigin: z.url().check(z.minLength(8), z.maxLength(2048)),
+    sessionAbsoluteSeconds: CONFIGURATION_FIXED_INTEGER(28_800),
+    sessionIdleSeconds: CONFIGURATION_FIXED_INTEGER(1_800),
   }),
   credentials: z.strictObject({
     firebaseClientEmail: SECRET_PRESENCE_SCHEMA,
@@ -214,22 +221,22 @@ export const ADMIN_CONFIGURATION_RESPONSE_SCHEMA = z.strictObject({
   }),
   gateway: z.strictObject({
     androidApplicationId: z.string().check(z.minLength(1), z.maxLength(255)),
-    cleanupIntervalSeconds: POSITIVE_SAFE_INTEGER,
+    cleanupIntervalSeconds: CONFIGURATION_POSITIVE_SAFE_INTEGER,
     firebaseProjectId: z.string().check(z.minLength(1), z.maxLength(255)),
-    gatewayDatabasePath: z.string().check(z.regex(/^\//u)),
+    gatewayDatabasePath: CONFIGURATION_PATH,
     iosApplicationId: z.string().check(z.minLength(1), z.maxLength(255)),
-    maxBodyBytes: POSITIVE_SAFE_INTEGER,
+    maxBodyBytes: CONFIGURATION_POSITIVE_SAFE_INTEGER,
     maxClientInstallationsPerRequest: z
       .number()
       .check(z.int(), z.gte(1), z.lte(49)),
-    maxDailyAttempts: POSITIVE_SAFE_INTEGER,
-    maxSourceKeys: POSITIVE_SAFE_INTEGER,
-    pendingLeaseSeconds: POSITIVE_SAFE_INTEGER,
-    requestDeadlineSeconds: POSITIVE_SAFE_INTEGER,
-    sourceRateLimit: POSITIVE_SAFE_INTEGER,
-    sourceRatePeriodSeconds: POSITIVE_SAFE_INTEGER,
-    terminalRetentionSeconds: POSITIVE_SAFE_INTEGER,
-    upstreamTimeoutSeconds: POSITIVE_SAFE_INTEGER,
+    maxDailyAttempts: CONFIGURATION_POSITIVE_SAFE_INTEGER,
+    maxSourceKeys: CONFIGURATION_POSITIVE_SAFE_INTEGER,
+    pendingLeaseSeconds: CONFIGURATION_POSITIVE_SAFE_INTEGER,
+    requestDeadlineSeconds: CONFIGURATION_POSITIVE_SAFE_INTEGER,
+    sourceRateLimit: CONFIGURATION_POSITIVE_SAFE_INTEGER,
+    sourceRatePeriodSeconds: CONFIGURATION_POSITIVE_SAFE_INTEGER,
+    terminalRetentionSeconds: CONFIGURATION_POSITIVE_SAFE_INTEGER,
+    upstreamTimeoutSeconds: CONFIGURATION_POSITIVE_SAFE_INTEGER,
   }),
   observedAt: UTC_TIMESTAMP,
   version: z.string().check(z.minLength(1), z.maxLength(128)),

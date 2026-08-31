@@ -10,13 +10,6 @@
 export type SafeCount = number;
 
 /**
- * Positive JSON safe integer.
- * @minimum 1
- * @maximum 9007199254740991
- */
-export type PositiveSafeInteger = number;
-
-/**
  * RFC 3339 timestamp normalized to UTC and ending in `Z`.
  * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
  */
@@ -265,6 +258,13 @@ export interface Metrics {
   fcmBuckets: FcmMetricBucket[];
 }
 
+/**
+ * Positive JSON safe integer.
+ * @minimum 1
+ * @maximum 9007199254740991
+ */
+export type PositiveSafeInteger = number;
+
 export type ConfigurationSource =
   (typeof ConfigurationSource)[keyof typeof ConfigurationSource];
 
@@ -283,8 +283,7 @@ export interface SecretPresence {
 }
 
 /**
- * Effective non-secret gateway values. Listener addresses, migration
- * paths, trusted-proxy networks, and raw environment names are excluded.
+ * Effective non-secret gateway values. Listener addresses, migration paths, trusted-proxy networks, and raw environment names are excluded.
  */
 export interface GatewayConfiguration {
   /**
@@ -307,7 +306,7 @@ export interface GatewayConfiguration {
    * Absolute delivery-critical SQLite location.
    * @minLength 2
    * @maxLength 4096
-   * @pattern ^/
+   * @pattern ^\/
    */
   gatewayDatabasePath: string;
   maxBodyBytes: PositiveSafeInteger;
@@ -336,8 +335,7 @@ export const AdministrationConfigurationOidcTokenEndpointAuthMethod = {
 } as const;
 
 /**
- * Effective non-secret administration policy and storage locations.
- * Credential paths and raw environment names are excluded.
+ * Effective non-secret administration policy and storage locations. Credential paths and raw environment names are excluded.
  */
 export interface AdministrationConfiguration {
   /** The administration surface is enabled for this response. */
@@ -381,14 +379,14 @@ export interface AdministrationConfiguration {
    * Absolute isolated administration SQLite location.
    * @minLength 2
    * @maxLength 4096
-   * @pattern ^/
+   * @pattern ^\/
    */
   administrationDatabasePath: string;
   /**
    * Absolute directory for generated verified gateway backups.
    * @minLength 2
    * @maxLength 4096
-   * @pattern ^/
+   * @pattern ^\/
    */
   backupDirectory: string;
   /**
