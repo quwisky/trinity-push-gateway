@@ -1,0 +1,6 @@
+extends:
+  - recommended-strict
+
+apis:
+  admin@v1:
+    root: apps/push-gateway/openapi/admin-v1.yaml

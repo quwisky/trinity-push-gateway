@@ -36,6 +36,9 @@ importers:
       '@nx/vitest':
         specifier: 23.1.2
         version: 23.1.2(@babel/traverse@7.29.8(supports-color@7.2.0))(@nx/eslint@23.1.2(@babel/traverse@7.29.8(supports-color@7.2.0))(@zkochan/js-yaml@0.0.7)(eslint@10.9.1(jiti@2.6.1)(supports-color@7.2.0))(nx@23.1.2)(supports-color@7.2.0))(nx@23.1.2)(supports-color@7.2.0)(typescript@6.0.3)(vite@8.2.2(@types/node@26.4.0)(esbuild@0.28.1)(jiti@2.6.1)(yaml@2.9.0))(vitest@4.1.11)
+      '@redocly/cli':
+        specifier: 2.49.0
+        version: 2.49.0
       '@types/bun':
         specifier: 1.4.0
         version: 1.4.0
@@ -1560,6 +1563,11 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
+
+  '@redocly/cli@2.49.0':
+    resolution: {integrity: sha512-87UuARXYrPIiHhd/UriamL4BApuPgB0E91coBtoPG6PK4giTwiuo3dI4RoyMGhsC7TwgAnL8PJuhCwGymgwbVA==}
+    engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
+    hasBin: true
 
   '@rolldown/binding-android-arm-eabi@1.2.6':
     resolution: {integrity: sha512-b+jTcARdTiFLI6jB4a5XjTm0RWd6KcRfQj/I2356fxUZemiho9zQLxo0RtCuMDAyKcLo6cEltkgbQp6d1+sjjQ==}
@@ -5275,6 +5283,8 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
+
+  '@redocly/cli@2.49.0': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.6':
     optional: true

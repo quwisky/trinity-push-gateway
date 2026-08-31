@@ -1,0 +1,1391 @@
+openapi: 3.1.2
+info:
+  title: Trinity Push Gateway Operator API
+  version: 1.0.0
+  description: |-
+    Same-origin API for the self-hosted Push Gateway UI. The API exposes only
+    privacy-preserving operational summaries and bounded operator actions. It
+    never returns Matrix identifiers, Push Keys, Account Routes, notification
+    content, Client Installation identifiers, provider tokens, secret values,
+    credential paths, raw identity-provider claims, or client IP chains.
+
+    Browser authentication is deliberately outside this versioned API. Its
+    fixed routes are `GET /admin/auth/login`, `GET /admin/auth/callback`, and
+    `POST /admin/auth/logout`. The logout route has the same exact-Origin and
+    XSRF requirements as API mutations.
+
+    The API is same-origin only. It does not support CORS and does not emit CORS
+    response headers. Every operation requires the host-only, HttpOnly
+    `TRINITY_ADMIN_SESSION` cookie. Every mutation additionally requires an
+    `Origin` header that exactly matches the configured public origin and an
+    `X-XSRF-TOKEN` header matching the session-bound value in the readable
+    `TRINITY_ADMIN_XSRF` cookie.
+  license:
+    name: Apache License 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: /admin/api/v1
+    description: Same-origin self-hosted administration API
+security:
+  - operatorSession: []
+tags:
+  - name: Session
+    description: Current Operator Identity and Operator Session.
+  - name: Overview
+    description: Bounded operational status summaries.
+  - name: Metrics
+    description: Fixed-cardinality, privacy-preserving aggregate metrics.
+  - name: Configuration
+    description: Effective non-secret configuration and secret presence only.
+  - name: Security
+    description: Operator Sessions and Operator Audit Entries.
+  - name: Operations
+    description: Bounded, synchronous operator actions and backup metadata.
+paths:
+  /session:
+    get:
+      tags:
+        - Session
+      summary: Get the current Operator Session
+      description: |-
+        Returns the authenticated Operator Identity and current Operator Session.
+        No cookie value, XSRF value, provider token, or raw provider claim is
+        returned in the document.
+      operationId: getSession
+      responses:
+        '200':
+          description: Current Operator Session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSession'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+  /overview:
+    get:
+      tags:
+        - Overview
+      summary: Get the operational overview
+      description: |-
+        Returns current readiness, storage use, fixed 24-hour aggregates, and
+        the most recent bounded-operation summaries. The response contains no
+        per-request or per-Client Installation data.
+      operationId: getOverview
+      responses:
+        '200':
+          description: Privacy-preserving operational overview.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Overview'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+  /metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Get aggregate metrics
+      description: |-
+        Returns the two fixed metric families over a bounded UTC half-open range:
+        Notification Request outcomes and actual FCM attempts. `from` and `to`
+        are optional together. Omitting both selects the 24 hours ending at the
+        request time. Supplying only one, selecting an empty or reversed range,
+        or selecting more than 30 days returns `invalid_request`. Buckets contain
+        no labels or identifiers beyond the fixed outcome and platform sets.
+      operationId: getMetrics
+      parameters:
+        - $ref: '#/components/parameters/MetricsFrom'
+        - $ref: '#/components/parameters/MetricsTo'
+        - $ref: '#/components/parameters/MetricsInterval'
+      responses:
+        '200':
+          description: Aggregate metrics for the effective range and interval.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metrics'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+  /configuration:
+    get:
+      tags:
+        - Configuration
+      summary: Get effective safe configuration
+      description: |-
+        Returns an explicit allowlist of effective non-secret settings. Secret
+        entries disclose only whether a value is configured and whether its
+        source is an environment value or a mounted file. Secret values, raw
+        environment variables, credential paths, Firebase client email, and
+        trusted-proxy networks are never returned. Effective database and backup
+        locations are intentionally visible to an authenticated Gateway Operator.
+        Configuration is read-only; this API has no configuration mutation operation.
+      operationId: getConfiguration
+      responses:
+        '200':
+          description: Effective privacy-safe configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Configuration'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+  /audit-entries:
+    get:
+      tags:
+        - Security
+      summary: List Operator Audit Entries
+      description: |-
+        Lists a stable, privacy-safe audit projection in reverse chronological
+        order. `from` and `to` are optional together and describe a UTC half-open
+        range. Omitting both selects the 24 hours ending at the initial request
+        time. Supplying only one, selecting an empty or reversed range, or
+        selecting more than 90 days returns `invalid_request`.
+
+        `cursor` is opaque and binds the effective time range, kind, outcome,
+        and page size. Clients must not inspect or modify it. A cursor used with
+        different filters, an expired cursor, or a malformed cursor returns
+        `invalid_request`. Entries never contain correlation identifiers, IP
+        addresses or chains, raw claims, Matrix data, or notification data.
+      operationId: listAuditEntries
+      parameters:
+        - $ref: '#/components/parameters/AuditCursor'
+        - $ref: '#/components/parameters/AuditLimit'
+        - $ref: '#/components/parameters/AuditEntryKindFilter'
+        - $ref: '#/components/parameters/AuditEntryOutcomeFilter'
+        - $ref: '#/components/parameters/AuditFrom'
+        - $ref: '#/components/parameters/AuditTo'
+      responses:
+        '200':
+          description: One bounded page of Operator Audit Entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorAuditEntryPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+  /sessions:
+    get:
+      tags:
+        - Security
+      summary: List active Operator Sessions
+      description: |-
+        Returns the bounded deployment-wide set of active Operator Sessions.
+        Session identifiers are opaque management identifiers; raw cookies,
+        provider tokens, raw claims, user agents, and client addresses are not
+        returned.
+      operationId: listSessions
+      responses:
+        '200':
+          description: Active Operator Sessions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSessionList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+  /sessions/{sessionId}:
+    delete:
+      tags:
+        - Security
+      summary: Revoke an Operator Session
+      description: |-
+        Revokes exactly one active Operator Session. Revoking the current
+        session also clears its browser session and XSRF cookies. The request
+        requires the session cookie, an exact configured `Origin`, and an
+        `X-XSRF-TOKEN` value matching the session-bound `TRINITY_ADMIN_XSRF`
+        cookie. The server performs no CORS negotiation.
+      operationId: revokeSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '204':
+          description: Operator Session revoked.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/MutationForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+  /backups:
+    get:
+      tags:
+        - Operations
+      summary: List verified gateway backups
+      description: |-
+        Lists bounded metadata for verified gateway-database backups. The API
+        exposes no filesystem path, download, restore, deletion, overwrite, or
+        arbitrary database capability.
+      operationId: listBackups
+      responses:
+        '200':
+          description: Verified backup metadata, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+    post:
+      tags:
+        - Operations
+      summary: Create and verify a gateway backup
+      description: |-
+        Runs one synchronous, isolated gateway-database backup with a 120-second
+        deadline and a one-hour cooldown. The operation uses a strict generated
+        name, refuses overwrite and configured count/byte limit excess, and
+        returns only verified metadata. It never creates an administration
+        database backup and exposes no arbitrary path or database selection.
+
+        The request requires the session cookie, an exact configured `Origin`,
+        and an `X-XSRF-TOKEN` value matching the session-bound
+        `TRINITY_ADMIN_XSRF` cookie. The server performs no CORS negotiation.
+      operationId: createBackup
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '201':
+          description: Backup created and integrity-verified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Backup'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/MutationForbidden'
+        '409':
+          $ref: '#/components/responses/OperationInProgress'
+        '429':
+          $ref: '#/components/responses/CooldownActive'
+        '500':
+          $ref: '#/components/responses/OutcomeUnknown'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+        '504':
+          $ref: '#/components/responses/OperationTimeout'
+        '507':
+          $ref: '#/components/responses/BackupLimitExceeded'
+  /operations/cleanup:
+    post:
+      tags:
+        - Operations
+      summary: Run gateway cleanup
+      description: |-
+        Runs one synchronous, isolated cleanup with a 30-second deadline and a
+        five-minute cooldown. This fixed operation does not expose a database,
+        filesystem, process, command, or retention-policy parameter.
+
+        The request requires the session cookie, an exact configured `Origin`,
+        and an `X-XSRF-TOKEN` value matching the session-bound
+        `TRINITY_ADMIN_XSRF` cookie. The server performs no CORS negotiation.
+      operationId: runCleanup
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '200':
+          description: Cleanup completed with a known outcome.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/MutationForbidden'
+        '409':
+          $ref: '#/components/responses/OperationInProgress'
+        '429':
+          $ref: '#/components/responses/CooldownActive'
+        '500':
+          $ref: '#/components/responses/OutcomeUnknown'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+        '504':
+          $ref: '#/components/responses/OperationTimeout'
+  /operations/firebase-validation:
+    post:
+      tags:
+        - Operations
+      summary: Validate Firebase access
+      description: |-
+        Performs one synchronous `validate_only` credential, project, and FCM
+        API-access check with a synthetic non-deliverable target, a 20-second
+        deadline, and a one-minute cooldown. This is not an end-to-end delivery
+        test and sends no Notification Request or Delivery Message.
+
+        The request requires the session cookie, an exact configured `Origin`,
+        and an `X-XSRF-TOKEN` value matching the session-bound
+        `TRINITY_ADMIN_XSRF` cookie. The server performs no CORS negotiation.
+      operationId: validateFirebase
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '200':
+          description: Firebase validation completed with a known outcome.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResult'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/MutationForbidden'
+        '409':
+          $ref: '#/components/responses/OperationInProgress'
+        '429':
+          $ref: '#/components/responses/CooldownActive'
+        '500':
+          $ref: '#/components/responses/OutcomeUnknown'
+        '503':
+          $ref: '#/components/responses/AdminUnavailable'
+        '504':
+          $ref: '#/components/responses/OperationTimeout'
+components:
+  securitySchemes:
+    operatorSession:
+      type: apiKey
+      in: cookie
+      name: TRINITY_ADMIN_SESSION
+      description: |-
+        Opaque host-only, Secure, HttpOnly, SameSite=Strict Operator Session
+        cookie. Its value is never returned in an API document.
+  parameters:
+    MetricsFrom:
+      name: from
+      in: query
+      required: false
+      description: |-
+        Inclusive UTC start of the metrics range. `from` and `to` must either
+        both be omitted or both be supplied. The maximum range is 30 days.
+      schema:
+        $ref: '#/components/schemas/UtcTimestamp'
+    MetricsTo:
+      name: to
+      in: query
+      required: false
+      description: |-
+        Exclusive UTC end of the metrics range. `from` and `to` must either both
+        be omitted or both be supplied. The maximum range is 30 days.
+      schema:
+        $ref: '#/components/schemas/UtcTimestamp'
+    MetricsInterval:
+      name: interval
+      in: query
+      required: false
+      description: UTC aggregation interval. Defaults to `hour`.
+      schema:
+        $ref: '#/components/schemas/MetricsInterval'
+    AuditCursor:
+      name: cursor
+      in: query
+      required: false
+      description: |-
+        Opaque continuation cursor from `nextCursor`. It binds every effective
+        filter and must be replayed without interpretation or modification.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 2048
+    AuditLimit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum entries in the page. Defaults to 50 and cannot exceed 100.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    AuditEntryKindFilter:
+      name: kind
+      in: query
+      required: false
+      description: Include only entries with this fixed audit-entry kind.
+      schema:
+        $ref: '#/components/schemas/AuditEntryKind'
+    AuditEntryOutcomeFilter:
+      name: outcome
+      in: query
+      required: false
+      description: Include only entries with this fixed audit outcome.
+      schema:
+        $ref: '#/components/schemas/AuditEntryOutcome'
+    AuditFrom:
+      name: from
+      in: query
+      required: false
+      description: |-
+        Inclusive UTC start of the audit range. `from` and `to` must either both
+        be omitted or both be supplied. The maximum range is 90 days.
+      schema:
+        $ref: '#/components/schemas/UtcTimestamp'
+    AuditTo:
+      name: to
+      in: query
+      required: false
+      description: |-
+        Exclusive UTC end of the audit range. `from` and `to` must either both
+        be omitted or both be supplied. The maximum range is 90 days.
+      schema:
+        $ref: '#/components/schemas/UtcTimestamp'
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: Opaque Operator Session identifier returned by this API.
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: |-
+        Browser-supplied origin. The server compares its scheme, host, and port
+        exactly with the configured public origin and never infers it from a
+        forwarded header.
+      schema:
+        type: string
+        format: uri
+        minLength: 8
+        maxLength: 2048
+    XsrfToken:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: |-
+        Exact session-bound value from the readable `TRINITY_ADMIN_XSRF`
+        cookie. The value is not returned in a JSON response.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 1024
+  headers:
+    RetryAfter:
+      description: Whole seconds until the action may be attempted again.
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 86400
+  responses:
+    InvalidRequest:
+      description: Request parameters are invalid (`invalid_request`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthenticated:
+      description: The Operator Session is absent, invalid, revoked, or expired (`unauthenticated`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: The authenticated Operator Identity is not permitted (`forbidden`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    MutationForbidden:
+      description: |-
+        The authenticated Operator Identity is not permitted (`forbidden`), or
+        exact-Origin or XSRF validation failed (`csrf_failed`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: The requested fixed resource does not exist (`not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    OperationInProgress:
+      description: A mutually exclusive maintenance action is already running (`operation_in_progress`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    CooldownActive:
+      description: The action is still in its fixed cooldown (`cooldown_active`).
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    OutcomeUnknown:
+      description: |-
+        The action executed but its final audit state could not be persisted;
+        clients must not retry automatically (`outcome_unknown`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    AdminUnavailable:
+      description: The isolated administration subsystem is unavailable (`admin_unavailable`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    OperationTimeout:
+      description: The bounded action exceeded its fixed deadline (`operation_timeout`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    BackupLimitExceeded:
+      description: |-
+        The configured backup count or byte limit prevents another backup;
+        operator intervention is required (`backup_limit_exceeded`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    UtcTimestamp:
+      type: string
+      format: date-time
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$'
+      description: RFC 3339 timestamp normalized to UTC and ending in `Z`.
+    OpaqueId:
+      type: string
+      pattern: '^[A-Za-z0-9_-]{16,128}$'
+      description: Opaque identifier with no client-meaningful structure.
+    SafeCount:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740991
+      description: Non-negative JSON safe integer.
+    PositiveSafeInteger:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+      description: Positive JSON safe integer.
+    OperatorIdentity:
+      type: object
+      additionalProperties: false
+      required:
+        - issuer
+        - subject
+      properties:
+        issuer:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 2048
+          description: Exact identity-provider issuer for this Operator Identity.
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: Provider-local subject for this Operator Identity.
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: Optional display label copied from the current accepted identity claims.
+        email:
+          type: string
+          format: email
+          minLength: 3
+          maxLength: 320
+          description: Optional display email copied from the current accepted identity claims.
+    OperatorSession:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - operator
+        - createdAt
+        - lastSeenAt
+        - idleExpiresAt
+        - absoluteExpiresAt
+        - current
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        operator:
+          $ref: '#/components/schemas/OperatorIdentity'
+        createdAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        lastSeenAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        idleExpiresAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        absoluteExpiresAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        current:
+          type: boolean
+          description: Whether this is the session authenticating the request.
+    OperatorSessionList:
+      type: object
+      additionalProperties: false
+      required:
+        - sessions
+      properties:
+        sessions:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OperatorSession'
+          description: Deployment-wide active sessions, ordered most recently seen first.
+    RequestOutcomeCounts:
+      type: object
+      additionalProperties: false
+      required:
+        - processed
+        - invalid
+        - rateLimited
+        - safetyBudgetExhausted
+        - storageUnavailable
+      properties:
+        processed:
+          $ref: '#/components/schemas/SafeCount'
+        invalid:
+          $ref: '#/components/schemas/SafeCount'
+        rateLimited:
+          $ref: '#/components/schemas/SafeCount'
+        safetyBudgetExhausted:
+          $ref: '#/components/schemas/SafeCount'
+        storageUnavailable:
+          $ref: '#/components/schemas/SafeCount'
+      description: |-
+        Mutually exclusive Notification Request outcomes. Counts contain no
+        request, Matrix, Push Key, Account Route, or Client Installation labels.
+    FcmOutcomeCounts:
+      type: object
+      additionalProperties: false
+      required:
+        - attempted
+        - accepted
+        - permanentlyRejected
+        - transientFailure
+      properties:
+        attempted:
+          $ref: '#/components/schemas/SafeCount'
+        accepted:
+          $ref: '#/components/schemas/SafeCount'
+        permanentlyRejected:
+          $ref: '#/components/schemas/SafeCount'
+        transientFailure:
+          $ref: '#/components/schemas/SafeCount'
+      description: |-
+        Outcomes for actual FCM network calls only. `attempted` equals the sum
+        of the three mutually exclusive outcomes. `accepted` means accepted by
+        FCM, not delivered to a Client Installation.
+    FcmPlatformTotals:
+      type: object
+      additionalProperties: false
+      required:
+        - android
+        - ios
+      properties:
+        android:
+          $ref: '#/components/schemas/FcmOutcomeCounts'
+        ios:
+          $ref: '#/components/schemas/FcmOutcomeCounts'
+    OperationSummaryOutcome:
+      type: string
+      enum:
+        - succeeded
+        - failed
+        - outcome_unknown
+    OperationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - startedAt
+        - completedAt
+        - outcome
+        - cooldownEndsAt
+      properties:
+        startedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        completedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        outcome:
+          $ref: '#/components/schemas/OperationSummaryOutcome'
+        cooldownEndsAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        reason:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,63}$'
+          description: Optional coarse safe reason code; never a raw external or process error.
+    OperationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - startedAt
+        - completedAt
+        - outcome
+        - cooldownEndsAt
+      properties:
+        startedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        completedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        outcome:
+          type: string
+          enum:
+            - succeeded
+            - failed
+          description: Known result of the synchronous action.
+        cooldownEndsAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        reason:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,63}$'
+          description: Optional coarse safe reason code; never a raw external or process error.
+    DatabaseByteUsage:
+      type: object
+      additionalProperties: false
+      required:
+        - gateway
+        - administration
+      properties:
+        gateway:
+          $ref: '#/components/schemas/SafeCount'
+        administration:
+          $ref: '#/components/schemas/SafeCount'
+      description: Current database file usage in bytes; no paths or filesystem details.
+    Overview:
+      type: object
+      additionalProperties: false
+      required:
+        - observedAt
+        - version
+        - uptimeSeconds
+        - gatewayReady
+        - administrationReady
+        - requestsLast24Hours
+        - fcmAttemptsLast24Hours
+        - databaseBytes
+      properties:
+        observedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        version:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Running Push Gateway release version.
+        uptimeSeconds:
+          $ref: '#/components/schemas/SafeCount'
+        gatewayReady:
+          type: boolean
+          description: Whether the delivery-critical gateway is ready.
+        administrationReady:
+          type: boolean
+          description: Whether the isolated administration subsystem is ready.
+        requestsLast24Hours:
+          $ref: '#/components/schemas/RequestOutcomeCounts'
+        fcmAttemptsLast24Hours:
+          $ref: '#/components/schemas/FcmPlatformTotals'
+        lastCleanup:
+          $ref: '#/components/schemas/OperationSummary'
+        lastBackup:
+          $ref: '#/components/schemas/OperationSummary'
+        lastFirebaseValidation:
+          $ref: '#/components/schemas/OperationSummary'
+        databaseBytes:
+          $ref: '#/components/schemas/DatabaseByteUsage'
+    MetricsInterval:
+      type: string
+      enum:
+        - hour
+        - day
+      default: hour
+    Metrics:
+      type: object
+      additionalProperties: false
+      required:
+        - from
+        - to
+        - interval
+        - requestBuckets
+        - fcmBuckets
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        interval:
+          $ref: '#/components/schemas/MetricsInterval'
+        requestBuckets:
+          type: array
+          maxItems: 720
+          items:
+            $ref: '#/components/schemas/RequestMetricBucket'
+        fcmBuckets:
+          type: array
+          maxItems: 1440
+          items:
+            $ref: '#/components/schemas/FcmMetricBucket'
+      description: |-
+        Aggregate UTC buckets covering the effective `[from,to)` range. Empty
+        intervals may be omitted; all labels and outcomes are fixed by this schema.
+    RequestMetricBucket:
+      type: object
+      additionalProperties: false
+      required:
+        - from
+        - to
+        - outcomes
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        outcomes:
+          $ref: '#/components/schemas/RequestOutcomeCounts'
+    FcmPlatform:
+      type: string
+      enum:
+        - android
+        - ios
+    FcmMetricBucket:
+      type: object
+      additionalProperties: false
+      required:
+        - from
+        - to
+        - platform
+        - outcomes
+        - latency
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        platform:
+          $ref: '#/components/schemas/FcmPlatform'
+        outcomes:
+          $ref: '#/components/schemas/FcmOutcomeCounts'
+        latency:
+          $ref: '#/components/schemas/FcmLatencyMetrics'
+    FcmLatencyMetrics:
+      type: object
+      additionalProperties: false
+      required:
+        - sampleCount
+        - histogram
+        - approxP95Ms
+      properties:
+        sampleCount:
+          $ref: '#/components/schemas/SafeCount'
+        histogram:
+          $ref: '#/components/schemas/FcmLatencyHistogram'
+        approxP95Ms:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 10000
+          description: |-
+            Approximate p95 using the upper bound of the first histogram bucket
+            reaching 95 percent. `10000` represents the open-ended final bucket;
+            `null` means there were no samples.
+      description: |-
+        Approximate latency derived only from fixed histogram buckets. No raw
+        samples, per-request timings, arbitrary labels, or sums are returned.
+    FcmLatencyHistogram:
+      type: object
+      additionalProperties: false
+      required:
+        - under_100_ms
+        - 100_to_249_ms
+        - 250_to_499_ms
+        - 500_to_999_ms
+        - 1000_to_2499_ms
+        - 2500_to_4999_ms
+        - 5000_to_9999_ms
+        - 10000_ms_or_more
+      properties:
+        under_100_ms:
+          $ref: '#/components/schemas/SafeCount'
+        100_to_249_ms:
+          $ref: '#/components/schemas/SafeCount'
+        250_to_499_ms:
+          $ref: '#/components/schemas/SafeCount'
+        500_to_999_ms:
+          $ref: '#/components/schemas/SafeCount'
+        1000_to_2499_ms:
+          $ref: '#/components/schemas/SafeCount'
+        2500_to_4999_ms:
+          $ref: '#/components/schemas/SafeCount'
+        5000_to_9999_ms:
+          $ref: '#/components/schemas/SafeCount'
+        10000_ms_or_more:
+          $ref: '#/components/schemas/SafeCount'
+      description: Fixed non-cumulative latency buckets for actual FCM calls.
+    ConfigurationSource:
+      type: string
+      enum:
+        - env
+        - file
+    SecretPresence:
+      type: object
+      additionalProperties: false
+      required:
+        - configured
+        - source
+      properties:
+        configured:
+          type: boolean
+          description: Whether a non-empty value was accepted at startup.
+        source:
+          $ref: '#/components/schemas/ConfigurationSource'
+      description: Secret presence and source only; never a value, variable name, or path.
+    GatewayConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+        - androidApplicationId
+        - iosApplicationId
+        - firebaseProjectId
+        - gatewayDatabasePath
+        - maxBodyBytes
+        - maxDailyAttempts
+        - maxClientInstallationsPerRequest
+        - pendingLeaseSeconds
+        - requestDeadlineSeconds
+        - terminalRetentionSeconds
+        - upstreamTimeoutSeconds
+        - sourceRateLimit
+        - sourceRatePeriodSeconds
+        - maxSourceKeys
+        - cleanupIntervalSeconds
+      properties:
+        androidApplicationId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        iosApplicationId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        firebaseProjectId:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Effective non-secret Firebase project identifier.
+        gatewayDatabasePath:
+          type: string
+          pattern: '^/'
+          minLength: 2
+          maxLength: 4096
+          description: Absolute delivery-critical SQLite location.
+        maxBodyBytes:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        maxDailyAttempts:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        maxClientInstallationsPerRequest:
+          type: integer
+          minimum: 1
+          maximum: 49
+        pendingLeaseSeconds:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        requestDeadlineSeconds:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        terminalRetentionSeconds:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        upstreamTimeoutSeconds:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        sourceRateLimit:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        sourceRatePeriodSeconds:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        maxSourceKeys:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        cleanupIntervalSeconds:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+      description: |-
+        Effective non-secret gateway values. Listener addresses, migration
+        paths, trusted-proxy networks, and raw environment names are excluded.
+    AdministrationConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+        - publicOrigin
+        - oidcIssuer
+        - oidcClientId
+        - oidcScopes
+        - oidcGroupClaim
+        - oidcRequiredGroup
+        - oidcTokenEndpointAuthMethod
+        - administrationDatabasePath
+        - backupDirectory
+        - sessionIdleSeconds
+        - sessionAbsoluteSeconds
+        - maxSessionsPerIdentity
+        - maxSessionsDeployment
+        - metricsRetentionDays
+        - auditRetentionDays
+        - firebaseValidationDeadlineSeconds
+        - firebaseValidationCooldownSeconds
+        - cleanupDeadlineSeconds
+        - cleanupCooldownSeconds
+        - backupDeadlineSeconds
+        - backupCooldownSeconds
+        - backupLimitCount
+        - backupLimitBytes
+      properties:
+        publicOrigin:
+          type: string
+          format: uri
+          minLength: 8
+          maxLength: 2048
+        oidcIssuer:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 2048
+        oidcClientId:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: Effective non-secret confidential-client identifier.
+        oidcScopes:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9._:-]{1,128}$'
+          description: Exact configured OIDC scopes.
+        oidcGroupClaim:
+          type: string
+          pattern: '^[A-Za-z_][A-Za-z0-9_-]{0,127}$'
+          description: Top-level claim used for exact required-group membership.
+        oidcRequiredGroup:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: Exact case-sensitive group value required at login.
+        oidcTokenEndpointAuthMethod:
+          type: string
+          enum:
+            - client_secret_post
+            - client_secret_basic
+        administrationDatabasePath:
+          type: string
+          pattern: '^/'
+          minLength: 2
+          maxLength: 4096
+          description: Absolute isolated administration SQLite location.
+        backupDirectory:
+          type: string
+          pattern: '^/'
+          minLength: 2
+          maxLength: 4096
+          description: Absolute directory for generated verified gateway backups.
+        sessionIdleSeconds:
+          type: integer
+          minimum: 1800
+          maximum: 1800
+        sessionAbsoluteSeconds:
+          type: integer
+          minimum: 28800
+          maximum: 28800
+        maxSessionsPerIdentity:
+          type: integer
+          minimum: 5
+          maximum: 5
+        maxSessionsDeployment:
+          type: integer
+          minimum: 100
+          maximum: 100
+        metricsRetentionDays:
+          type: integer
+          minimum: 30
+          maximum: 30
+        auditRetentionDays:
+          type: integer
+          minimum: 90
+          maximum: 90
+        firebaseValidationDeadlineSeconds:
+          type: integer
+          minimum: 20
+          maximum: 20
+        firebaseValidationCooldownSeconds:
+          type: integer
+          minimum: 60
+          maximum: 60
+        cleanupDeadlineSeconds:
+          type: integer
+          minimum: 30
+          maximum: 30
+        cleanupCooldownSeconds:
+          type: integer
+          minimum: 300
+          maximum: 300
+        backupDeadlineSeconds:
+          type: integer
+          minimum: 120
+          maximum: 120
+        backupCooldownSeconds:
+          type: integer
+          minimum: 3600
+          maximum: 3600
+        backupLimitCount:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        backupLimitBytes:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+      description: |-
+        Effective non-secret administration policy and storage locations.
+        Credential paths and raw environment names are excluded.
+    CredentialPresence:
+      type: object
+      additionalProperties: false
+      required:
+        - firebaseClientEmail
+        - firebasePrivateKey
+        - firebaseProjectId
+        - fingerprintKey
+        - oidcClientSecret
+        - sessionSecret
+      properties:
+        firebaseClientEmail:
+          $ref: '#/components/schemas/SecretPresence'
+        firebasePrivateKey:
+          $ref: '#/components/schemas/SecretPresence'
+        firebaseProjectId:
+          $ref: '#/components/schemas/SecretPresence'
+        fingerprintKey:
+          $ref: '#/components/schemas/SecretPresence'
+        oidcClientSecret:
+          $ref: '#/components/schemas/SecretPresence'
+        sessionSecret:
+          $ref: '#/components/schemas/SecretPresence'
+    Configuration:
+      type: object
+      additionalProperties: false
+      required:
+        - observedAt
+        - version
+        - gateway
+        - administration
+        - credentials
+      properties:
+        observedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        version:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Running Push Gateway release version.
+        gateway:
+          $ref: '#/components/schemas/GatewayConfiguration'
+        administration:
+          $ref: '#/components/schemas/AdministrationConfiguration'
+        credentials:
+          $ref: '#/components/schemas/CredentialPresence'
+    AuditEntryKind:
+      type: string
+      enum:
+        - login
+        - logout
+        - session_expired
+        - session_revoked
+        - session_cap_eviction
+        - policy_rejected
+        - session_purge
+        - firebase_validation
+        - cleanup
+        - backup
+    AuditEntryOutcome:
+      type: string
+      enum:
+        - succeeded
+        - failed
+        - started
+        - outcome_unknown
+    OperatorAuditEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - occurredAt
+        - operator
+        - kind
+        - outcome
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        occurredAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        operator:
+          oneOf:
+            - $ref: '#/components/schemas/OperatorIdentity'
+            - type: 'null'
+          description: Responsible Operator Identity, or `null` for a system or CLI occurrence.
+        kind:
+          $ref: '#/components/schemas/AuditEntryKind'
+        outcome:
+          $ref: '#/components/schemas/AuditEntryOutcome'
+        reason:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{0,63}$'
+          description: Optional coarse safe reason code; never raw claims or external errors.
+    OperatorAuditEntryPage:
+      type: object
+      additionalProperties: false
+      required:
+        - entries
+      properties:
+        entries:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OperatorAuditEntry'
+        nextCursor:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: Opaque continuation cursor; absent when no later page exists.
+    BackupIntegrity:
+      type: string
+      enum:
+        - verified
+    Backup:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - createdAt
+        - sizeBytes
+        - sha256
+        - integrity
+        - operator
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        name:
+          type: string
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
+          description: Strict generated basename only; never a filesystem path.
+        createdAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        sizeBytes:
+          $ref: '#/components/schemas/PositiveSafeInteger'
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: Lowercase hexadecimal SHA-256 digest of the verified backup.
+        integrity:
+          $ref: '#/components/schemas/BackupIntegrity'
+        operator:
+          oneOf:
+            - $ref: '#/components/schemas/OperatorIdentity'
+            - type: 'null'
+          description: Requesting Operator Identity, or `null` for a CLI-created backup.
+    BackupList:
+      type: object
+      additionalProperties: false
+      required:
+        - backups
+      properties:
+        backups:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/Backup'
+          description: Verified backup metadata ordered newest first.
+    ProblemCode:
+      type: string
+      enum:
+        - unauthenticated
+        - forbidden
+        - invalid_request
+        - csrf_failed
+        - operation_in_progress
+        - cooldown_active
+        - operation_timeout
+        - outcome_unknown
+        - backup_limit_exceeded
+        - admin_unavailable
+        - not_found
+    Problem:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          maxLength: 2048
+          description: Stable problem type URI for the code.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Stable short title without request-specific data.
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: HTTP response status repeated in the document.
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: |-
+            Generic safe explanation. It never includes secret values, tokens,
+            identifiers, paths, external response bodies, or raw process errors.
+        instance:
+          type: string
+          format: uri-reference
+          maxLength: 2048
+          description: Optional request-local problem URI containing no private identifier.
+      description: RFC 9457-style problem details with a stable safe code.
