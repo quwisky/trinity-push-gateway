@@ -178,9 +178,10 @@ The selected module and reusable contracts close the static spike's unknowns:
   keying, profile pruning, idempotent revocation, and five/100 session caps also
   pass. The production `/data/admin.sqlite` schema and the same contract remain
   #24 work.
-- Provider outage runs alongside the real Bun Matrix endpoint and public
-  `/health`; Matrix returns its canonical success, FCM delivery occurs once,
-  health remains `200`, and the isolated auth store remains empty.
+- Callback-time provider outage after successful discovery runs alongside the
+  real Bun Matrix endpoint and public `/health`; Matrix returns its canonical
+  success, FCM delivery occurs once, health remains `200`, and the isolated
+  auth store remains empty.
 - `pnpm nx run push-gateway:check-auth-selection` bundles the retained module at
   53,722 raw/17,206 gzip bytes from 15 source inputs. It requires exactly
   `openid-client@6.8.7`, keeps `oidc-provider@9.11.3` development-only, and
@@ -264,8 +265,9 @@ The retained suite proves:
   provider behavior. No portable post-logout return is claimed.
 - Fault injection after identity and session writes: the complete feasibility
   transaction either commits or rolls back.
-- Provider outage cannot alter Matrix notification delivery or health behavior;
-  #24 must repeat isolation for administration-database failures.
+- Callback-time provider outage after discovery cannot alter Matrix
+  notification delivery or health behavior; #24 must prove startup/discovery
+  and administration-database failure isolation in the production composition.
 - Bun build/import smoke, selected/application bundle budgets, the
   pull-request compressed-image guard, and a Worker source-map assertion
   showing no `openid-client`, `oauth4webapi`, or Bun administration module in
