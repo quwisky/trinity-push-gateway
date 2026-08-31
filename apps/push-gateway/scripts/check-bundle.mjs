@@ -6,12 +6,36 @@ import { gzip } from 'node:zlib';
 const gzipAsync = promisify(gzip);
 const maximumRawBytes = 64 * 1024 * 1024;
 const maximumGzipBytes = 3 * 1024 * 1024;
-const allowedWorkspaceDependencyNames = [
+const gatewayRuntimeDependencyNames = [
   'drizzle-orm',
   'jose',
   'openid-client',
   'zod',
 ];
+const browserRuntimeDependencyNames = [
+  '@angular/cdk',
+  '@angular/common',
+  '@angular/compiler',
+  '@angular/core',
+  '@angular/forms',
+  '@angular/platform-browser',
+  '@angular/router',
+  '@ng-forge/dynamic-forms',
+  '@ng-icons/core',
+  '@ng-icons/lucide',
+  '@spartan-ng/brain',
+  '@standard-schema/spec',
+  'chart.js',
+  'class-variance-authority',
+  'clsx',
+  'rxjs',
+  'tailwind-merge',
+  'tw-animate-css',
+];
+const allowedWorkspaceDependencyNames = [
+  ...gatewayRuntimeDependencyNames,
+  ...browserRuntimeDependencyNames,
+].sort();
 const expectedSourceCount = 103;
 const expectedSourceGraph =
   'f114f64628e2ac16a709ea20d5c6ae8c79429df1c79fb4fd33a78c3e9ec54d21';
@@ -23,15 +47,44 @@ const sourceMap = new URL(
   '../../../dist/apps/push-gateway/worker/index.js.map',
   import.meta.url,
 );
+const dockerfile = new URL('../Dockerfile', import.meta.url);
 const packageFile = new URL('../../../package.json', import.meta.url);
-const [bundleBytes, { size }, packageJson, sourceMapJson] = await Promise.all([
+const workspaceFile = new URL('../../../pnpm-workspace.yaml', import.meta.url);
+const [
+  bundleBytes,
+  { size },
+  dockerfileText,
+  packageJson,
+  sourceMapJson,
+  workspaceText,
+] = await Promise.all([
   readFile(bundle),
   stat(bundle),
+  readFile(dockerfile, 'utf8'),
   readFile(packageFile, 'utf8').then(JSON.parse),
   readFile(sourceMap, 'utf8').then(JSON.parse),
+  readFile(workspaceFile, 'utf8'),
 ]);
 const gzipBytes = (await gzipAsync(bundleBytes)).byteLength;
 const bundleText = bundleBytes.toString('utf8');
+
+const patchPaths = [
+  ...workspaceText.matchAll(/^\s{2}[^:]+:\s+(patches\/\S+\.patch)$/gmu),
+].map(([, patchPath]) => patchPath);
+if (patchPaths.length > 0) {
+  const frozenInstallIndex = dockerfileText.indexOf(
+    'pnpm install --frozen-lockfile',
+  );
+  const dependencyStage = dockerfileText.slice(0, frozenInstallIndex);
+  if (
+    frozenInstallIndex < 0 ||
+    !/^COPY\s+patches\/?\s+\.\/patches\/?\s*$/mu.test(dependencyStage)
+  ) {
+    throw new Error(
+      `Docker dependency stage must copy ${patchPaths.join(', ')} before the frozen pnpm install.`,
+    );
+  }
+}
 
 for (const forbiddenRuntime of ['bun:sqlite', 'drizzle-orm/bun-sqlite']) {
   if (bundleText.includes(forbiddenRuntime)) {
@@ -65,6 +118,16 @@ const forbiddenWorkerSources = normalizedSources.filter((source) =>
 if (forbiddenWorkerSources.length > 0) {
   throw new Error(
     `Worker source graph contains Bun-only authentication code: ${forbiddenWorkerSources.join(', ')}.`,
+  );
+}
+const browserWorkerSources = normalizedSources.filter((source) =>
+  browserRuntimeDependencyNames.some((name) =>
+    source.startsWith(`node_modules/${name}/`),
+  ),
+);
+if (browserWorkerSources.length > 0) {
+  throw new Error(
+    `Worker source graph contains browser-only dependencies: ${browserWorkerSources.join(', ')}.`,
   );
 }
 const sourceGraph = createHash('sha256')

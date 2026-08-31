@@ -1,7 +1,61 @@
 # Push Gateway UI
 
-This directory is reserved for the future `push-gateway-ui` Nx project: an
-Angular administration interface for self-hosted Gateway Operators.
+`push-gateway-ui` is the isolated Angular interface for Gateway Operators of a
+self-hosted Trinity Push Gateway. It is a strict, standalone, zoneless,
+client-rendered application built for the `/admin/` base path.
 
-The administration application, its API, and its authentication design are
-intentionally outside the current workspace migration.
+The project currently supplies the accessible shell and reusable browser
+foundations. Bun does not serve or enable the application yet. The Cloudflare
+Worker never contains or exposes this operator surface.
+
+## Local commands
+
+Run project work through Nx:
+
+```sh
+pnpm nx run push-gateway-ui:serve
+pnpm nx run push-gateway-ui:test
+pnpm nx run push-gateway-ui:test-coverage
+pnpm nx run push-gateway-ui:build
+pnpm nx run push-gateway-ui:check
+```
+
+The production build emits hashed browser assets under
+`dist/apps/push-gateway-ui/browser`. `check` runs inferred ESLint, strict
+TypeScript checks, Angular-native Vitest coverage, generated-client drift,
+source policy, and raw/compressed browser bundle policy.
+
+## Generated operator API client
+
+The canonical API contract is
+`apps/push-gateway/openapi/admin-v1.yaml`. Regenerate its Angular HttpClient
+client with:
+
+```sh
+pnpm nx run push-gateway-ui:generate-api
+pnpm nx run push-gateway-ui:check-api
+```
+
+Generated files under `src/app/api/generated` are committed, deterministic,
+and never edited by hand. The drift check regenerates twice in temporary Nx
+workspace data, validates the owned output set, and compares content hashes.
+
+## Browser boundary
+
+- Chart.js is registered directly and remains on the lazy Metrics route. The
+  project does not use `chart.js/auto`, a chart wrapper, or a date adapter.
+- The app-owned Spartan/ng-forge adapter registers only text, datetime, select,
+  checkbox, and submit fields on the lazy Operations route. Its app-owned Helm
+  controls use the minimal Vega style recipes needed from Spartan v1.3.4. The
+  route-owned provider deliberately excludes ng-forge's unused built-in fields,
+  wrappers, and addons from the browser graph. A pinned pnpm compatibility patch
+  disables those unconditional 1.1.0 defaults until ng-forge offers a supported
+  provider opt-out; the source and bundle guards verify the patch boundary.
+  Paged, container, wrapper, and addon configurations are intentionally outside
+  this foundation's supported form surface.
+- Theme initialization applies the saved or system light/dark preference before
+  any public or protected route renders.
+- Production source maps, service workers, manifests, analytics, icon fonts,
+  remote browser assets, and Angular sanitizer bypasses are forbidden.
+- Visual proof belongs in ignored `test-output/` storage and is uploaded to the
+  pull request; proof artifacts are never committed.
