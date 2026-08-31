@@ -1,11 +1,11 @@
 import { Routes } from '@angular/router';
 import { provideSpartanDynamicForm } from '../../ui/form/spartan-form.provider';
-import { OperationsPage } from './operations.page';
+import { SecurityPage } from './security.page';
 
-export const OPERATIONS_ROUTES: Routes = [
+export const SECURITY_ROUTES: Routes = [
   {
     path: '',
-    component: OperationsPage,
+    component: SecurityPage,
     providers: [provideSpartanDynamicForm()],
   },
 ];

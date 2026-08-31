@@ -9,8 +9,11 @@ import {
   viewChild,
 } from '@angular/core';
 import {
+  BarController,
+  BarElement,
   CategoryScale,
   Chart,
+  Legend,
   LinearScale,
   LineController,
   LineElement,
@@ -19,13 +22,22 @@ import {
 } from 'chart.js';
 
 Chart.register(
+  BarController,
+  BarElement,
   LineController,
   LineElement,
   PointElement,
   CategoryScale,
   LinearScale,
+  Legend,
   Tooltip,
 );
+
+export type GatewayChartSeries = Readonly<{
+  label: string;
+  values: readonly (number | null)[];
+  color: string;
+}>;
 
 @Component({
   selector: 'tpg-gateway-chart',
@@ -33,38 +45,55 @@ Chart.register(
     <div class="chart-frame">
       <canvas #canvas role="img" [attr.aria-label]="accessibleLabel()"></canvas>
     </div>
-    <table class="data-table compact-table">
-      <caption class="visually-hidden">
-        {{
-          accessibleLabel()
-        }}
-      </caption>
-      <thead>
-        <tr>
-          <th scope="col">Interval</th>
-          <th scope="col">Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (label of labels(); track label; let index = $index) {
+    <div
+      class="table-scroll"
+      role="region"
+      tabindex="0"
+      [attr.aria-label]="tableCaption() + ' scrollable table'"
+    >
+      <table class="data-table chart-data-table">
+        <caption>
+          {{
+            tableCaption()
+          }}
+        </caption>
+        <thead>
           <tr>
-            <th scope="row">{{ label }}</th>
-            <td>{{ values()[index] }}</td>
+            <th scope="col">UTC interval</th>
+            @for (seriesItem of series(); track seriesItem.label) {
+              <th scope="col">{{ seriesItem.label }}</th>
+            }
           </tr>
-        }
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          @for (label of labels(); track label; let rowIndex = $index) {
+            <tr>
+              <th scope="row">{{ label }}</th>
+              @for (seriesItem of series(); track seriesItem.label) {
+                <td>
+                  {{ displayValue(seriesItem.values[rowIndex]) }}
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GatewayChart implements OnDestroy {
   readonly labels = input.required<readonly string[]>();
-  readonly values = input.required<readonly number[]>();
+  readonly series = input.required<readonly GatewayChartSeries[]>();
   readonly accessibleLabel = input.required<string>();
+  readonly tableCaption = input.required<string>();
+  readonly type = input<'bar' | 'line'>('bar');
+  readonly stacked = input(false);
+  readonly valueSuffix = input('');
 
   private readonly canvas =
     viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
-  private chart?: Chart<'line'>;
+  private chart?: Chart;
 
   constructor() {
     afterNextRender(() => {
@@ -72,13 +101,12 @@ export class GatewayChart implements OnDestroy {
     });
     effect(() => {
       const labels = [...this.labels()];
-      const values = [...this.values()];
+      const datasets = this.chartDatasets();
       if (!this.chart) {
         return;
       }
-      const dataset = this.chart.data.datasets[0];
       this.chart.data.labels = labels;
-      dataset.data = values;
+      this.chart.data.datasets = datasets;
       this.chart.update('none');
     });
   }
@@ -87,27 +115,46 @@ export class GatewayChart implements OnDestroy {
     this.chart?.destroy();
   }
 
+  protected displayValue(value: number | null | undefined): string {
+    return value === null || value === undefined
+      ? 'No samples'
+      : `${new Intl.NumberFormat().format(value)}${this.valueSuffix()}`;
+  }
+
+  private chartDatasets(): Chart['data']['datasets'] {
+    return this.series().map((seriesItem) => ({
+      type: this.type(),
+      label: seriesItem.label,
+      data: [...seriesItem.values],
+      backgroundColor: seriesItem.color,
+      borderColor: seriesItem.color,
+      borderWidth: this.type() === 'line' ? 2 : 1,
+      pointRadius: this.type() === 'line' ? 2 : 0,
+      tension: this.type() === 'line' ? 0.2 : 0,
+    }));
+  }
+
   private createChart(): void {
     this.chart = new Chart(this.canvas().nativeElement, {
-      type: 'line',
+      type: this.type(),
       data: {
         labels: [...this.labels()],
-        datasets: [
-          {
-            data: [...this.values()],
-            borderColor: '#0f766e',
-            backgroundColor: '#0f766e',
-            pointRadius: 3,
-            tension: 0.2,
-          },
-        ],
+        datasets: this.chartDatasets(),
       },
       options: {
         animation: false,
         maintainAspectRatio: false,
-        plugins: { tooltip: { enabled: true } },
+        plugins: {
+          legend: { display: true, position: 'bottom' },
+          tooltip: { enabled: true },
+        },
         scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 } },
+          x: { stacked: this.stacked() },
+          y: {
+            beginAtZero: true,
+            stacked: this.stacked(),
+            ticks: { precision: 0 },
+          },
         },
       },
     });

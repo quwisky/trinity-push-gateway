@@ -11,7 +11,7 @@ import { SpartanSelectFieldComponent } from './spartan-select-field';
 import { SpartanSubmitFieldComponent } from './spartan-submit-field';
 import { SpartanTextFieldComponent } from './spartan-text-field';
 
-describe('Spartan dynamic form fields', () => {
+describe('shared Spartan dynamic form fields', () => {
   it('binds text values and exposes validation errors accessibly', async () => {
     const { fixture, field, rootValue } = createNgForgeFieldFixture(
       SpartanTextFieldComponent,

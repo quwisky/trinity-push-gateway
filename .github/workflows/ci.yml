@@ -69,7 +69,7 @@ jobs:
           fi
       - name: Install Playwright 1.62.1 browsers
         if: steps.admin-browser.outputs.required == 'true'
-        run: pnpm exec playwright install --with-deps chromium firefox
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
       - name: Check repository
         run: |
           set -Eeuo pipefail
