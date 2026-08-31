@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.description="Matrix-to-FCM push gateway" \
 WORKDIR /app
 RUN install -d -o bun -g bun /data /app/migrations
 COPY --from=build --chown=bun:bun /app/dist/apps/push-gateway/bun/main.js /app/main.js
-COPY --chown=bun:bun apps/push-gateway/migrations /app/migrations
+COPY --chown=bun:bun apps/push-gateway/migrations/*.sql /app/migrations/
 ENV TRINITY_PUSH_GATEWAY_DATABASE_PATH=/data/gateway.sqlite \
     TRINITY_PUSH_GATEWAY_HOST=0.0.0.0 \
     TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH=/app/migrations \

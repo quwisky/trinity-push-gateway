@@ -1,12 +1,19 @@
 import { Database } from 'bun:sqlite';
+import { and, eq, lt, lte, or, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { existsSync, rmSync } from 'node:fs';
 
 import { fingerprintFor } from '../fingerprint';
 import type { DeliveryClaim, DeliveryIdentity, GatewayStore } from '../ports';
 import {
   BUDGET_COLUMNS,
+  dailyBudgets,
   DELIVERY_COLUMNS,
   DELIVERY_EXPIRY_INDEX,
+  deliveryRecords,
+  gatewaySchema,
+  type GatewaySchema,
   HEALTH_CHECK_DATE,
 } from '../schema';
 
@@ -19,11 +26,6 @@ export type SqlMigration = {
 type AppliedMigration = {
   readonly minimum_reader: string;
   readonly name: string;
-};
-
-type DeliveryRow = {
-  readonly lease_expires_at: number | null;
-  readonly outcome: 'delivered' | 'pending' | 'rejected';
 };
 
 function configure(database: Database): void {
@@ -101,10 +103,14 @@ function assertIntegrity(database: Database): void {
 }
 
 export class SqliteGatewayStore implements GatewayStore {
+  private readonly queryDatabase: BunSQLiteDatabase<GatewaySchema>;
+
   private constructor(
     private readonly database: Database,
     private readonly expectedMigrations: readonly string[],
-  ) {}
+  ) {
+    this.queryDatabase = drizzle(database, { schema: gatewaySchema });
+  }
 
   static open(
     databasePath: string,
@@ -165,33 +171,45 @@ export class SqliteGatewayStore implements GatewayStore {
   ): Promise<DeliveryClaim> {
     const fingerprint = await fingerprintFor(identity, fingerprintKey);
     const leaseExpiresAt = nowSeconds + leaseSeconds;
-    const acquired = this.database
-      .query<{ readonly fingerprint: string }, [string, number, number]>(
-        `INSERT INTO delivery_records
-          (fingerprint, outcome, lease_expires_at, expires_at, reason_category)
-         VALUES (?1, 'pending', ?2, ?2, NULL)
-         ON CONFLICT (fingerprint) DO UPDATE SET
-           outcome = 'pending',
-           lease_expires_at = excluded.lease_expires_at,
-           expires_at = excluded.expires_at,
-           reason_category = NULL
-         WHERE delivery_records.expires_at <= ?3
-            OR (delivery_records.outcome = 'pending'
-                AND delivery_records.lease_expires_at <= ?3)
-         RETURNING fingerprint`,
-      )
-      .get(fingerprint, leaseExpiresAt, nowSeconds);
-    if (acquired !== null) {
+    const [acquired] = this.queryDatabase
+      .insert(deliveryRecords)
+      .values({
+        expiresAt: leaseExpiresAt,
+        fingerprint,
+        leaseExpiresAt,
+        outcome: 'pending',
+        reasonCategory: null,
+      })
+      .onConflictDoUpdate({
+        set: {
+          expiresAt: leaseExpiresAt,
+          leaseExpiresAt,
+          outcome: 'pending',
+          reasonCategory: null,
+        },
+        setWhere: sql`${or(
+          lte(deliveryRecords.expiresAt, nowSeconds),
+          and(
+            eq(deliveryRecords.outcome, 'pending'),
+            lte(deliveryRecords.leaseExpiresAt, nowSeconds),
+          ),
+        )}`,
+        target: deliveryRecords.fingerprint,
+      })
+      .returning({ fingerprint: deliveryRecords.fingerprint })
+      .all();
+    if (acquired !== undefined) {
       return { fingerprint, kind: 'acquired' };
     }
 
-    const existing = this.database
-      .query<DeliveryRow, [string]>(
-        `SELECT outcome, lease_expires_at
-         FROM delivery_records
-         WHERE fingerprint = ?1`,
-      )
-      .get(fingerprint);
+    const existing = this.queryDatabase
+      .select({
+        leaseExpiresAt: deliveryRecords.leaseExpiresAt,
+        outcome: deliveryRecords.outcome,
+      })
+      .from(deliveryRecords)
+      .where(eq(deliveryRecords.fingerprint, fingerprint))
+      .get();
     if (existing?.outcome === 'delivered') {
       return { kind: 'delivered' };
     }
@@ -203,7 +221,7 @@ export class SqliteGatewayStore implements GatewayStore {
         kind: 'pending',
         retryAfterSeconds: Math.max(
           1,
-          (existing.lease_expires_at ?? nowSeconds + 1) - nowSeconds,
+          (existing.leaseExpiresAt ?? nowSeconds + 1) - nowSeconds,
         ),
       };
     }
@@ -212,12 +230,14 @@ export class SqliteGatewayStore implements GatewayStore {
 
   cleanup(nowSeconds: number, utcDate: string): Promise<void> {
     const cleanup = this.database.transaction(() => {
-      this.database
-        .query('DELETE FROM delivery_records WHERE expires_at <= ?1')
-        .run(nowSeconds);
-      this.database
-        .query('DELETE FROM daily_budgets WHERE utc_date < ?1')
-        .run(utcDate);
+      this.queryDatabase
+        .delete(deliveryRecords)
+        .where(lte(deliveryRecords.expiresAt, nowSeconds))
+        .run();
+      this.queryDatabase
+        .delete(dailyBudgets)
+        .where(lt(dailyBudgets.utcDate, utcDate))
+        .run();
     });
     cleanup.immediate();
     return Promise.resolve();
@@ -233,16 +253,16 @@ export class SqliteGatewayStore implements GatewayStore {
     reasonCategory: string | undefined,
     expiresAt: number,
   ): Promise<void> {
-    this.database
-      .query(
-        `UPDATE delivery_records
-         SET outcome = ?2,
-             lease_expires_at = NULL,
-             expires_at = ?3,
-             reason_category = ?4
-         WHERE fingerprint = ?1`,
-      )
-      .run(fingerprint, outcome, expiresAt, reasonCategory ?? null);
+    this.queryDatabase
+      .update(deliveryRecords)
+      .set({
+        expiresAt,
+        leaseExpiresAt: null,
+        outcome,
+        reasonCategory: reasonCategory ?? null,
+      })
+      .where(eq(deliveryRecords.fingerprint, fingerprint))
+      .run();
     return Promise.resolve();
   }
 
@@ -293,13 +313,14 @@ export class SqliteGatewayStore implements GatewayStore {
 
       this.database.run('BEGIN IMMEDIATE');
       try {
-        this.database
-          .query(
-            `INSERT INTO daily_budgets (utc_date, attempts)
-             VALUES (?1, 0)
-             ON CONFLICT (utc_date) DO UPDATE SET attempts = excluded.attempts`,
-          )
-          .run(HEALTH_CHECK_DATE);
+        this.queryDatabase
+          .insert(dailyBudgets)
+          .values({ attempts: 0, utcDate: HEALTH_CHECK_DATE })
+          .onConflictDoUpdate({
+            set: { attempts: 0 },
+            target: dailyBudgets.utcDate,
+          })
+          .run();
       } finally {
         this.database.run('ROLLBACK');
       }
@@ -315,12 +336,15 @@ export class SqliteGatewayStore implements GatewayStore {
   }
 
   releaseDelivery(fingerprint: string): Promise<void> {
-    this.database
-      .query(
-        `DELETE FROM delivery_records
-         WHERE fingerprint = ?1 AND outcome = 'pending'`,
+    this.queryDatabase
+      .delete(deliveryRecords)
+      .where(
+        and(
+          eq(deliveryRecords.fingerprint, fingerprint),
+          eq(deliveryRecords.outcome, 'pending'),
+        ),
       )
-      .run(fingerprint);
+      .run();
     return Promise.resolve();
   }
 
@@ -335,16 +359,18 @@ export class SqliteGatewayStore implements GatewayStore {
     if (requestedAttempts > maximumAttempts) {
       return Promise.resolve(false);
     }
-    const reserved = this.database
-      .query<{ readonly attempts: number }, [string, number, number]>(
-        `INSERT INTO daily_budgets (utc_date, attempts)
-         VALUES (?1, ?2)
-         ON CONFLICT (utc_date) DO UPDATE SET
-           attempts = daily_budgets.attempts + excluded.attempts
-         WHERE daily_budgets.attempts + excluded.attempts <= ?3
-         RETURNING attempts`,
-      )
-      .get(utcDate, requestedAttempts, maximumAttempts);
-    return Promise.resolve(reserved !== null);
+    const [reserved] = this.queryDatabase
+      .insert(dailyBudgets)
+      .values({ attempts: requestedAttempts, utcDate })
+      .onConflictDoUpdate({
+        set: {
+          attempts: sql`${dailyBudgets.attempts} + ${requestedAttempts}`,
+        },
+        setWhere: sql`${dailyBudgets.attempts} + ${requestedAttempts} <= ${maximumAttempts}`,
+        target: dailyBudgets.utcDate,
+      })
+      .returning({ attempts: dailyBudgets.attempts })
+      .all();
+    return Promise.resolve(reserved !== undefined);
   }
 }

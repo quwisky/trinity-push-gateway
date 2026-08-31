@@ -26,6 +26,7 @@ export default tseslint.config(
           './apps/push-gateway/tsconfig.json',
           './apps/push-gateway/tsconfig.bun.json',
           './apps/push-gateway/tsconfig.test.json',
+          './apps/push-gateway/tsconfig.tooling.json',
           './docs/tsconfig.json',
         ],
         tsconfigRootDir: import.meta.dirname,
