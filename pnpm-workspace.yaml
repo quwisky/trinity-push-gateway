@@ -7,3 +7,9 @@ allowBuilds:
   esbuild: true
   workerd: true
   nx: true
+  '@parcel/watcher': false
+  lmdb: false
+  msgpackr-extract: false
+
+patchedDependencies:
+  '@ng-forge/dynamic-forms@1.1.0': patches/@ng-forge__dynamic-forms@1.1.0.patch

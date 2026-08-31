@@ -1,0 +1,595 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+@import '@spartan-ng/brain/hlm-tailwind-preset.css';
+@source './app/**/*.ts';
+
+:root {
+  --background: #f7f8f6;
+  --foreground: #17201d;
+  --card: #ffffff;
+  --card-foreground: #17201d;
+  --popover: #ffffff;
+  --popover-foreground: #17201d;
+  --primary: #0f766e;
+  --primary-foreground: #ffffff;
+  --secondary: #e8efec;
+  --secondary-foreground: #1e3b35;
+  --muted: #eef2f0;
+  --muted-foreground: #5a6863;
+  --accent: #dbe9e5;
+  --accent-foreground: #163c35;
+  --destructive: #b42318;
+  --border: #d6ddda;
+  --input: #c5cfcb;
+  --ring: #0f766e;
+  --sidebar: #edf2ef;
+  --sidebar-foreground: #17201d;
+  --sidebar-primary: #0f766e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dce8e4;
+  --sidebar-accent-foreground: #173c35;
+  --sidebar-border: #d2dcd8;
+  --sidebar-ring: #0f766e;
+  --radius: 0.75rem;
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --shadow: 0 18px 50px rgb(21 50 43 / 8%);
+}
+
+:root[data-theme='dark'] {
+  --background: #0e1513;
+  --foreground: #e7efec;
+  --card: #151e1b;
+  --card-foreground: #edf5f2;
+  --popover: #151e1b;
+  --popover-foreground: #edf5f2;
+  --primary: #5eead4;
+  --primary-foreground: #062e2a;
+  --secondary: #22302c;
+  --secondary-foreground: #e7efec;
+  --muted: #1c2724;
+  --muted-foreground: #a3b2ad;
+  --accent: #24433c;
+  --accent-foreground: #d9faf3;
+  --destructive: #ff8a80;
+  --border: #2c3935;
+  --input: #3a4944;
+  --ring: #5eead4;
+  --sidebar: #101916;
+  --sidebar-foreground: #e7efec;
+  --sidebar-primary: #5eead4;
+  --sidebar-primary-foreground: #062e2a;
+  --sidebar-accent: #21332e;
+  --sidebar-accent-foreground: #e7efec;
+  --sidebar-border: #293632;
+  --sidebar-ring: #5eead4;
+  --shadow: 0 18px 50px rgb(0 0 0 / 28%);
+}
+
+/* App-owned minimal Vega subset copied from Spartan v1.3.4. */
+@layer components {
+  .spartan-button {
+    @apply focus-visible:border-ring focus-visible:ring-ring/50 data-[matches-spartan-invalid=true]:ring-destructive/20 dark:data-[matches-spartan-invalid=true]:ring-destructive/40 data-[matches-spartan-invalid=true]:border-destructive dark:data-[matches-spartan-invalid=true]:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-sm font-medium focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px data-[matches-spartan-invalid=true]:ring-3 [&_ng-icon:not([class*='text-'])]:text-[length:--spacing(4)];
+  }
+
+  .spartan-button-variant-default {
+    @apply bg-primary text-primary-foreground hover:bg-primary/80;
+  }
+
+  .spartan-button-variant-outline {
+    @apply border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-expanded:bg-muted aria-expanded:text-foreground shadow-xs;
+  }
+
+  .spartan-button-variant-secondary {
+    @apply bg-secondary text-secondary-foreground aria-expanded:bg-secondary aria-expanded:text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)];
+  }
+
+  .spartan-button-variant-ghost {
+    @apply hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 aria-expanded:bg-muted aria-expanded:text-foreground;
+  }
+
+  .spartan-button-variant-destructive {
+    @apply bg-destructive/10 hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/30;
+  }
+
+  .spartan-button-variant-link {
+    @apply text-primary underline-offset-4 hover:underline;
+  }
+
+  .spartan-button-size-sm {
+    @apply h-8 gap-1 rounded-[min(var(--radius-md),10px)] px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5;
+  }
+
+  .spartan-button-size-default {
+    @apply h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2;
+  }
+
+  .spartan-button-size-lg {
+    @apply h-10 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2;
+  }
+
+  .spartan-button-size-icon {
+    @apply size-9;
+  }
+
+  .spartan-checkbox {
+    @apply border-input dark:bg-input/30 data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary data-checked:border-primary data-[matches-spartan-invalid=true]:aria-checked:border-primary data-[matches-spartan-invalid=true]:border-destructive dark:data-[matches-spartan-invalid=true]:border-destructive/50 focus-visible:border-ring focus-visible:ring-ring/50 data-[matches-spartan-invalid=true]:ring-destructive/20 dark:data-[matches-spartan-invalid=true]:ring-destructive/40 flex size-4 items-center justify-center rounded-[4px] border shadow-xs transition-shadow group-has-disabled/field:opacity-50 focus-visible:ring-3 data-[matches-spartan-invalid=true]:ring-3;
+  }
+
+  .spartan-checkbox-indicator {
+    @apply [&>ng-icon]:text-[length:--spacing(3.5)];
+  }
+
+  .spartan-input {
+    @apply dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 data-[matches-spartan-invalid=true]:ring-destructive/20 dark:data-[matches-spartan-invalid=true]:ring-destructive/40 data-[matches-spartan-invalid=true]:border-destructive dark:data-[matches-spartan-invalid=true]:border-destructive/50 h-9 rounded-md border bg-transparent px-2.5 py-1 text-base shadow-xs transition-[color,box-shadow] file:h-7 file:text-sm file:font-medium focus-visible:ring-3 data-[matches-spartan-invalid=true]:ring-3 md:text-sm;
+  }
+
+  .spartan-label {
+    @apply gap-2 text-sm leading-none font-medium group-data-[disabled=true]:opacity-50 peer-disabled:opacity-50;
+  }
+
+  .spartan-native-select {
+    @apply border-input placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/50 data-[matches-spartan-invalid=true]:ring-destructive/20 dark:data-[matches-spartan-invalid=true]:ring-destructive/40 data-[matches-spartan-invalid=true]:border-destructive dark:data-[matches-spartan-invalid=true]:border-destructive/50 h-9 w-full min-w-0 appearance-none rounded-md border bg-transparent py-1 ps-2.5 pe-8 text-sm shadow-xs transition-[color,box-shadow] select-none focus-visible:ring-3 data-[matches-spartan-invalid=true]:ring-3 data-[size=sm]:h-8;
+  }
+
+  .spartan-native-select-icon {
+    @apply text-muted-foreground end-2.5 top-1/2 -translate-y-1/2 text-[length:--spacing(4)];
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 20rem;
+  min-height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(
+      circle at 85% 0%,
+      color-mix(in srgb, var(--accent) 65%, transparent),
+      transparent 28rem
+    ),
+    var(--background);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  transform: translateY(-180%);
+  border-radius: 0.5rem;
+  background: var(--foreground);
+  color: var(--background);
+  font-weight: 700;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-header {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  display: flex;
+  min-height: 4.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem clamp(1rem, 3vw, 2rem);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.wordmark span {
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.wordmark strong {
+  font-size: 1.15rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.primary-action,
+.secondary-action {
+  display: inline-flex;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary-action {
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.secondary-action {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--card-foreground);
+}
+
+.shell-body {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  min-height: calc(100vh - 4.75rem);
+}
+
+.primary-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.4rem 1rem;
+  border-right: 1px solid var(--sidebar-border);
+  background: var(--sidebar);
+}
+
+.primary-navigation > a {
+  border-radius: 0.6rem;
+  padding: 0.72rem 0.85rem;
+  color: var(--sidebar-foreground);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.primary-navigation > a:hover,
+.primary-navigation > a.active {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+}
+
+.operator-summary {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: auto;
+  padding: 1rem 0.85rem;
+  border-top: 1px solid var(--sidebar-border);
+  overflow-wrap: anywhere;
+}
+
+.operator-summary span {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.operator-summary strong {
+  font-size: 0.86rem;
+}
+
+.page-content {
+  width: min(100%, 80rem);
+  padding: clamp(1.5rem, 4vw, 3.5rem);
+}
+
+.page-header {
+  max-width: 48rem;
+  margin-bottom: 2rem;
+}
+
+.page-header h1,
+.auth-card h1 {
+  margin: 0.2rem 0 0.7rem;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+}
+
+.page-header h2,
+.content-panel h2,
+.empty-state h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow,
+.status-label {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.lede {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.muted,
+.status-card p,
+.empty-state p,
+.auth-note {
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.status-card,
+.content-panel,
+.empty-state,
+.auth-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--card-foreground);
+  box-shadow: var(--shadow);
+}
+
+.status-card {
+  padding: 1.25rem;
+}
+
+.status-card strong {
+  display: block;
+  margin-top: 0.75rem;
+  font-size: 1.15rem;
+}
+
+.content-panel,
+.empty-state {
+  padding: clamp(1.2rem, 3vw, 2rem);
+}
+
+.empty-state {
+  margin-top: 1rem;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.status-pill {
+  flex: none;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.chart-frame {
+  height: 18rem;
+  margin: 1rem 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.65rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.compact-table {
+  max-width: 32rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+
+.filter-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.form-field label {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.form-field input,
+.form-field select {
+  min-height: 2.75rem;
+}
+
+.checkbox-field,
+.form-actions {
+  grid-column: 1 / -1;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.field-error,
+.field-hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.field-error,
+.status-message {
+  color: var(--destructive);
+}
+
+.control-invalid {
+  border-color: var(--destructive);
+}
+
+.success-message {
+  margin: 1rem 0 0;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.auth-layout {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.auth-card {
+  width: min(100%, 32rem);
+  padding: clamp(1.5rem, 5vw, 3rem);
+}
+
+.auth-card .primary-action {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.auth-note {
+  margin: 1rem 0 0;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nav-toggle {
+  display: none;
+}
+
+@media (max-width: 52rem) {
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .shell-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .primary-navigation {
+    display: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+
+  .primary-navigation.is-open {
+    display: flex;
+  }
+
+  .panel-grid,
+  .filter-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page-content {
+    padding: 1.5rem 1rem 3rem;
+  }
+}
+
+@media (max-width: 34rem) {
+  .app-header {
+    align-items: flex-start;
+  }
+
+  .header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .secondary-action {
+    min-height: 2.2rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

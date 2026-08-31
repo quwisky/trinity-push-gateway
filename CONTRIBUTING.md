@@ -13,10 +13,11 @@ Run the complete repository gate before opening a pull request:
 pnpm nx format:check --all
 pnpm nx run push-gateway:check
 pnpm nx run push-gateway:check-bun
+pnpm nx run push-gateway-ui:check
 pnpm nx run push-gateway-docs:check
 ```
 
-Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, `pnpm nx run push-gateway:dev`, and `pnpm nx run push-gateway-docs:serve`. The official ESLint and Vitest plugins infer the project-scoped `lint` and run-mode `test` targets; Wrangler, Bun, VitePress, TypeScript, migration, coverage, bundle-policy, and aggregate targets remain explicit. Nx uses only its local cache; deployment, migration, development-server, release, and Docker-daemon operations are never cached.
+Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `pnpm nx run push-gateway:build`, `pnpm nx run push-gateway:dev`, `pnpm nx run push-gateway-ui:serve`, `pnpm nx run push-gateway-ui:generate-api`, and `pnpm nx run push-gateway-docs:serve`. The official ESLint plugin infers project-scoped `lint`; Angular's native Vitest builder owns the UI `test` target, while the Nx Vitest plugin infers run-mode tests for the other projects. Wrangler, Bun, VitePress, TypeScript, migration, coverage, generated-client drift, bundle-policy, and aggregate targets remain explicit. Nx uses only its local cache; source generation, deployment, migration, development-server, release, and Docker-daemon operations are never cached.
 
 Pull-request and `master` CI use Nx affected execution. Shared dependencies, workspace configuration, Compose, and CI configuration affect `push-gateway`; documentation changes run `push-gateway-docs:check` while skipping unrelated gateway and container work. After successful `master` CI, the dedicated Pages workflow publishes `/next/` and, for a verified Release Please tag, the write-once release version plus `/latest/`.
 

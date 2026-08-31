@@ -6,12 +6,36 @@ import { gzip } from 'node:zlib';
 const gzipAsync = promisify(gzip);
 const maximumRawBytes = 64 * 1024 * 1024;
 const maximumGzipBytes = 3 * 1024 * 1024;
-const allowedWorkspaceDependencyNames = [
+const gatewayRuntimeDependencyNames = [
   'drizzle-orm',
   'jose',
   'openid-client',
   'zod',
 ];
+const browserRuntimeDependencyNames = [
+  '@angular/cdk',
+  '@angular/common',
+  '@angular/compiler',
+  '@angular/core',
+  '@angular/forms',
+  '@angular/platform-browser',
+  '@angular/router',
+  '@ng-forge/dynamic-forms',
+  '@ng-icons/core',
+  '@ng-icons/lucide',
+  '@spartan-ng/brain',
+  '@standard-schema/spec',
+  'chart.js',
+  'class-variance-authority',
+  'clsx',
+  'rxjs',
+  'tailwind-merge',
+  'tw-animate-css',
+];
+const allowedWorkspaceDependencyNames = [
+  ...gatewayRuntimeDependencyNames,
+  ...browserRuntimeDependencyNames,
+].sort();
 const expectedSourceCount = 103;
 const expectedSourceGraph =
   'f114f64628e2ac16a709ea20d5c6ae8c79429df1c79fb4fd33a78c3e9ec54d21';
@@ -65,6 +89,16 @@ const forbiddenWorkerSources = normalizedSources.filter((source) =>
 if (forbiddenWorkerSources.length > 0) {
   throw new Error(
     `Worker source graph contains Bun-only authentication code: ${forbiddenWorkerSources.join(', ')}.`,
+  );
+}
+const browserWorkerSources = normalizedSources.filter((source) =>
+  browserRuntimeDependencyNames.some((name) =>
+    source.startsWith(`node_modules/${name}/`),
+  ),
+);
+if (browserWorkerSources.length > 0) {
+  throw new Error(
+    `Worker source graph contains browser-only dependencies: ${browserWorkerSources.join(', ')}.`,
   );
 }
 const sourceGraph = createHash('sha256')
