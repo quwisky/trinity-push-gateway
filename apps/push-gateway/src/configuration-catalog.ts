@@ -2,46 +2,12 @@ import { ADMINISTRATION_CONFIGURATION_DEFINITIONS } from './configuration-catalo
 import { BUN_CONFIGURATION_DEFINITIONS } from './configuration-catalog/bun';
 import { COMPOSE_CONFIGURATION_DEFINITIONS } from './configuration-catalog/compose';
 import { SHARED_CONFIGURATION_DEFINITIONS } from './configuration-catalog/shared';
-import type { ConfigurationCatalogReference } from './configuration-catalog/types';
-
-export {
-  ADMIN_CONFIGURATION_DEFAULTS,
-  ADMIN_CONFIGURATION_ENVIRONMENT_NAMES,
-  ADMIN_POLICY_DEFAULTS,
-  loadAdministrationConfiguration,
-  type AdminConfiguration,
-  type AdminConfigurationEnvironmentName,
-  type AdminConfigurationState,
-  type AdministrationPolicy,
-  type AdminSecret,
-  type SafeAdminConfiguration,
-} from './configuration-catalog/administration';
-export {
-  BUN_CONFIGURATION_DEFAULTS,
-  loadBunRuntimeConfiguration,
-  type BunRuntimeConfiguration,
-  type ClientIpHeader,
-  type CredentialSource,
-  type GatewayCredentialSources,
-  type SafeBunRuntimeConfiguration,
-} from './configuration-catalog/bun';
-export { COMPOSE_CONFIGURATION_DEFAULTS } from './configuration-catalog/compose';
-export {
-  CONFIGURATION_ENVIRONMENT_NAMES,
-  loadSharedRuntimeConfiguration,
-  SHARED_CONFIGURATION_DEFAULTS,
-  type ConfigurationEnvironmentName,
-  type RuntimeConfig,
-  type SharedConfigurationEnvironment,
-} from './configuration-catalog/shared';
-export type {
-  CatalogSecret,
+import type {
   ConfigurationCatalogReference,
-  ConfigurationEnvironment,
   ConfigurationRuntime,
 } from './configuration-catalog/types';
 
-const CONFIGURATION_DEFINITIONS = Object.freeze([
+const CONFIGURATION_REFERENCES = Object.freeze([
   ...SHARED_CONFIGURATION_DEFINITIONS,
   ...BUN_CONFIGURATION_DEFINITIONS,
   ...ADMINISTRATION_CONFIGURATION_DEFINITIONS,
@@ -49,26 +15,47 @@ const CONFIGURATION_DEFINITIONS = Object.freeze([
 ]);
 
 export type GatewayConfigurationName =
-  (typeof CONFIGURATION_DEFINITIONS)[number]['name'];
+  (typeof CONFIGURATION_REFERENCES)[number]['name'];
 export type GatewayConfigurationReferenceEntry =
   ConfigurationCatalogReference<GatewayConfigurationName>;
 
-export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationReferenceEntry[] =
-  CONFIGURATION_DEFINITIONS;
+const REFERENCE_BY_NAME = new Map<string, GatewayConfigurationReferenceEntry>(
+  CONFIGURATION_REFERENCES.map((entry) => [entry.name, entry] as const),
+);
+
+function referencesForRuntime(
+  runtime: ConfigurationRuntime,
+): readonly GatewayConfigurationReferenceEntry[] {
+  return Object.freeze(
+    CONFIGURATION_REFERENCES.filter((entry) =>
+      entry.runtimes.some((candidate) => candidate === runtime),
+    ),
+  );
+}
+
+const REFERENCES_BY_RUNTIME: Readonly<
+  Record<ConfigurationRuntime, readonly GatewayConfigurationReferenceEntry[]>
+> = Object.freeze({
+  bun: referencesForRuntime('bun'),
+  cloudflare: referencesForRuntime('cloudflare'),
+  compose: referencesForRuntime('compose'),
+});
 
 function reference(
-  name: GatewayConfigurationName,
-): GatewayConfigurationReferenceEntry {
-  const entry = GATEWAY_CONFIGURATION_REFERENCE.find(
-    (candidate) => candidate.name === name,
-  );
-  if (entry === undefined) {
-    throw new Error(`Unknown gateway configuration setting: ${name}`);
-  }
-  return entry;
+  name: string,
+): GatewayConfigurationReferenceEntry | undefined {
+  return REFERENCE_BY_NAME.get(name);
+}
+
+function references(
+  runtime?: ConfigurationRuntime,
+): readonly GatewayConfigurationReferenceEntry[] {
+  return runtime === undefined
+    ? CONFIGURATION_REFERENCES
+    : REFERENCES_BY_RUNTIME[runtime];
 }
 
 export const PUSH_GATEWAY_CONFIGURATION_CATALOG = Object.freeze({
   reference,
-  references: GATEWAY_CONFIGURATION_REFERENCE,
+  references,
 });
