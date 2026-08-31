@@ -46,9 +46,27 @@ async function login(browser, identity, allowed) {
       await page.goto(`${gatewayOrigin}/admin/auth/login`);
       await authenticateProvider(page, context, identity);
     }
-    await page.waitForURL((url) => url.origin === gatewayOrigin, {
-      timeout: 60_000,
-    });
+    await page.waitForURL(
+      (url) =>
+        url.origin === gatewayOrigin ||
+        (!allowed &&
+          state.provider === 'pocket-id' &&
+          url.origin === state.providerOrigin &&
+          url.pathname === '/interaction/error'),
+      { timeout: 60_000 },
+    );
+
+    if (
+      !allowed &&
+      page.url().startsWith(`${state.providerOrigin}/interaction/error`)
+    ) {
+      const denial = new URL(page.url());
+      requireCondition(
+        denial.searchParams.get('error')?.toLowerCase().includes('not allowed'),
+        `Pocket ID returned an unexpected denial: ${page.url()}.`,
+      );
+      await page.goto(`${gatewayOrigin}/admin/sign-in?reason=forbidden`);
+    }
 
     if (!allowed) {
       await page
