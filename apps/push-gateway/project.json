@@ -16,7 +16,7 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/apps/push-gateway/bun"],
       "options": {
-        "command": "bun build src/bun/main.ts src/bun/metrics-writer.worker.ts --target bun --outdir ../../dist/apps/push-gateway/bun --metafile=../../dist/apps/push-gateway/bun/meta.json",
+        "command": "bun build src/bun/main.ts src/bun/metrics-writer.worker.ts --target bun --minify --sourcemap=none --outdir ../../dist/apps/push-gateway/bun --metafile=../../dist/apps/push-gateway/bun/meta.json",
         "cwd": "apps/push-gateway"
       }
     },
@@ -49,6 +49,8 @@
         "build-bun",
         "smoke-metrics-worker",
         "check-auth-selection",
+        "check-container-contract",
+        "check-provider-contract",
         "check-migrations"
       ]
     },
@@ -72,6 +74,40 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "node scripts/check-bundle.mjs",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "check-container-contract": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/.dockerignore",
+        "{workspaceRoot}/.env.self-host-admin.example",
+        "{workspaceRoot}/compose.admin.yml",
+        "{workspaceRoot}/compose.yml"
+      ],
+      "options": {
+        "command": "node apps/push-gateway/scripts/check-container-contract.mjs"
+      }
+    },
+    "check-provider-contract": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/.github/workflows/provider-compatibility.yml"
+      ],
+      "options": {
+        "command": "node apps/push-gateway/scripts/check-provider-contract.mjs"
+      }
+    },
+    "benchmark-admin-isolation": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "outputs": ["{workspaceRoot}/test-output/benchmarks/admin-isolation.md"],
+      "options": {
+        "command": "mkdir -p ../../test-output/benchmarks && bun scripts/benchmark-admin-isolation.ts > ../../test-output/benchmarks/admin-isolation.md && cat ../../test-output/benchmarks/admin-isolation.md",
         "cwd": "apps/push-gateway"
       }
     },
@@ -135,6 +171,14 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test test/bun",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "test-oidc-provider": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test test/bun/auth test/bun/admin/app.spec.ts",
         "cwd": "apps/push-gateway"
       }
     },

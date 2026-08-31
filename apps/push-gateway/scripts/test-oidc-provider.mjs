@@ -4,8 +4,23 @@ import { Provider } from 'oidc-provider';
 
 const clientId = 'gateway-contract-client';
 const clientSecret = 'test-only-client-secret-000000000000';
-const callbackUrl = 'http://127.0.0.1/admin/auth/callback';
-const postLogoutUrl = 'http://127.0.0.1/admin/';
+const gatewayOrigin = (() => {
+  const candidate = new URL(
+    process.env.TRINITY_TEST_GATEWAY_ORIGIN ?? 'http://127.0.0.1',
+  );
+  if (
+    candidate.username !== '' ||
+    candidate.password !== '' ||
+    candidate.pathname !== '/' ||
+    candidate.search !== '' ||
+    candidate.hash !== ''
+  ) {
+    throw new Error('TRINITY_TEST_GATEWAY_ORIGIN must be an exact origin.');
+  }
+  return candidate.origin;
+})();
+const callbackUrl = `${gatewayOrigin}/admin/auth/callback`;
+const postLogoutUrl = `${gatewayOrigin}/admin/`;
 const profile = process.argv[2] ?? 'pocket-id';
 const mode = process.argv[3] ?? 'success';
 const clientSecretMethod = process.argv[4] ?? 'client_secret_basic';

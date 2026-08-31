@@ -1,0 +1,23 @@
+services:
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v2.14.0@sha256:01540977dcf4c7b41b1159f34d68e4632f2658d62790e460ca65a42722b13c4a
+    environment:
+      ANALYTICS_DISABLED: 'true'
+      APP_URL: http://127.0.0.1:1411
+      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY:?generated encryption key required}
+      STATIC_API_KEY: ${POCKET_ID_STATIC_API_KEY:?generated static API key required}
+      VERSION_CHECK_DISABLED: 'true'
+    healthcheck:
+      test: [CMD, /app/pocket-id, healthcheck]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s
+    ports:
+      - 127.0.0.1:1411:1411
+    restart: 'no'
+    volumes:
+      - pocket-id-data:/app/data
+
+volumes:
+  pocket-id-data:

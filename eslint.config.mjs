@@ -11,6 +11,7 @@ export default tseslint.config(
       'commitlint.config.mjs',
       'eslint.config.mjs',
       'lint-staged.config.mjs',
+      'apps/push-gateway/provider-e2e/**/*.mjs',
       'apps/push-gateway/scripts/**/*.mjs',
       'apps/push-gateway/worker-configuration.d.ts',
     ],

@@ -18,6 +18,7 @@ content, access tokens, or credentials.
 
 ## Runbooks
 
+- [Operate and recover administration](/operations/administration)
 - [Back up and restore SQLite](/operations/backup-and-restore)
 - [Upgrade or roll back](/operations/upgrades)
 - [Diagnose common failures](/operations/troubleshooting)

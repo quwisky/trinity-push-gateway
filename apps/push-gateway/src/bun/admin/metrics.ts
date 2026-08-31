@@ -79,15 +79,24 @@ function latencyBucket(latencyMs: number): LatencyField {
 }
 
 export class BoundedMetricsAccumulator implements GatewayMetricsSink {
+  private currentFcm: Partial<Record<MetricPlatform, MutableFcmMetricRow>> = {};
+  private currentRequest: MutableRequestMetricRow | undefined;
   private readonly fcm = new Map<string, MutableFcmMetricRow>();
   private readonly requests = new Map<number, MutableRequestMetricRow>();
 
   recordRequest(outcome: RequestMetricOutcome, occurredAtMs: number): void {
     const hour = utcHourSeconds(occurredAtMs);
-    const row = this.requests.get(hour) ?? emptyRequest(hour);
+    const existing =
+      this.currentRequest?.hour === hour
+        ? this.currentRequest
+        : this.requests.get(hour);
+    const row = existing ?? emptyRequest(hour);
     row[outcome] = increment(row[outcome]);
-    this.requests.set(hour, row);
-    this.trim();
+    this.currentRequest = row;
+    if (existing === undefined) {
+      this.requests.set(hour, row);
+      this.trim();
+    }
   }
 
   recordFcmAttempt(
@@ -97,14 +106,20 @@ export class BoundedMetricsAccumulator implements GatewayMetricsSink {
     occurredAtMs: number,
   ): void {
     const hour = utcHourSeconds(occurredAtMs);
-    const key = `${String(hour)}:${platform}`;
-    const row = this.fcm.get(key) ?? emptyFcm(hour, platform);
+    const cached = this.currentFcm[platform];
+    const key =
+      cached?.hour === hour ? undefined : `${String(hour)}:${platform}`;
+    const existing = cached?.hour === hour ? cached : this.fcm.get(key ?? '');
+    const row = existing ?? emptyFcm(hour, platform);
     row.attempted = increment(row.attempted);
     row[outcome] = increment(row[outcome]);
     const bucket = latencyBucket(Math.max(0, latencyMs));
     row[bucket] = increment(row[bucket]);
-    this.fcm.set(key, row);
-    this.trim();
+    this.currentFcm[platform] = row;
+    if (existing === undefined) {
+      this.fcm.set(key ?? `${String(hour)}:${platform}`, row);
+      this.trim();
+    }
   }
 
   take(): MetricsBatch {
@@ -114,6 +129,8 @@ export class BoundedMetricsAccumulator implements GatewayMetricsSink {
     };
     this.fcm.clear();
     this.requests.clear();
+    this.currentFcm = {};
+    this.currentRequest = undefined;
     return batch;
   }
 
@@ -154,6 +171,8 @@ export class BoundedMetricsAccumulator implements GatewayMetricsSink {
       }
       this.fcm.set(key, row);
     }
+    this.currentFcm = {};
+    this.currentRequest = undefined;
     this.trim();
   }
 

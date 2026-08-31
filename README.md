@@ -66,7 +66,9 @@ administration values are ignored and `/admin/*` returns `404`. Invalid enabled
 configuration makes only `/admin/*` unavailable; Matrix notification delivery
 and public `/health` remain independent. See the
 [configuration reference](docs/reference/configuration.md) for the complete
-typed contract.
+typed contract and the
+[administration guide](docs/deployment/self-hosting/administration.md) for
+Pocket ID, Authentik, group mapping, Docker secrets, and external TLS setup.
 
 ## Deployment
 
