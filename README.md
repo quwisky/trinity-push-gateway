@@ -5,7 +5,7 @@ A small, privacy-preserving [Matrix Push Gateway](https://spec.matrix.org/latest
 - `ovh.qwky.trinity.android`
 - `ovh.qwky.trinity.ios`
 
-The Worker has three focused runtime dependencies: `drizzle-orm` for typed D1 and SQLite queries, `jose` for standards-conformant service-account JWT signing, and Zod Mini for untrusted boundary validation. It sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
+The Worker has three focused runtime dependencies: `drizzle-orm` for typed D1 and SQLite queries, `jose` for standards-conformant service-account JWT signing, and Zod Mini for untrusted boundary validation. Self-hosted Bun additionally uses `openid-client` behind a Bun-only Operator-authentication module; the Worker source graph excludes it. The gateway sends event and room IDs, aggregate counts, and an opaque account route, but never forwards message content, sender identities, room names, Matrix user IDs, arbitrary pusher data, or raw sound names.
 
 ## What it provides
 
@@ -42,7 +42,7 @@ pnpm nx run push-gateway:check-bun
 pnpm nx run push-gateway-docs:check
 ```
 
-The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits and rejects runtime dependencies outside the exact Drizzle ORM, `jose`, and Zod allowlist.
+The gate reports raw and gzip bundle sizes against Cloudflare Workers Free-plan limits, proves the Worker import graph remains on Drizzle ORM, `jose`, and Zod, and separately measures the exact Bun-only `openid-client` selection. Better Auth and its CLI are rejected from every dependency set.
 
 Local commits are protected by Husky: lint-staged applies the uncached Nx lint fixer and Prettier before the full typecheck and test suite, and Commitlint validates Conventional Commit messages. See [the contribution guide](CONTRIBUTING.md) for the pull-request and release contract.
 

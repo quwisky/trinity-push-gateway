@@ -16,7 +16,15 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/apps/push-gateway/bun"],
       "options": {
-        "command": "bun build src/bun/main.ts --target bun --outdir ../../dist/apps/push-gateway/bun",
+        "command": "bun build src/bun/main.ts --target bun --outdir ../../dist/apps/push-gateway/bun --metafile=../../dist/apps/push-gateway/bun/meta.json",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "build-auth-selection": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/push-gateway/auth-selection"],
+      "options": {
+        "command": "bun build --target=bun --minify --outfile=../../dist/apps/push-gateway/auth-selection/index.js --metafile=../../dist/apps/push-gateway/auth-selection/meta.json src/bun/auth/oidc-client.ts",
         "cwd": "apps/push-gateway"
       }
     },
@@ -39,8 +47,17 @@
         "typecheck-bun",
         "test-bun",
         "build-bun",
+        "check-auth-selection",
         "check-migrations"
       ]
+    },
+    "check-auth-selection": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build-auth-selection", "build-bun"],
+      "options": {
+        "command": "node scripts/check-auth-selection.mjs",
+        "cwd": "apps/push-gateway"
+      }
     },
     "check-bundle": {
       "executor": "nx:run-commands",
