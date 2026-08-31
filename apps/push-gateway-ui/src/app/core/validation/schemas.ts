@@ -9,9 +9,11 @@ import {
   string,
 } from 'zod/mini';
 
-import { METRICS_QUERY_POLICY } from '../../api/admin-contract.generated';
-
-const millisecondsPerDay = 86_400_000;
+import {
+  ADMIN_PROBLEM_CODES,
+  AUDIT_QUERY_POLICY,
+  METRICS_QUERY_POLICY,
+} from '../../api/admin-contract.generated';
 
 const isBoundedRange = (
   from: string,
@@ -29,6 +31,7 @@ const isBoundedRange = (
 };
 
 export const apiProblemSchema = object({
+  code: optional(zodEnum(ADMIN_PROBLEM_CODES)),
   title: optional(string()),
   detail: optional(string()),
   status: optional(number()),
@@ -64,29 +67,15 @@ export const metricsFilterSchema = object({
 export const auditFilterSchema = object({
   from: string().check(minLength(1)),
   to: string().check(minLength(1)),
-  kind: zodEnum([
-    'all',
-    'login',
-    'logout',
-    'session_expired',
-    'session_revoked',
-    'session_cap_eviction',
-    'policy_rejected',
-    'session_purge',
-    'firebase_validation',
-    'cleanup',
-    'backup',
-  ]),
-  outcome: zodEnum([
-    'all',
-    'succeeded',
-    'failed',
-    'started',
-    'outcome_unknown',
-  ]),
+  kind: zodEnum(['all', ...AUDIT_QUERY_POLICY.kinds]),
+  outcome: zodEnum(['all', ...AUDIT_QUERY_POLICY.outcomes]),
 }).check(
-  refine(({ from, to }) => isBoundedRange(from, to, 90 * millisecondsPerDay), {
-    message: 'Choose a non-empty audit range no longer than 90 days.',
-    path: ['to'],
-  }),
+  refine(
+    ({ from, to }) =>
+      isBoundedRange(from, to, AUDIT_QUERY_POLICY.maximumRangeSeconds * 1_000),
+    {
+      message: `Choose a non-empty audit range no longer than ${String(AUDIT_QUERY_POLICY.maximumRangeDays)} days.`,
+      path: ['to'],
+    },
+  ),
 );

@@ -57,6 +57,7 @@
     "orval": "8.27.0",
     "postcss": "8.5.26",
     "prettier": "3.9.6",
+    "prettier-plugin-sql-cst": "0.22.1",
     "tailwindcss": "4.3.3",
     "tslib": "2.8.1",
     "typescript": "6.0.3",

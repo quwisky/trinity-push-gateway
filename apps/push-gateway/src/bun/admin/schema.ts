@@ -10,31 +10,13 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
-export const ADMIN_AUDIT_KINDS = [
-  'login',
-  'logout',
-  'session_expired',
-  'session_revoked',
-  'session_cap_eviction',
-  'policy_rejected',
-  'session_purge',
-  'firebase_validation',
-  'cleanup',
-  'backup',
-] as const;
-
-export const ADMIN_AUDIT_OUTCOMES = [
-  'succeeded',
-  'failed',
-  'started',
-  'outcome_unknown',
-] as const;
-
-export const ADMIN_OPERATION_KINDS = [
-  'firebase_validation',
-  'cleanup',
-  'backup',
-] as const;
+import {
+  AUDIT_ENTRY_REASONS,
+  AUDIT_ENTRY_KINDS,
+  AUDIT_ENTRY_OUTCOMES,
+  OPERATOR_ACTION_KINDS,
+  OPERATION_SUMMARY_REASONS,
+} from '../../admin-contract/operator-actions';
 
 export const DELIVERY_PLATFORMS = ['android', 'ios'] as const;
 
@@ -148,9 +130,9 @@ export const operatorAuditEntries = sqliteTable(
     occurredAt: integer('occurred_at').notNull(),
     issuer: text('issuer'),
     subject: text('subject'),
-    kind: text('kind', { enum: ADMIN_AUDIT_KINDS }).notNull(),
-    outcome: text('outcome', { enum: ADMIN_AUDIT_OUTCOMES }).notNull(),
-    reason: text('reason'),
+    kind: text('kind', { enum: AUDIT_ENTRY_KINDS }).notNull(),
+    outcome: text('outcome', { enum: AUDIT_ENTRY_OUTCOMES }).notNull(),
+    reason: text('reason', { enum: AUDIT_ENTRY_REASONS }),
   },
   (table) => [
     index('operator_audit_entries_occurred_idx').on(table.occurredAt, table.id),
@@ -195,11 +177,7 @@ export const operatorAuditEntries = sqliteTable(
     ),
     check(
       'operator_audit_entries_reason_check',
-      sql`${table.reason} IS NULL OR (
-        length(${table.reason}) BETWEEN 1 AND 64
-        AND substr(${table.reason}, 1, 1) GLOB '[a-z]'
-        AND ${table.reason} NOT GLOB '*[^a-z0-9_]*'
-      )`,
+      sql`${table.reason} IS NULL OR ${table.reason} IN ('access_denied', 'audit_finalization_failed', 'backup_failed', 'backup_limit_exceeded', 'cleanup_failed', 'firebase_validation_failed', 'operation_timeout', 'request_rejected', 'unavailable', 'absolute_expired', 'idle_expired', 'no_active_sessions', 'policy_changed', 'session_cap')`,
     ),
     check(
       'operator_audit_entries_values_check',
@@ -211,7 +189,7 @@ export const operatorAuditEntries = sqliteTable(
 export const operationLeases = sqliteTable(
   'operation_leases',
   {
-    kind: text('kind', { enum: ADMIN_OPERATION_KINDS }).primaryKey(),
+    kind: text('kind', { enum: OPERATOR_ACTION_KINDS }).primaryKey(),
     leaseId: text('lease_id').notNull(),
     acquiredAt: integer('acquired_at').notNull(),
     leaseExpiresAt: integer('lease_expires_at').notNull(),
@@ -243,13 +221,13 @@ export const operationLeases = sqliteTable(
 export const operationResults = sqliteTable(
   'operation_results',
   {
-    kind: text('kind', { enum: ADMIN_OPERATION_KINDS }).primaryKey(),
+    kind: text('kind', { enum: OPERATOR_ACTION_KINDS }).primaryKey(),
     leaseId: text('lease_id').notNull(),
     completedAt: integer('completed_at').notNull(),
     outcome: text('outcome', {
       enum: ['succeeded', 'failed', 'outcome_unknown'],
     }).notNull(),
-    reason: text('reason'),
+    reason: text('reason', { enum: OPERATION_SUMMARY_REASONS }),
   },
   (table) => [
     foreignKey({
@@ -263,11 +241,7 @@ export const operationResults = sqliteTable(
         AND length(${table.leaseId}) BETWEEN 16 AND 128
         AND ${table.completedAt} >= 0
         AND ${table.outcome} IN ('succeeded', 'failed', 'outcome_unknown')
-        AND (${table.reason} IS NULL OR (
-          length(${table.reason}) BETWEEN 1 AND 64
-          AND substr(${table.reason}, 1, 1) GLOB '[a-z]'
-          AND ${table.reason} NOT GLOB '*[^a-z0-9_]*'
-        ))`,
+        AND (${table.reason} IS NULL OR ${table.reason} IN ('access_denied', 'audit_finalization_failed', 'backup_failed', 'backup_limit_exceeded', 'cleanup_failed', 'firebase_validation_failed', 'operation_timeout', 'request_rejected', 'unavailable'))`,
     ),
   ],
 );

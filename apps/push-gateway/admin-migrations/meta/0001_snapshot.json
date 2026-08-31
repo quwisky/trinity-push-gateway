@@ -231,7 +231,7 @@
         },
         "operator_audit_entries_reason_check": {
           "name": "operator_audit_entries_reason_check",
-          "value": "\"operator_audit_entries\".\"reason\" IS NULL OR (\n        length(\"operator_audit_entries\".\"reason\") BETWEEN 1 AND 64\n        AND substr(\"operator_audit_entries\".\"reason\", 1, 1) GLOB '[a-z]'\n        AND \"operator_audit_entries\".\"reason\" NOT GLOB '*[^a-z0-9_]*'\n      )"
+          "value": "\"operator_audit_entries\".\"reason\" IS NULL OR \"operator_audit_entries\".\"reason\" IN ('access_denied', 'audit_finalization_failed', 'backup_failed', 'backup_limit_exceeded', 'cleanup_failed', 'firebase_validation_failed', 'operation_timeout', 'request_rejected', 'unavailable', 'absolute_expired', 'idle_expired', 'no_active_sessions', 'policy_changed', 'session_cap')"
         },
         "operator_audit_entries_values_check": {
           "name": "operator_audit_entries_values_check",

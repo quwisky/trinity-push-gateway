@@ -15,9 +15,9 @@ const initialAdminMigration = path.join(
   '0001_admin_foundation.sql',
 );
 const initialMigrationHash =
-  '9c758e463343a03c2b8e113dcb50e66cbc632d74a4dbb1f3cb4be76a15dee13d';
+  'e4df5deddd4ce4ee27af8eeacfeb50dfb365c1035207741f49cb3591e119d8da';
 const initialAdminMigrationHash =
-  '4092b693d57c53fe271847eff8fbce5b54fa21400880f0ddec21a9659866fc53';
+  'c1678b95ceaa94bc038ecf9add623a64fc9a69fa529038299827e03373aca443';
 const configs = ['drizzle.d1.config.ts', 'drizzle.bun.config.ts'];
 const adminConfig = 'drizzle.admin.config.ts';
 const destructiveMigrationPatterns = [
@@ -170,8 +170,8 @@ async function checkMigrationPolicy() {
     );
   }
   if (
-    (initialSql.toString('utf8').match(/\) WITHOUT ROWID;/gu) ?? []).length !==
-    2
+    (initialSql.toString('utf8').match(/\)\s+WITHOUT ROWID;/gu) ?? [])
+      .length !== 2
   ) {
     throw new Error('0001_initial.sql must retain both WITHOUT ROWID tables.');
   }
@@ -238,8 +238,8 @@ async function checkAdminMigrationPolicy() {
     );
   }
   if (
-    (initialSql.toString('utf8').match(/\) WITHOUT ROWID;/gu) ?? []).length !==
-    5
+    (initialSql.toString('utf8').match(/\)\s+WITHOUT ROWID;/gu) ?? [])
+      .length !== 5
   ) {
     throw new Error(
       '0001_admin_foundation.sql must retain all five WITHOUT ROWID tables.',

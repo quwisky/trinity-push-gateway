@@ -11,6 +11,11 @@ import {
 
 import { version as gatewayVersion } from '../../../../../package.json';
 import {
+  BACKUP_LIST_SCHEMA,
+  BACKUP_SCHEMA,
+  OPERATION_RESULT_SCHEMA,
+} from '../../admin-contract/operator-actions';
+import {
   CONFIGURATION_RESPONSE_SCHEMA,
   type ConfigurationResponse,
 } from '../../admin-contract/configuration';
@@ -28,7 +33,10 @@ import {
   parseMetricsRange,
   type EffectiveMetricsRange,
 } from '../../admin-contract/overview-metrics';
-import { boundedSafeCountSum as safeCountAdd } from '../../admin-contract/shared';
+import {
+  boundedSafeCountSum as safeCountAdd,
+  validatedAdminResponse,
+} from '../../admin-contract/shared';
 import type { BunConfiguration } from '../config';
 import {
   createOidcAuthenticator,
@@ -39,12 +47,6 @@ import type { AdminAssetCatalog } from './assets';
 import { createOperatorAuditEntryQuery } from './audit-query';
 import type { AdminOperations, OperationResponse } from './operations';
 import type { AdminConfiguration, SafeAdminConfiguration } from './config';
-import {
-  ADMIN_BACKUP_LIST_SCHEMA,
-  ADMIN_BACKUP_SCHEMA,
-  ADMIN_OPERATION_RESULT_SCHEMA,
-  validatedAdminResponse,
-} from './contract';
 import {
   adminJsonResponse,
   adminNoStoreHeaders,
@@ -280,23 +282,19 @@ function metricsProjection(
 
 function operationProjection(result: OperationResponse): Response {
   if (result.kind === 'busy') {
-    return adminProblemResponse('operation_in_progress', 409);
+    return adminProblemResponse('operation_in_progress');
   }
   if (result.kind === 'cooldown') {
-    return adminProblemResponse(
-      'cooldown_active',
-      429,
-      result.retryAfterSeconds,
-    );
+    return adminProblemResponse('cooldown_active', result.retryAfterSeconds);
   }
   if (result.kind === 'timeout') {
-    return adminProblemResponse('operation_timeout', 504);
+    return adminProblemResponse('operation_timeout');
   }
   if (result.kind === 'outcome_unknown') {
-    return adminProblemResponse('outcome_unknown', 500);
+    return adminProblemResponse('outcome_unknown');
   }
   if (result.kind === 'limit') {
-    return adminProblemResponse('backup_limit_exceeded', 507);
+    return adminProblemResponse('backup_limit_exceeded');
   }
   if (result.kind === 'unavailable') {
     return adminUnavailableResponse();
@@ -312,15 +310,12 @@ function operationProjection(result: OperationResponse): Response {
   };
   if (result.kind === 'backup') {
     return adminJsonResponse(
-      validatedAdminResponse(
-        ADMIN_BACKUP_SCHEMA,
-        backupProjection(result.backup),
-      ),
+      validatedAdminResponse(BACKUP_SCHEMA, backupProjection(result.backup)),
       201,
     );
   }
   return adminJsonResponse(
-    validatedAdminResponse(ADMIN_OPERATION_RESULT_SCHEMA, projected),
+    validatedAdminResponse(OPERATION_RESULT_SCHEMA, projected),
   );
 }
 
@@ -511,7 +506,7 @@ export function createAdminSurface(
     if (sessionToken === undefined || sessionToken.length > 256) {
       return {
         kind: 'response',
-        response: adminProblemResponse('unauthenticated', 401),
+        response: adminProblemResponse('unauthenticated'),
       };
     }
     const result = await options.store.authenticateSession(
@@ -523,7 +518,7 @@ export function createAdminSurface(
       return {
         kind: 'response',
         response: withClearedSessionCookies(
-          adminProblemResponse('unauthenticated', 401),
+          adminProblemResponse('unauthenticated'),
         ),
       };
     }
@@ -564,7 +559,7 @@ export function createAdminSurface(
     authenticatedRoute((context, session) =>
       authorizeMutation(context, session)
         ? route(context, session)
-        : adminProblemResponse('csrf_failed', 403),
+        : adminProblemResponse('csrf_failed'),
     );
 
   const app = new Hono({ strict: true });
@@ -672,7 +667,7 @@ export function createAdminSurface(
         context.req.param('sessionId'),
       );
       if (!parsedSessionId.success) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       const revoked = await options.store.revokeSession(
         parsedSessionId.data,
@@ -805,7 +800,7 @@ export function createAdminSurface(
         Math.floor(now() / 1_000),
       );
       if (range === undefined) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       const rows = options.store.metrics(range.from, range.to);
       return adminJsonResponse(
@@ -822,7 +817,7 @@ export function createAdminSurface(
     authenticatedRoute((context) => {
       const result = auditEntries.query(new URL(context.req.url).searchParams);
       return result.kind === 'invalid'
-        ? adminProblemResponse('invalid_request', 400)
+        ? adminProblemResponse('invalid_request')
         : adminJsonResponse(result.page);
     }),
   );
@@ -832,11 +827,11 @@ export function createAdminSurface(
     authenticatedRoute((context) =>
       new URL(context.req.url).search === ''
         ? adminJsonResponse(
-            validatedAdminResponse(ADMIN_BACKUP_LIST_SCHEMA, {
+            validatedAdminResponse(BACKUP_LIST_SCHEMA, {
               backups: options.store.listBackups().map(backupProjection),
             }),
           )
-        : adminProblemResponse('invalid_request', 400),
+        : adminProblemResponse('invalid_request'),
     ),
   );
 
@@ -844,7 +839,7 @@ export function createAdminSurface(
     '/admin/api/v1/backups',
     mutationRoute(async (context, session) => {
       if (!isEmptyMutation(context)) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       if (options.operations === undefined) return adminUnavailableResponse();
       return operationProjection(
@@ -857,7 +852,7 @@ export function createAdminSurface(
     '/admin/api/v1/operations/cleanup',
     mutationRoute(async (context, session) => {
       if (!isEmptyMutation(context)) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       if (options.operations === undefined) return adminUnavailableResponse();
       return operationProjection(
@@ -870,7 +865,7 @@ export function createAdminSurface(
     '/admin/api/v1/operations/firebase-validation',
     mutationRoute(async (context, session) => {
       if (!isEmptyMutation(context)) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       if (options.operations === undefined) return adminUnavailableResponse();
       return operationProjection(

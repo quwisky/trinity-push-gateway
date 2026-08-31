@@ -1,9 +1,14 @@
 import * as z from 'zod/mini';
 
-import { OPERATION_SUMMARY_REASON_SCHEMA } from '../../admin-contract/overview-metrics';
+import {
+  AUDIT_ENTRY_REASON_SCHEMA,
+  OPERATION_SUMMARY_REASON_SCHEMA,
+} from '../../admin-contract/operator-actions';
 
 const SAFE_COUNT = z.number().check(z.int(), z.nonnegative());
-const POSITIVE_SAFE_INTEGER = z.number().check(z.int(), z.positive());
+const POSITIVE_SAFE_INTEGER = z
+  .number()
+  .check(z.int(), z.positive(), z.lte(Number.MAX_SAFE_INTEGER));
 const UTC_TIMESTAMP = z.iso.datetime();
 
 const ADMIN_SESSION_ID_SCHEMA = z
@@ -51,11 +56,12 @@ const ADMIN_OPERATION_SUMMARY_SCHEMA = z.strictObject({
   startedAt: UTC_TIMESTAMP,
 });
 
-export const ADMIN_OPERATION_RESULT_SCHEMA = z.strictObject({
+/** Migration compatibility schema for Operator Action result parity coverage. */
+export const LEGACY_ADMIN_OPERATION_RESULT_SCHEMA = z.strictObject({
   completedAt: UTC_TIMESTAMP,
   cooldownEndsAt: UTC_TIMESTAMP,
   outcome: z.enum(['succeeded', 'failed']),
-  reason: z.optional(z.string().check(z.regex(/^[a-z][a-z0-9_]{0,63}$/u))),
+  reason: z.optional(OPERATION_SUMMARY_REASON_SCHEMA),
   startedAt: UTC_TIMESTAMP,
 });
 
@@ -125,7 +131,7 @@ export const LEGACY_ADMIN_METRICS_SCHEMA = z.strictObject({
 });
 
 const ADMIN_AUDIT_ENTRY_SCHEMA = z.strictObject({
-  id: z.string().check(z.minLength(16), z.maxLength(128)),
+  id: ADMIN_SESSION_ID_SCHEMA,
   kind: z.enum([
     'login',
     'logout',
@@ -141,17 +147,19 @@ const ADMIN_AUDIT_ENTRY_SCHEMA = z.strictObject({
   occurredAt: UTC_TIMESTAMP,
   operator: z.nullable(ADMIN_OPERATOR_IDENTITY_SCHEMA),
   outcome: z.enum(['succeeded', 'failed', 'started', 'outcome_unknown']),
-  reason: z.optional(z.string().check(z.regex(/^[a-z][a-z0-9_]{0,63}$/u))),
+  reason: z.optional(AUDIT_ENTRY_REASON_SCHEMA),
 });
 
-export const ADMIN_AUDIT_PAGE_SCHEMA = z.strictObject({
+/** Migration compatibility schema for Operator Audit Entry page parity coverage. */
+export const LEGACY_ADMIN_AUDIT_PAGE_SCHEMA = z.strictObject({
   entries: z.array(ADMIN_AUDIT_ENTRY_SCHEMA).check(z.maxLength(100)),
   nextCursor: z.optional(z.string().check(z.minLength(1), z.maxLength(2048))),
 });
 
-export const ADMIN_BACKUP_SCHEMA = z.strictObject({
+/** Migration compatibility schema for verified backup parity coverage. */
+export const LEGACY_ADMIN_BACKUP_SCHEMA = z.strictObject({
   createdAt: UTC_TIMESTAMP,
-  id: z.string().check(z.minLength(16), z.maxLength(128)),
+  id: ADMIN_SESSION_ID_SCHEMA,
   integrity: z.literal('verified'),
   name: z.string().check(z.regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/u)),
   operator: z.nullable(ADMIN_OPERATOR_IDENTITY_SCHEMA),
@@ -159,8 +167,9 @@ export const ADMIN_BACKUP_SCHEMA = z.strictObject({
   sizeBytes: POSITIVE_SAFE_INTEGER,
 });
 
-export const ADMIN_BACKUP_LIST_SCHEMA = z.strictObject({
-  backups: z.array(ADMIN_BACKUP_SCHEMA).check(z.maxLength(1_000)),
+/** Migration compatibility schema for verified backup-list parity coverage. */
+export const LEGACY_ADMIN_BACKUP_LIST_SCHEMA = z.strictObject({
+  backups: z.array(LEGACY_ADMIN_BACKUP_SCHEMA).check(z.maxLength(1_000)),
 });
 
 const SECRET_PRESENCE_SCHEMA = z.strictObject({
@@ -245,14 +254,3 @@ export const LEGACY_ADMIN_CONFIGURATION_RESPONSE_SCHEMA = z.strictObject({
   observedAt: UTC_TIMESTAMP,
   version: z.string().check(z.minLength(1), z.maxLength(128)),
 });
-
-export function validatedAdminResponse<T>(
-  schema: z.ZodMiniType<T>,
-  value: unknown,
-): T {
-  const result = z.safeParse(schema, value);
-  if (!result.success) {
-    throw new Error('Administration response projection is invalid.');
-  }
-  return result.data;
-}

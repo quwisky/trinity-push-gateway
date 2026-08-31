@@ -28,6 +28,10 @@ import {
 } from '../auth/session-policy';
 import type { SqlMigration } from '../sqlite-store';
 import type {
+  AuditEntryReason,
+  OperationSummaryReason,
+} from '../../admin-contract/operator-actions';
+import type {
   OperatorAuditEntryRecord,
   OperatorAuditEntryStorageQuery,
 } from './audit-query';
@@ -117,7 +121,7 @@ export type AdminOperationSummary = Readonly<{
   cooldownEndsAt: number;
   kind: AdminOperationKind;
   outcome: AdminOperationOutcome;
-  reason: string | null;
+  reason: OperationSummaryReason | null;
 }>;
 export type AdminVerifiedBackup = typeof verifiedBackups.$inferSelect;
 export type BeginOperationResult =
@@ -799,7 +803,7 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
     actor: AdminOperatorIdentity,
     completedAt: number,
     outcome: AdminOperationOutcome,
-    reason?: string,
+    reason?: OperationSummaryReason,
     backup?: Omit<AdminVerifiedBackup, 'issuer' | 'subject'>,
   ): void {
     const finalize = this.database.transaction(() => {
@@ -1198,7 +1202,7 @@ export class SqliteAdminStore implements OidcLoginAttemptStore {
     outcome: typeof operatorAuditEntries.$inferInsert.outcome,
     occurredAt: number,
     identity?: Pick<AdminOperatorIdentity, 'issuer' | 'subject'>,
-    reason?: string,
+    reason?: AuditEntryReason,
   ): void {
     this.queryDatabase
       .insert(operatorAuditEntries)

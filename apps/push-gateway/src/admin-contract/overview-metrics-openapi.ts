@@ -18,7 +18,6 @@ const COMPONENT_ORDER = [
   'FcmOutcomeCounts',
   'FcmPlatformTotals',
   'OperationSummaryOutcome',
-  'OperationSummaryReason',
   'OperationSummary',
   'DatabaseByteUsage',
   'Overview',
@@ -37,7 +36,7 @@ export function overviewMetricsOpenApiComponents(): Readonly<
   return adminContractOpenApiComponents(
     OVERVIEW_METRICS_RESPONSES_SCHEMA,
     COMPONENT_ORDER,
-    ['UtcTimestamp'],
+    ['UtcTimestamp', 'OperationSummaryReason'],
   );
 }
 

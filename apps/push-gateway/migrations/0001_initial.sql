@@ -4,11 +4,13 @@ CREATE TABLE delivery_records (
   lease_expires_at INTEGER,
   expires_at INTEGER NOT NULL,
   reason_category TEXT
-) WITHOUT ROWID;
+)
+WITHOUT ROWID;
 
 CREATE INDEX delivery_records_expiry_idx ON delivery_records (expires_at);
 
 CREATE TABLE daily_budgets (
   utc_date TEXT PRIMARY KEY,
   attempts INTEGER NOT NULL CHECK (attempts >= 0)
-) WITHOUT ROWID;
+)
+WITHOUT ROWID;

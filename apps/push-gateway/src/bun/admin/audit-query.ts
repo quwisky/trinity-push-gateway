@@ -2,29 +2,32 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import * as z from 'zod/mini';
 
-import { ADMIN_AUDIT_PAGE_SCHEMA, validatedAdminResponse } from './contract';
-import { ADMIN_AUDIT_KINDS, ADMIN_AUDIT_OUTCOMES } from './schema';
-
-const DEFAULT_RANGE_SECONDS = 24 * 60 * 60;
-const MAXIMUM_RANGE_SECONDS = 90 * 24 * 60 * 60;
-const DEFAULT_PAGE_SIZE = 50;
-const MAXIMUM_PAGE_SIZE = 100;
-const CURSOR_LIFETIME_SECONDS = 15 * 60;
-const MAXIMUM_CURSOR_LENGTH = 2_048;
+import {
+  type AuditEntryReason,
+  AUDIT_ENTRY_KIND_SCHEMA,
+  AUDIT_ENTRY_OUTCOME_SCHEMA,
+  AUDIT_QUERY_POLICY,
+  OPERATOR_AUDIT_ENTRY_PAGE_SCHEMA,
+  type OperatorAuditEntryPage,
+} from '../../admin-contract/operator-actions';
+import { validatedAdminResponse } from '../../admin-contract/shared';
 
 const SAFE_NONNEGATIVE_INTEGER = z
   .number()
   .check(z.int(), z.nonnegative(), z.lte(Number.MAX_SAFE_INTEGER));
-const AUDIT_KIND_SCHEMA = z.enum(ADMIN_AUDIT_KINDS);
-const AUDIT_OUTCOME_SCHEMA = z.enum(ADMIN_AUDIT_OUTCOMES);
 const AUDIT_QUERY_PARAMETER_SCHEMA = z.strictObject({
   cursor: z.optional(
-    z.string().check(z.minLength(1), z.maxLength(MAXIMUM_CURSOR_LENGTH)),
+    z
+      .string()
+      .check(
+        z.minLength(1),
+        z.maxLength(AUDIT_QUERY_POLICY.maximumCursorLength),
+      ),
   ),
   from: z.optional(z.iso.datetime()),
-  kind: z.optional(AUDIT_KIND_SCHEMA),
+  kind: z.optional(AUDIT_ENTRY_KIND_SCHEMA),
   limit: z.optional(z.string().check(z.regex(/^[1-9][0-9]{0,2}$/u))),
-  outcome: z.optional(AUDIT_OUTCOME_SCHEMA),
+  outcome: z.optional(AUDIT_ENTRY_OUTCOME_SCHEMA),
   to: z.optional(z.iso.datetime()),
 });
 const AUDIT_CURSOR_SCHEMA = z.strictObject({
@@ -35,16 +38,18 @@ const AUDIT_CURSOR_SCHEMA = z.strictObject({
   expiresAt: SAFE_NONNEGATIVE_INTEGER,
   filter: z.strictObject({
     from: SAFE_NONNEGATIVE_INTEGER,
-    kind: z.nullable(AUDIT_KIND_SCHEMA),
-    limit: z.number().check(z.int(), z.gte(1), z.lte(MAXIMUM_PAGE_SIZE)),
-    outcome: z.nullable(AUDIT_OUTCOME_SCHEMA),
+    kind: z.nullable(AUDIT_ENTRY_KIND_SCHEMA),
+    limit: z
+      .number()
+      .check(z.int(), z.gte(1), z.lte(AUDIT_QUERY_POLICY.maximumPageSize)),
+    outcome: z.nullable(AUDIT_ENTRY_OUTCOME_SCHEMA),
     to: SAFE_NONNEGATIVE_INTEGER,
   }),
   version: z.literal(1),
 });
 
-type AuditEntryKind = (typeof ADMIN_AUDIT_KINDS)[number];
-type AuditEntryOutcome = (typeof ADMIN_AUDIT_OUTCOMES)[number];
+type AuditEntryKind = z.infer<typeof AUDIT_ENTRY_KIND_SCHEMA>;
+type AuditEntryOutcome = z.infer<typeof AUDIT_ENTRY_OUTCOME_SCHEMA>;
 type AuditQueryParameters = z.output<typeof AUDIT_QUERY_PARAMETER_SCHEMA>;
 type AuditCursor = z.output<typeof AUDIT_CURSOR_SCHEMA>;
 type AuditFilter = Readonly<{
@@ -61,7 +66,7 @@ export type OperatorAuditEntryRecord = Readonly<{
   kind: AuditEntryKind;
   occurredAt: number;
   outcome: AuditEntryOutcome;
-  reason: string | null;
+  reason: AuditEntryReason | null;
   subject: string | null;
 }>;
 
@@ -87,7 +92,7 @@ export type OperatorAuditEntryQueryResult =
   | Readonly<{ kind: 'invalid' }>
   | Readonly<{
       kind: 'page';
-      page: z.output<typeof ADMIN_AUDIT_PAGE_SCHEMA>;
+      page: OperatorAuditEntryPage;
     }>;
 
 export type OperatorAuditEntryQuery = Readonly<{
@@ -140,11 +145,11 @@ function normalizeFilter(
       : timestampSeconds(parameters.to);
   const from =
     parameters.from === undefined
-      ? (cursor?.filter.from ?? to - DEFAULT_RANGE_SECONDS)
+      ? (cursor?.filter.from ?? to - AUDIT_QUERY_POLICY.defaultRangeSeconds)
       : timestampSeconds(parameters.from);
   const limit =
     parameters.limit === undefined
-      ? (cursor?.filter.limit ?? DEFAULT_PAGE_SIZE)
+      ? (cursor?.filter.limit ?? AUDIT_QUERY_POLICY.defaultPageSize)
       : Number(parameters.limit);
   const kind = parameters.kind ?? cursor?.filter.kind ?? undefined;
   const outcome = parameters.outcome ?? cursor?.filter.outcome ?? undefined;
@@ -153,10 +158,10 @@ function normalizeFilter(
     !Number.isSafeInteger(to) ||
     from < 0 ||
     to <= from ||
-    to - from > MAXIMUM_RANGE_SECONDS ||
+    to - from > AUDIT_QUERY_POLICY.maximumRangeSeconds ||
     !Number.isSafeInteger(limit) ||
     limit < 1 ||
-    limit > MAXIMUM_PAGE_SIZE
+    limit > AUDIT_QUERY_POLICY.maximumPageSize
   ) {
     return undefined;
   }
@@ -272,7 +277,8 @@ export function createOperatorAuditEntryQuery(
           : encodeCursor(options.cursorSecret, {
               before: { id: last.id, occurredAt: last.occurredAt },
               expiresAt:
-                cursor?.expiresAt ?? nowSeconds + CURSOR_LIFETIME_SECONDS,
+                cursor?.expiresAt ??
+                nowSeconds + AUDIT_QUERY_POLICY.cursorLifetimeSeconds,
               filter: {
                 from: filter.from,
                 kind: filter.kind ?? null,
@@ -284,7 +290,7 @@ export function createOperatorAuditEntryQuery(
             });
       return {
         kind: 'page',
-        page: validatedAdminResponse(ADMIN_AUDIT_PAGE_SCHEMA, {
+        page: validatedAdminResponse(OPERATOR_AUDIT_ENTRY_PAGE_SCHEMA, {
           entries: pageEntries.map(projectEntry),
           ...(nextCursor === undefined ? {} : { nextCursor }),
         }),

@@ -38,3 +38,14 @@ export const POSITIVE_SAFE_INTEGER_SCHEMA = z
     description: 'Positive JSON safe integer.',
     id: 'PositiveSafeInteger',
   });
+
+export function validatedAdminResponse<T>(
+  schema: z.ZodMiniType<T>,
+  value: unknown,
+): T {
+  const result = z.safeParse(schema, value);
+  if (!result.success) {
+    throw new Error('Administration response projection is invalid.');
+  }
+  return result.data;
+}

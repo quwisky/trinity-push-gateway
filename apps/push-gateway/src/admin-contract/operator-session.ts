@@ -6,7 +6,7 @@ import {
   UTC_TIMESTAMP_SCHEMA,
 } from './shared';
 
-const OPERATOR_IDENTITY_SCHEMA = z
+export const OPERATOR_IDENTITY_SCHEMA = z
   .strictObject({
     issuer: z.url().check(z.maxLength(2048)).register(ADMIN_CONTRACT_REGISTRY, {
       description: 'Exact identity-provider issuer for this Operator Identity.',

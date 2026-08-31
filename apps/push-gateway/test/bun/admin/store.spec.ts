@@ -4,6 +4,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import {
+  AUDIT_ENTRY_REASONS,
+  OPERATION_SUMMARY_REASONS,
+} from '../../../src/admin-contract/operator-actions';
 import { createOperatorAuditEntryQuery } from '../../../src/bun/admin/audit-query';
 import { SqliteAdminStore } from '../../../src/bun/admin/store';
 import { readMigrations } from '../../../src/bun/migrations';
@@ -102,6 +106,59 @@ describe('isolated administration SQLite store', () => {
         )
         .every(({ sql }) => sql.includes('WITHOUT ROWID')),
     ).toBe(true);
+    database.close(true);
+  });
+
+  it('keeps canonical reason tuples in parity with the persistence boundary', () => {
+    const { file, store } = openStore();
+    store.close();
+    const database = new Database(file, { strict: true });
+
+    for (const [index, reason] of AUDIT_ENTRY_REASONS.entries()) {
+      database.run(
+        `INSERT INTO operator_audit_entries
+          (id, occurred_at, kind, outcome, reason)
+          VALUES (?1, ?2, 'cleanup', 'failed', ?3)`,
+        [
+          `audit-reason-${index.toString().padStart(4, '0')}`,
+          1_000 + index,
+          reason,
+        ],
+      );
+    }
+    expect(
+      database
+        .query<{ readonly count: number }, []>(
+          'SELECT count(*) AS count FROM operator_audit_entries',
+        )
+        .get(),
+    ).toEqual({ count: AUDIT_ENTRY_REASONS.length });
+
+    database.run(`INSERT INTO operation_leases
+      (kind, lease_id, acquired_at, lease_expires_at, cooldown_ends_at)
+      VALUES ('cleanup', 'lease-canonical-reasons', 1000, 1030, 1300)`);
+    for (const [index, reason] of OPERATION_SUMMARY_REASONS.entries()) {
+      database.run(
+        `INSERT INTO operation_results
+          (kind, lease_id, completed_at, outcome, reason)
+          VALUES ('cleanup', 'lease-canonical-reasons', ?1, 'failed', ?2)`,
+        [1_010 + index, reason],
+      );
+      database.run("DELETE FROM operation_results WHERE kind = 'cleanup'");
+    }
+
+    expect(() =>
+      database.run(`INSERT INTO operator_audit_entries
+        (id, occurred_at, kind, outcome, reason)
+        VALUES ('audit-entry-invalid-0001', 1000, 'cleanup', 'failed', 'private_key_contents')`),
+    ).toThrow();
+
+    expect(() =>
+      database.run(`INSERT INTO operation_results
+        (kind, lease_id, completed_at, outcome, reason)
+        VALUES ('cleanup', 'lease-canonical-reasons', 1010, 'failed', 'raw_provider_error')`),
+    ).toThrow();
+
     database.close(true);
   });
 
