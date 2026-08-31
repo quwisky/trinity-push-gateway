@@ -1,5 +1,10 @@
+import { sql } from 'drizzle-orm';
+
+import type { GatewayD1Database } from './d1-database';
+import { dailyBudgets } from './schema';
+
 export async function reserveDailyAttempts(
-  database: D1Database,
+  database: GatewayD1Database,
   utcDate: string,
   requestedAttempts: number,
   maximumAttempts: number,
@@ -10,16 +15,17 @@ export async function reserveDailyAttempts(
   if (requestedAttempts > maximumAttempts) {
     return false;
   }
-  const reserved = await database
-    .prepare(
-      `INSERT INTO daily_budgets (utc_date, attempts)
-       VALUES (?1, ?2)
-       ON CONFLICT (utc_date) DO UPDATE SET
-         attempts = daily_budgets.attempts + excluded.attempts
-       WHERE daily_budgets.attempts + excluded.attempts <= ?3
-       RETURNING attempts`,
-    )
-    .bind(utcDate, requestedAttempts, maximumAttempts)
-    .first<{ readonly attempts: number }>();
-  return reserved !== null;
+  const [reserved] = await database
+    .insert(dailyBudgets)
+    .values({ attempts: requestedAttempts, utcDate })
+    .onConflictDoUpdate({
+      set: {
+        attempts: sql`${dailyBudgets.attempts} + ${requestedAttempts}`,
+      },
+      setWhere: sql`${dailyBudgets.attempts} + ${requestedAttempts} <= ${maximumAttempts}`,
+      target: dailyBudgets.utcDate,
+    })
+    .returning({ attempts: dailyBudgets.attempts })
+    .all();
+  return reserved !== undefined;
 }

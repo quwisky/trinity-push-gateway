@@ -20,6 +20,16 @@ Use Nx targets for project work, for example `pnpm nx run push-gateway:test`, `p
 
 Pull-request and `master` CI use Nx affected execution. Shared dependencies, workspace configuration, Compose, and CI configuration affect `push-gateway`; documentation changes run `push-gateway-docs:check` while skipping unrelated gateway and container work. After successful `master` CI, the dedicated Pages workflow publishes `/next/` and, for a verified Release Please tag, the write-once release version plus `/latest/`.
 
+## Database migrations
+
+The D1 and Bun adapters share one Drizzle SQLite schema and one reviewed migration lineage. After changing `apps/push-gateway/src/schema.ts`, generate the next migration with an explicit name:
+
+```sh
+pnpm nx run push-gateway:generate-migration --name=add_delivery_note
+```
+
+The target runs the D1 and Bun generation profiles sequentially and inserts `-- minimum-reader: <previous migration filename>` as the first line. Review the SQL rather than applying it with `drizzle-kit push` or a Drizzle runtime migrator. Keep migrations expand-first, verify the generated minimum-reader metadata, and retain required physical SQLite clauses such as `WITHOUT ROWID` that Drizzle cannot model. Wrangler remains the D1 runner, while Bun keeps its compatibility-aware startup runner. `push-gateway:check-migrations` validates both profiles, the snapshot lineage, the immutable initial migration, and no-op regeneration.
+
 ## Commits and pull requests
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) for every commit and pull-request title. CI validates both the title and every commit in the pull request. Common release-relevant prefixes are:

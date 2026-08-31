@@ -27,6 +27,7 @@
         "lint",
         "typecheck",
         "test-coverage",
+        "check-migrations",
         "check-bundle",
         "check-openapi"
       ]
@@ -34,7 +35,12 @@
     "check-bun": {
       "executor": "nx:noop",
       "cache": false,
-      "dependsOn": ["typecheck-bun", "test-bun", "build-bun"]
+      "dependsOn": [
+        "typecheck-bun",
+        "test-bun",
+        "build-bun",
+        "check-migrations"
+      ]
     },
     "check-bundle": {
       "executor": "nx:run-commands",
@@ -50,6 +56,13 @@
       "options": {
         "command": "redocly lint --config ../../redocly.yaml admin@v1",
         "cwd": "apps/push-gateway"
+      }
+    },
+    "check-migrations": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "options": {
+        "command": "node apps/push-gateway/scripts/check-migrations.mjs"
       }
     },
     "deploy": {
@@ -85,6 +98,13 @@
         "cwd": "apps/push-gateway"
       }
     },
+    "generate-migration": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node apps/push-gateway/scripts/generate-migration.mjs"
+      }
+    },
     "test-bun": {
       "executor": "nx:run-commands",
       "options": {
@@ -103,7 +123,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
+        "command": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json && tsc --noEmit --project tsconfig.tooling.json",
         "cwd": "apps/push-gateway"
       }
     },

@@ -5,7 +5,7 @@ import { gzip } from 'node:zlib';
 const gzipAsync = promisify(gzip);
 const maximumRawBytes = 64 * 1024 * 1024;
 const maximumGzipBytes = 3 * 1024 * 1024;
-const allowedDependencyNames = ['jose', 'zod'];
+const allowedDependencyNames = ['drizzle-orm', 'jose', 'zod'];
 const bundle = new URL(
   '../../../dist/apps/push-gateway/worker/index.js',
   import.meta.url,
@@ -17,6 +17,15 @@ const [bundleBytes, { size }, packageJson] = await Promise.all([
   readFile(packageFile, 'utf8').then(JSON.parse),
 ]);
 const gzipBytes = (await gzipAsync(bundleBytes)).byteLength;
+const bundleText = bundleBytes.toString('utf8');
+
+for (const forbiddenRuntime of ['bun:sqlite', 'drizzle-orm/bun-sqlite']) {
+  if (bundleText.includes(forbiddenRuntime)) {
+    throw new Error(
+      `Worker bundle must not include the Bun storage adapter: ${forbiddenRuntime}.`,
+    );
+  }
+}
 
 if (size > maximumRawBytes) {
   throw new Error(
