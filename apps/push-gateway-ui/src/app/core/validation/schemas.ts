@@ -9,12 +9,14 @@ import {
   string,
 } from 'zod/mini';
 
+import { METRICS_QUERY_POLICY } from '../../api/admin-contract.generated';
+
 const millisecondsPerDay = 86_400_000;
 
 const isBoundedRange = (
   from: string,
   to: string,
-  maximumDays: number,
+  maximumMilliseconds: number,
 ): boolean => {
   const fromTime = new Date(from).getTime();
   const toTime = new Date(to).getTime();
@@ -22,7 +24,7 @@ const isBoundedRange = (
     Number.isFinite(fromTime) &&
     Number.isFinite(toTime) &&
     fromTime < toTime &&
-    toTime - fromTime <= maximumDays * millisecondsPerDay
+    toTime - fromTime <= maximumMilliseconds
   );
 };
 
@@ -43,12 +45,20 @@ export const confirmationSchema = object({
 export const metricsFilterSchema = object({
   from: string().check(minLength(1)),
   to: string().check(minLength(1)),
-  interval: zodEnum(['hour', 'day']),
+  interval: zodEnum(METRICS_QUERY_POLICY.intervals),
 }).check(
-  refine(({ from, to }) => isBoundedRange(from, to, 30), {
-    message: 'Choose a non-empty range no longer than 30 days.',
-    path: ['to'],
-  }),
+  refine(
+    ({ from, to }) =>
+      isBoundedRange(
+        from,
+        to,
+        METRICS_QUERY_POLICY.maximumRangeSeconds * 1_000,
+      ),
+    {
+      message: `Choose a non-empty range no longer than ${String(METRICS_QUERY_POLICY.maximumRangeDays)} days.`,
+      path: ['to'],
+    },
+  ),
 );
 
 export const auditFilterSchema = object({
@@ -75,7 +85,7 @@ export const auditFilterSchema = object({
     'outcome_unknown',
   ]),
 }).check(
-  refine(({ from, to }) => isBoundedRange(from, to, 90), {
+  refine(({ from, to }) => isBoundedRange(from, to, 90 * millisecondsPerDay), {
     message: 'Choose a non-empty audit range no longer than 90 days.',
     path: ['to'],
   }),

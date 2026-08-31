@@ -17,6 +17,20 @@ export const OPAQUE_ID_SCHEMA = z
     id: 'OpaqueId',
   });
 
+export const SAFE_COUNT_SCHEMA = z
+  .number()
+  .check(z.int(), z.gte(0), z.lte(Number.MAX_SAFE_INTEGER))
+  .register(ADMIN_CONTRACT_REGISTRY, {
+    description: 'Non-negative JSON safe integer.',
+    id: 'SafeCount',
+  });
+
+export const boundedSafeCountSum = (...values: readonly number[]): number =>
+  values.reduce(
+    (total, value) => Math.min(Number.MAX_SAFE_INTEGER, total + value),
+    0,
+  );
+
 export const POSITIVE_SAFE_INTEGER_SCHEMA = z
   .number()
   .check(z.int(), z.gte(1), z.lte(Number.MAX_SAFE_INTEGER))

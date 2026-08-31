@@ -20,6 +20,15 @@ import {
   OPERATOR_SESSION_RESPONSE_SCHEMA,
   type OperatorSessionResponse,
 } from '../../admin-contract/operator-session';
+import {
+  boundedFcmAttempted,
+  METRICS_QUERY_POLICY,
+  METRICS_RESPONSE_SCHEMA,
+  OVERVIEW_RESPONSE_SCHEMA,
+  parseMetricsRange,
+  type EffectiveMetricsRange,
+} from '../../admin-contract/overview-metrics';
+import { boundedSafeCountSum as safeCountAdd } from '../../admin-contract/shared';
 import type { BunConfiguration } from '../config';
 import {
   createOidcAuthenticator,
@@ -33,9 +42,7 @@ import type { AdminConfiguration, SafeAdminConfiguration } from './config';
 import {
   ADMIN_BACKUP_LIST_SCHEMA,
   ADMIN_BACKUP_SCHEMA,
-  ADMIN_METRICS_SCHEMA,
   ADMIN_OPERATION_RESULT_SCHEMA,
-  ADMIN_OVERVIEW_SCHEMA,
   validatedAdminResponse,
 } from './contract';
 import {
@@ -150,52 +157,6 @@ function safeFileSize(filePath: string): number {
   }
 }
 
-type EffectiveRange = Readonly<{
-  from: number;
-  interval: 'day' | 'hour';
-  to: number;
-}>;
-
-function parseRange(
-  url: URL,
-  nowSeconds: number,
-  maximumSeconds: number,
-  allowInterval: boolean,
-): EffectiveRange | undefined {
-  const allowed = new Set([
-    'from',
-    'to',
-    ...(allowInterval ? ['interval'] : []),
-  ]);
-  if (
-    [...url.searchParams.keys()].some((key) => !allowed.has(key)) ||
-    [...allowed].some((key) => url.searchParams.getAll(key).length > 1)
-  ) {
-    return undefined;
-  }
-  const rawFrom = url.searchParams.get('from');
-  const rawTo = url.searchParams.get('to');
-  if ((rawFrom === null) !== (rawTo === null)) return undefined;
-  const to =
-    rawTo === null ? nowSeconds : Math.floor(Date.parse(rawTo) / 1_000);
-  const from =
-    rawFrom === null
-      ? to - 24 * 60 * 60
-      : Math.floor(Date.parse(rawFrom) / 1_000);
-  const interval = url.searchParams.get('interval') ?? 'hour';
-  if (
-    !Number.isSafeInteger(from) ||
-    !Number.isSafeInteger(to) ||
-    from < 0 ||
-    to <= from ||
-    to - from > maximumSeconds ||
-    (interval !== 'hour' && interval !== 'day')
-  ) {
-    return undefined;
-  }
-  return { from, interval, to };
-}
-
 const ZERO_REQUEST_OUTCOMES = Object.freeze({
   invalid: 0,
   processed: 0,
@@ -210,28 +171,11 @@ const ZERO_FCM_OUTCOMES = Object.freeze({
   transientFailure: 0,
 });
 
-function safeCountAdd(left: number, right: number): number {
-  return Math.min(Number.MAX_SAFE_INTEGER, left + right);
-}
-
-function fcmAttempted(
-  row: Readonly<{
-    accepted: number;
-    permanentlyRejected: number;
-    transientFailure: number;
-  }>,
-): number {
-  return safeCountAdd(
-    safeCountAdd(row.accepted, row.permanentlyRejected),
-    row.transientFailure,
-  );
-}
-
 function metricsProjection(
   rows: ReturnType<SqliteAdminStore['metrics']>,
-  range: EffectiveRange,
+  range: EffectiveMetricsRange,
 ): unknown {
-  const seconds = range.interval === 'hour' ? 3_600 : 86_400;
+  const seconds = METRICS_QUERY_POLICY.intervalSeconds[range.interval];
   const bucketStart = (hour: number): number =>
     Math.floor(hour / seconds) * seconds;
   const requests = new Map<
@@ -313,7 +257,7 @@ function metricsProjection(
       latency: { approxP95Ms, histogram, sampleCount },
       outcomes: {
         accepted: row.accepted,
-        attempted: fcmAttempted(row),
+        attempted: boundedFcmAttempted(row),
         permanentlyRejected: row.permanentlyRejected,
         transientFailure: row.transientFailure,
       },
@@ -807,7 +751,7 @@ export function createAdminSurface(
           totals.transientFailure,
           row.transientFailure,
         );
-        totals.attempted = fcmAttempted(totals);
+        totals.attempted = boundedFcmAttempted(totals);
       }
       const summaries = Object.fromEntries(
         options.store.operationSummaries().map((summary) => [
@@ -822,7 +766,7 @@ export function createAdminSurface(
         ]),
       );
       return adminJsonResponse(
-        validatedAdminResponse(ADMIN_OVERVIEW_SCHEMA, {
+        validatedAdminResponse(OVERVIEW_RESPONSE_SCHEMA, {
           // Authentication immediately above proved the isolated store usable;
           // avoid running an integrity scan for every overview request.
           administrationReady: true,
@@ -856,11 +800,9 @@ export function createAdminSurface(
   app.get(
     '/admin/api/v1/metrics',
     authenticatedRoute((context) => {
-      const range = parseRange(
-        new URL(context.req.url),
+      const range = parseMetricsRange(
+        new URL(context.req.url).searchParams,
         Math.floor(now() / 1_000),
-        30 * 24 * 60 * 60,
-        true,
       );
       if (range === undefined) {
         return adminProblemResponse('invalid_request', 400);
@@ -868,7 +810,7 @@ export function createAdminSurface(
       const rows = options.store.metrics(range.from, range.to);
       return adminJsonResponse(
         validatedAdminResponse(
-          ADMIN_METRICS_SCHEMA,
+          METRICS_RESPONSE_SCHEMA,
           metricsProjection(rows, range),
         ),
       );

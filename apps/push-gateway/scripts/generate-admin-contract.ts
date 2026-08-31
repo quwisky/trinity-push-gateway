@@ -3,12 +3,23 @@ import { fileURLToPath } from 'node:url';
 
 import { configurationOpenApiComponents } from '../src/admin-contract/configuration-openapi';
 import { operatorSessionOpenApiComponents } from '../src/admin-contract/operator-session-openapi';
+import { METRICS_QUERY_POLICY } from '../src/admin-contract/overview-metrics';
+import {
+  metricsOpenApiParameters,
+  overviewMetricsOpenApiComponents,
+} from '../src/admin-contract/overview-metrics-openapi';
 
 const openApiPath = fileURLToPath(
   new URL('../openapi/admin-v1.yaml', import.meta.url),
 );
+const browserPolicyPath = fileURLToPath(
+  new URL(
+    '../../push-gateway-ui/src/app/api/admin-contract.generated.ts',
+    import.meta.url,
+  ),
+);
 type GeneratedContractBlock = Readonly<{
-  components: Readonly<Record<string, unknown>>;
+  content: Readonly<Record<string, unknown>>;
   endMarker: string;
   name: string;
   startMarker: string;
@@ -16,13 +27,25 @@ type GeneratedContractBlock = Readonly<{
 
 const GENERATED_CONTRACT_BLOCKS: readonly GeneratedContractBlock[] = [
   {
-    components: operatorSessionOpenApiComponents(),
+    content: metricsOpenApiParameters(),
+    endMarker: '    # END GENERATED METRICS PARAMETERS',
+    name: 'metrics parameters',
+    startMarker: '    # BEGIN GENERATED METRICS PARAMETERS',
+  },
+  {
+    content: operatorSessionOpenApiComponents(),
     endMarker: '    # END GENERATED OPERATOR SESSION CONTRACT',
     name: 'Operator Session',
     startMarker: '    # BEGIN GENERATED OPERATOR SESSION CONTRACT',
   },
   {
-    components: configurationOpenApiComponents(),
+    content: overviewMetricsOpenApiComponents(),
+    endMarker: '    # END GENERATED OVERVIEW METRICS CONTRACT',
+    name: 'Overview and metrics',
+    startMarker: '    # BEGIN GENERATED OVERVIEW METRICS CONTRACT',
+  },
+  {
+    content: configurationOpenApiComponents(),
     endMarker: '    # END GENERATED CONFIGURATION CONTRACT',
     name: 'configuration',
     startMarker: '    # BEGIN GENERATED CONFIGURATION CONTRACT',
@@ -39,8 +62,28 @@ function scalar(value: unknown): string {
 function yaml(value: unknown, indentation: number): string {
   const indent = ' '.repeat(indentation);
   if (Array.isArray(value)) {
-    return value
+    const entries: readonly unknown[] = value;
+    return entries
       .map((entry) => {
+        if (
+          entry !== null &&
+          typeof entry === 'object' &&
+          !Array.isArray(entry)
+        ) {
+          const [first, ...remaining] = Object.entries(
+            entry as Record<string, unknown>,
+          );
+          if (first !== undefined) {
+            const [key, firstValue] = first;
+            const firstLine =
+              firstValue !== null && typeof firstValue === 'object'
+                ? `${indent}- ${key}:\n${yaml(firstValue, indentation + 4)}`
+                : `${indent}- ${key}: ${scalar(firstValue)}`;
+            return remaining.length === 0
+              ? firstLine
+              : `${firstLine}\n${yaml(Object.fromEntries(remaining), indentation + 2)}`;
+          }
+        }
         if (entry !== null && typeof entry === 'object') {
           return `${indent}-\n${yaml(entry, indentation + 2)}`;
         }
@@ -62,7 +105,7 @@ function yaml(value: unknown, indentation: number): string {
 }
 
 function generatedBlock(block: GeneratedContractBlock): string {
-  return [block.startMarker, yaml(block.components, 4), block.endMarker].join(
+  return [block.startMarker, yaml(block.content, 4), block.endMarker].join(
     '\n',
   );
 }
@@ -84,11 +127,34 @@ function generatedOpenApi(source: string): string {
   return GENERATED_CONTRACT_BLOCKS.reduce(replaceGeneratedBlock, source);
 }
 
+function generatedBrowserPolicy(): string {
+  return [
+    '/**',
+    ' * Generated from apps/push-gateway/src/admin-contract/overview-metrics.ts.',
+    ' * Do not edit manually. Run pnpm nx run push-gateway:generate-admin-contract.',
+    ' */',
+    'export const METRICS_QUERY_POLICY = {',
+    `  defaultInterval: '${METRICS_QUERY_POLICY.defaultInterval}',`,
+    `  defaultRangeSeconds: ${String(METRICS_QUERY_POLICY.defaultRangeSeconds)},`,
+    '  intervalSeconds: {',
+    `    day: ${String(METRICS_QUERY_POLICY.intervalSeconds.day)},`,
+    `    hour: ${String(METRICS_QUERY_POLICY.intervalSeconds.hour)},`,
+    '  },',
+    `  intervals: [${METRICS_QUERY_POLICY.intervals.map((interval) => `'${interval}'`).join(', ')}],`,
+    `  maximumRangeDays: ${String(METRICS_QUERY_POLICY.maximumRangeDays)},`,
+    `  maximumRangeSeconds: ${String(METRICS_QUERY_POLICY.maximumRangeSeconds)},`,
+    '} as const;',
+    '',
+  ].join('\n');
+}
+
 const current = await readFile(openApiPath, 'utf8');
 const generated = generatedOpenApi(current);
+const currentBrowserPolicy = await readFile(browserPolicyPath, 'utf8');
+const generatedPolicy = generatedBrowserPolicy();
 
 if (check) {
-  if (current !== generated) {
+  if (current !== generated || currentBrowserPolicy !== generatedPolicy) {
     throw new Error(
       'Generated administration contracts have drifted; run the generate-admin-contract target.',
     );
@@ -98,5 +164,10 @@ if (check) {
   if (current !== generated) {
     await writeFile(openApiPath, generated);
   }
-  console.info('Generated administration OpenAPI components.');
+  if (currentBrowserPolicy !== generatedPolicy) {
+    await writeFile(browserPolicyPath, generatedPolicy);
+  }
+  console.info(
+    'Generated administration OpenAPI components and browser policy.',
+  );
 }

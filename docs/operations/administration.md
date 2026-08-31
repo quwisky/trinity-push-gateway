@@ -53,6 +53,16 @@ operator issuer/subject, action kind, coarse outcome, and bounded reason; they
 do not contain provider tokens, client secrets, Matrix identifiers, Push Keys,
 account routes, or notification content.
 
+The Metrics page requests a UTC half-open range. Omitting both endpoints selects
+the preceding 24 hours; supplying a range requires both endpoints in UTC, in
+order, and no more than 30 days apart. Only `hour` and `day` intervals are
+accepted. Duplicate or unknown query parameters are rejected rather than
+silently ignored.
+
+Overview operation summaries expose only the gateway's finite safe reason
+vocabulary. Arbitrary provider, process, token, path, or request-derived values
+are rejected at the response boundary.
+
 The defaults retain metrics for 30 days and audit entries for 90 days. Cleanup
 is bounded per pass. Treat `admin.sqlite`, browser sessions, audit data, and
 backups as sensitive operational metadata even though message content is never
