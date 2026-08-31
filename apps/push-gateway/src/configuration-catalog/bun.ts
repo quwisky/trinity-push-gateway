@@ -1,3 +1,7 @@
+import type {
+  ConfiguredSecretPresenceResponse,
+  GatewayConfigurationResponse,
+} from '../admin-contract/configuration';
 import {
   loadSharedRuntimeConfiguration,
   sharedConfigurationDefault,
@@ -149,35 +153,14 @@ export type GatewayCredentialSources = Readonly<{
 
 export type ClientIpHeader = 'cf-connecting-ip' | 'x-forwarded-for';
 
-type SafeSecretPresence = Readonly<{
-  configured: true;
-  source: CredentialSource;
-}>;
-
 export type SafeBunRuntimeConfiguration = Readonly<{
   credentials: Readonly<{
-    firebaseClientEmail: SafeSecretPresence;
-    firebasePrivateKey: SafeSecretPresence;
-    firebaseProjectId: SafeSecretPresence;
-    fingerprintKey: SafeSecretPresence;
+    firebaseClientEmail: ConfiguredSecretPresenceResponse;
+    firebasePrivateKey: ConfiguredSecretPresenceResponse;
+    firebaseProjectId: ConfiguredSecretPresenceResponse;
+    fingerprintKey: ConfiguredSecretPresenceResponse;
   }>;
-  gateway: Readonly<{
-    androidApplicationId: string;
-    cleanupIntervalSeconds: number;
-    firebaseProjectId: string;
-    gatewayDatabasePath: string;
-    iosApplicationId: string;
-    maxBodyBytes: number;
-    maxClientInstallationsPerRequest: number;
-    maxDailyAttempts: number;
-    maxSourceKeys: number;
-    pendingLeaseSeconds: number;
-    requestDeadlineSeconds: number;
-    sourceRateLimit: number;
-    sourceRatePeriodSeconds: number;
-    terminalRetentionSeconds: number;
-    upstreamTimeoutSeconds: number;
-  }>;
+  gateway: GatewayConfigurationResponse;
 }>;
 
 export type BunRuntimeConfiguration = Readonly<{

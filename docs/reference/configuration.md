@@ -5,10 +5,12 @@ Cloudflare Worker, Bun runtime, Docker deployment checks, and administration
 API. The same catalog owns every setting's default, constraint, secrecy, and
 runtime applicability. The Configuration page consumes its safe operator
 projection: non-secret effective values plus credential presence and source,
-never secret values or file paths. For Bun, a credential's `_FILE` setting is
-mutually exclusive with its direct setting. Documentation reads the catalog
-through its public lookup and runtime-filtered listing interface; it does not
-maintain a separate name, default, or metadata list.
+never secret values or file paths. The Bun route validates that projection with
+the canonical configuration response contract; the published OpenAPI schema
+and generated UI client come from that same definition. For Bun, a credential's
+`_FILE` setting is mutually exclusive with its direct setting. Documentation
+reads the catalog through its public lookup and runtime-filtered listing
+interface; it does not maintain a separate name, default, or metadata list.
 
 <!-- configuration-reference -->
 

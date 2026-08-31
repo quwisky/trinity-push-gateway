@@ -29,10 +29,11 @@ source policy, and raw/compressed browser bundle policy.
 
 The published API contract is `apps/push-gateway/openapi/admin-v1.yaml`.
 Runtime-neutral administration schemas migrate into
-`apps/push-gateway/src/admin-contract` one capability at a time. The current
-Operator Session schema already owns Bun response validation and generates its
-marked OpenAPI component; the remaining OpenAPI components stay directly
-authored during the compatibility migration.
+`apps/push-gateway/src/admin-contract` one capability at a time. The Operator
+Session, Operator Session list, and safe configuration schemas own Bun response
+validation and generate their marked OpenAPI components; the remaining OpenAPI
+components stay directly authored during the compatibility migration. Legacy
+validators are parity-test-only and are not used by a runtime route.
 
 Regenerate the canonical administration component before regenerating its
 Angular HttpClient client:
@@ -48,11 +49,12 @@ Generated files under `src/app/api/generated` are committed, deterministic,
 and never edited by hand. The drift check regenerates twice in temporary Nx
 workspace data, validates the owned output set, and compares content hashes.
 
-The read-only Configuration route consumes catalog-backed safe projections for
-the administration enable flag and Operator Session secret. It presents only
-the public enabled state, configured presence, and direct or file source;
-secret values and file paths never enter the browser contract. Disabled
-administration returns before either secret source is read.
+The read-only Configuration route consumes the catalog-backed safe projection
+through the same canonical response contract that generates its client type.
+It presents only non-secret effective values, configured presence, and direct
+or file source; secret values, raw environment names, and credential file paths
+never enter the browser contract. Disabled administration returns before either
+administration secret source is read.
 
 ## Browser boundary
 

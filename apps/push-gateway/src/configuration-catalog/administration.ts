@@ -1,5 +1,9 @@
 import * as z from 'zod/mini';
 
+import type {
+  AdministrationConfigurationResponse,
+  ConfiguredSecretPresenceResponse,
+} from '../admin-contract/configuration';
 import {
   catalogDefaults,
   resolveCatalogSecret,
@@ -216,41 +220,11 @@ export type AdminConfiguration = Readonly<{
   sessionSecret: AdminSecret;
 }>;
 
-type SafeSecretPresence = Readonly<{
-  configured: true;
-  source: AdminSecret['source'];
-}>;
-
 export type SafeAdminConfiguration = Readonly<{
-  administration: Readonly<{
-    administrationDatabasePath: string;
-    auditRetentionDays: number;
-    backupCooldownSeconds: number;
-    backupDeadlineSeconds: number;
-    backupDirectory: string;
-    backupLimitBytes: number;
-    backupLimitCount: number;
-    cleanupCooldownSeconds: number;
-    cleanupDeadlineSeconds: number;
-    enabled: true;
-    firebaseValidationCooldownSeconds: number;
-    firebaseValidationDeadlineSeconds: number;
-    maxSessionsDeployment: number;
-    maxSessionsPerIdentity: number;
-    metricsRetentionDays: number;
-    oidcClientId: string;
-    oidcGroupClaim: string;
-    oidcIssuer: string;
-    oidcRequiredGroup: string;
-    oidcScopes: readonly string[];
-    oidcTokenEndpointAuthMethod: 'client_secret_basic' | 'client_secret_post';
-    publicOrigin: string;
-    sessionAbsoluteSeconds: number;
-    sessionIdleSeconds: number;
-  }>;
+  administration: AdministrationConfigurationResponse;
   credentials: Readonly<{
-    oidcClientSecret: SafeSecretPresence;
-    sessionSecret: SafeSecretPresence;
+    oidcClientSecret: ConfiguredSecretPresenceResponse;
+    sessionSecret: ConfiguredSecretPresenceResponse;
   }>;
 }>;
 
@@ -412,7 +386,7 @@ function safeConfiguration(
       oidcGroupClaim: configuration.oidcGroupClaim,
       oidcIssuer: configuration.oidcIssuer,
       oidcRequiredGroup: configuration.oidcRequiredGroup,
-      oidcScopes: configuration.oidcScopes,
+      oidcScopes: [...configuration.oidcScopes],
       oidcTokenEndpointAuthMethod: configuration.oidcTokenEndpointAuthMethod,
       publicOrigin: configuration.publicOrigin,
       sessionAbsoluteSeconds: policy.sessionAbsoluteSeconds,

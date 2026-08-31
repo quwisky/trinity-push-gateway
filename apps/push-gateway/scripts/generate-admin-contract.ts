@@ -1,13 +1,33 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
+import { configurationOpenApiComponents } from '../src/admin-contract/configuration-openapi';
 import { operatorSessionOpenApiComponents } from '../src/admin-contract/operator-session-openapi';
 
 const openApiPath = fileURLToPath(
   new URL('../openapi/admin-v1.yaml', import.meta.url),
 );
-const START_MARKER = '    # BEGIN GENERATED OPERATOR SESSION CONTRACT';
-const END_MARKER = '    # END GENERATED OPERATOR SESSION CONTRACT';
+type GeneratedContractBlock = Readonly<{
+  components: Readonly<Record<string, unknown>>;
+  endMarker: string;
+  name: string;
+  startMarker: string;
+}>;
+
+const GENERATED_CONTRACT_BLOCKS: readonly GeneratedContractBlock[] = [
+  {
+    components: operatorSessionOpenApiComponents(),
+    endMarker: '    # END GENERATED OPERATOR SESSION CONTRACT',
+    name: 'Operator Session',
+    startMarker: '    # BEGIN GENERATED OPERATOR SESSION CONTRACT',
+  },
+  {
+    components: configurationOpenApiComponents(),
+    endMarker: '    # END GENERATED CONFIGURATION CONTRACT',
+    name: 'configuration',
+    startMarker: '    # BEGIN GENERATED CONFIGURATION CONTRACT',
+  },
+];
 const check = process.argv.slice(2).includes('--check');
 
 function scalar(value: unknown): string {
@@ -41,24 +61,27 @@ function yaml(value: unknown, indentation: number): string {
   return `${indent}${scalar(value)}`;
 }
 
-function generatedBlock(): string {
-  return [
-    START_MARKER,
-    yaml(operatorSessionOpenApiComponents(), 4),
-    END_MARKER,
-  ].join('\n');
+function generatedBlock(block: GeneratedContractBlock): string {
+  return [block.startMarker, yaml(block.components, 4), block.endMarker].join(
+    '\n',
+  );
+}
+
+function replaceGeneratedBlock(
+  source: string,
+  block: GeneratedContractBlock,
+): string {
+  const start = source.indexOf(block.startMarker);
+  const end = source.indexOf(block.endMarker);
+  if (start < 0 || end < start) {
+    throw new Error(`${block.name} contract generation markers are missing.`);
+  }
+  const suffix = end + block.endMarker.length;
+  return `${source.slice(0, start)}${generatedBlock(block)}${source.slice(suffix)}`;
 }
 
 function generatedOpenApi(source: string): string {
-  const start = source.indexOf(START_MARKER);
-  const end = source.indexOf(END_MARKER);
-  if (start < 0 || end < start) {
-    throw new Error(
-      'Operator Session contract generation markers are missing.',
-    );
-  }
-  const suffix = end + END_MARKER.length;
-  return `${source.slice(0, start)}${generatedBlock()}${source.slice(suffix)}`;
+  return GENERATED_CONTRACT_BLOCKS.reduce(replaceGeneratedBlock, source);
 }
 
 const current = await readFile(openApiPath, 'utf8');
@@ -67,13 +90,13 @@ const generated = generatedOpenApi(current);
 if (check) {
   if (current !== generated) {
     throw new Error(
-      'Generated Operator Session contract has drifted; run the generate-admin-contract target.',
+      'Generated administration contracts have drifted; run the generate-admin-contract target.',
     );
   }
-  console.info('Generated Operator Session contract is current.');
+  console.info('Generated administration contracts are current.');
 } else {
   if (current !== generated) {
     await writeFile(openApiPath, generated);
   }
-  console.info('Generated Operator Session OpenAPI component.');
+  console.info('Generated administration OpenAPI components.');
 }
