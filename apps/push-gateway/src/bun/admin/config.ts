@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs';
 
 import * as z from 'zod/mini';
 
+import {
+  ADMINISTRATION_CONFIGURATION_CATALOG,
+  type CatalogSafeAdministrationConfiguration,
+  type CatalogSecret,
+} from '../../configuration-catalog';
+
 export {
   ADMIN_CONFIGURATION_ENVIRONMENT_NAMES,
   type AdminConfigurationEnvironmentName,
@@ -13,12 +19,7 @@ import {
 } from '../../configuration-defaults';
 
 type Environment = Readonly<Record<string, string | undefined>>;
-type SecretSource = 'env' | 'file';
-
-export type AdminSecret = Readonly<{
-  source: SecretSource;
-  value: string;
-}>;
+export type AdminSecret = CatalogSecret;
 
 export type AdministrationPolicy = Readonly<typeof ADMIN_POLICY_DEFAULTS>;
 
@@ -44,7 +45,7 @@ export type AdminConfiguration = Readonly<{
 
 type SafeSecretPresence = Readonly<{
   configured: true;
-  source: SecretSource;
+  source: AdminSecret['source'];
 }>;
 
 export type SafeAdminConfiguration = Readonly<{
@@ -58,6 +59,7 @@ export type SafeAdminConfiguration = Readonly<{
     backupLimitCount: number;
     cleanupCooldownSeconds: number;
     cleanupDeadlineSeconds: number;
+    enabled: true;
     firebaseValidationCooldownSeconds: number;
     firebaseValidationDeadlineSeconds: number;
     maxSessionsDeployment: number;
@@ -157,9 +159,7 @@ function integer(
 
 function secret(
   environment: Environment,
-  name:
-    | 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET'
-    | 'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET',
+  name: 'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET',
   readFile: (path: string) => string,
 ): AdminSecret | undefined {
   const direct = environment[name];
@@ -214,6 +214,7 @@ function policyFingerprint(input: {
 
 function safeConfiguration(
   configuration: AdminConfiguration,
+  catalogSafe: CatalogSafeAdministrationConfiguration,
 ): SafeAdminConfiguration {
   const policy = configuration.policy;
   return {
@@ -227,6 +228,7 @@ function safeConfiguration(
       backupLimitCount: configuration.backupLimitCount,
       cleanupCooldownSeconds: policy.cleanupCooldownSeconds,
       cleanupDeadlineSeconds: policy.cleanupDeadlineSeconds,
+      enabled: catalogSafe.administrationEnabled,
       firebaseValidationCooldownSeconds:
         policy.firebaseValidationCooldownSeconds,
       firebaseValidationDeadlineSeconds:
@@ -249,10 +251,7 @@ function safeConfiguration(
         configured: true,
         source: configuration.oidcClientSecret.source,
       },
-      sessionSecret: {
-        configured: true,
-        source: configuration.sessionSecret.source,
-      },
+      sessionSecret: catalogSafe.sessionSecret,
     },
   };
 }
@@ -261,18 +260,15 @@ export function loadAdminConfiguration(
   environment: Environment,
   options: LoadAdminConfigurationOptions = {},
 ): AdminConfigurationState {
-  const enabled =
-    environment.TRINITY_PUSH_GATEWAY_ADMIN_ENABLED ??
-    ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_ENABLED;
-  if (enabled === 'false') {
-    return { kind: 'disabled' };
-  }
-  if (enabled !== 'true') {
-    return { kind: 'invalid' };
-  }
-
   try {
     const readFile = options.readFile ?? ((path) => readFileSync(path, 'utf8'));
+    const catalogState = ADMINISTRATION_CONFIGURATION_CATALOG.load(
+      environment,
+      { readFile },
+    );
+    if (catalogState.kind !== 'enabled') {
+      return { kind: catalogState.kind };
+    }
     const publicOrigin = endpoint(
       environment.TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN,
       true,
@@ -290,11 +286,7 @@ export function loadAdminConfiguration(
       'TRINITY_PUSH_GATEWAY_ADMIN_OIDC_CLIENT_SECRET',
       readFile,
     );
-    const sessionSecret = secret(
-      environment,
-      'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET',
-      readFile,
-    );
+    const sessionSecret = catalogState.configuration.sessionSecret;
     const oidcRequiredGroup = parsed(
       REQUIRED_GROUP_SCHEMA,
       environment.TRINITY_PUSH_GATEWAY_ADMIN_OIDC_REQUIRED_GROUP,
@@ -346,8 +338,6 @@ export function loadAdminConfiguration(
       oidcIssuer === undefined ||
       oidcClientId === undefined ||
       oidcClientSecret === undefined ||
-      sessionSecret === undefined ||
-      new TextEncoder().encode(sessionSecret.value).byteLength < 32 ||
       oidcRequiredGroup === undefined ||
       oidcGroupClaim === undefined ||
       oidcScopes === undefined ||
@@ -394,7 +384,7 @@ export function loadAdminConfiguration(
     return {
       configuration,
       kind: 'enabled',
-      safe: safeConfiguration(configuration),
+      safe: safeConfiguration(configuration, catalogState.safe),
     };
   } catch {
     return { kind: 'invalid' };

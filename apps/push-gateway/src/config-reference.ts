@@ -1,6 +1,10 @@
 import type { AdminConfigurationEnvironmentName } from './admin-configuration-names';
 import type { ConfigurationEnvironmentName } from './config';
 import {
+  ADMINISTRATION_CONFIGURATION_CATALOG,
+  type ConfigurationCatalogReference,
+} from './configuration-catalog';
+import {
   ADMIN_CONFIGURATION_DEFAULTS,
   BUN_CONFIGURATION_DEFAULTS,
   SHARED_CONFIGURATION_DEFAULTS,
@@ -31,15 +35,8 @@ export type GatewayConfigurationName =
   | BunOnlyConfigurationName
   | ComposeConfigurationName;
 
-export type GatewayConfigurationReferenceEntry = Readonly<{
-  constraint?: string;
-  defaultValue?: string;
-  description: string;
-  name: GatewayConfigurationName;
-  required: boolean;
-  runtimes: readonly ('bun' | 'cloudflare' | 'compose')[];
-  secret: boolean;
-}>;
+export type GatewayConfigurationReferenceEntry =
+  ConfigurationCatalogReference<GatewayConfigurationName>;
 
 const bothRuntimes = ['cloudflare', 'bun'] as const;
 const bunRuntime = ['bun'] as const;
@@ -285,17 +282,9 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
       runtimes: bunRuntime,
       secret: false,
     },
-    {
-      name: 'TRINITY_PUSH_GATEWAY_ADMIN_ENABLED',
-      description: 'Opt in to the isolated Bun administration surface.',
-      defaultValue:
-        ADMIN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_ADMIN_ENABLED,
-      required: false,
-      runtimes: bunRuntime,
-      secret: false,
-      constraint:
-        'Exact true or false; every other administration value is ignored while false.',
-    },
+    ADMINISTRATION_CONFIGURATION_CATALOG.reference(
+      'TRINITY_PUSH_GATEWAY_ADMIN_ENABLED',
+    ),
     {
       name: 'TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN',
       description:
@@ -440,24 +429,12 @@ export const GATEWAY_CONFIGURATION_REFERENCE: readonly GatewayConfigurationRefer
       secret: false,
       constraint: 'client_secret_basic or client_secret_post.',
     },
-    {
-      name: 'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET',
-      description: 'Independent secret used to protect Operator Sessions.',
-      required: false,
-      runtimes: bunRuntime,
-      secret: true,
-      constraint:
-        'At least 32 UTF-8 bytes and required directly or by file when enabled; mutually exclusive with its file alternative.',
-    },
-    {
-      name: 'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET_FILE',
-      description: 'Operator Session secret file.',
-      required: false,
-      runtimes: bunRuntime,
-      secret: true,
-      constraint:
-        'Required directly or by file when enabled; mutually exclusive with its direct alternative.',
-    },
+    ADMINISTRATION_CONFIGURATION_CATALOG.reference(
+      'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET',
+    ),
+    ADMINISTRATION_CONFIGURATION_CATALOG.reference(
+      'TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET_FILE',
+    ),
     {
       name: 'TRINITY_PUSH_GATEWAY_HOST_PORT',
       description: 'Loopback host port published by Docker Compose.',

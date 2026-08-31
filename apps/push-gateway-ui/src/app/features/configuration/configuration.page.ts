@@ -201,6 +201,10 @@ export class ConfigurationPage {
       }
       return [
         {
+          label: 'Administration enabled',
+          value: String(administration.enabled),
+        },
+        {
           label: 'Public origin',
           value: administration.publicOrigin,
           code: true,
