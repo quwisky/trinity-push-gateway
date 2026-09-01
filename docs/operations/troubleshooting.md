@@ -47,7 +47,9 @@ are ignored in disabled mode.
 Delivery is correctly isolated from an invalid or failed administration
 subsystem. Check exact public origin and issuer values, both secret files,
 `admin.sqlite` ownership/separation, administration migrations, browser assets,
-and available disk space. Never point administration at `gateway.sqlite`.
+and available disk space. An `admin_request_failed` event identifies one
+unexpected request failure without recording the exception or request data.
+Never point administration at `gateway.sqlite`.
 
 ## Login returns unavailable
 

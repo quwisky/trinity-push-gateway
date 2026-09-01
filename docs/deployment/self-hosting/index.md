@@ -185,6 +185,7 @@ Migrations are expand-first and preserve a one-version rollback path. An additiv
 ## Operations and troubleshooting
 
 - Structured JSON logs go to stdout/stderr. They exclude Push Keys, Matrix identifiers, account routes, payloads, access tokens, and credentials.
+- An unexpected `/admin/*` route or browser-asset failure returns the generic administration `503` response and emits exactly one `{"event":"admin_request_failed","outcome":"unavailable"}` event. The event never includes the exception, request path, query, headers, cookies, or authorization data.
 - `429` means the short source limit or persistent daily budget was exhausted.
 - `502` means OAuth or FCM was unavailable or timed out.
 - `503` means configuration, storage, schema, or concurrent delivery was unavailable.
