@@ -571,6 +571,9 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
         await expect(
           page.getByRole('heading', { level: 1, name: route.heading }),
         ).toBeVisible();
+        if (route.heading === 'Overview' || route.heading === 'Metrics') {
+          await expect(page.getByText(/Last updated/u)).toBeVisible();
+        }
         await page.waitForLoadState('networkidle');
 
         const csp = navigation?.headers()['content-security-policy'];
@@ -603,6 +606,9 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
           documentSecurity.scriptNonces.every((nonce) => nonce === cspNonce),
         ).toBe(true);
         expect(documentSecurity.violations).toEqual([]);
+        // Axe opens a helper tab to aggregate its results, intentionally
+        // perturbing the application's visibility-driven polling lifecycle.
+        expect(requestFailures).toEqual([]);
 
         const accessibility = await new AxeBuilder({ page }).analyze();
         expect(
@@ -611,7 +617,6 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
         ).toEqual([]);
         expect(consoleErrors).toEqual([]);
         expect(pageErrors).toEqual([]);
-        expect(requestFailures).toEqual([]);
         documentNonces.add(cspNonce ?? 'missing');
       } finally {
         await context.close();

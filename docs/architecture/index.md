@@ -28,6 +28,11 @@ Invalid JSON returns `400 M_NOT_JSON`; structurally invalid input returns `400 M
 
 The Push Gateway UI is disabled by default and available only with the Bun target. When enabled, one origin serves the Angular application at `/admin/`, the versioned operator API at `/admin/api/v1/`, and fixed OIDC routes at `/admin/auth/`; canonical OpenAPI 3.1.2 defines the browser API, and CORS is not supported. Operator Session, Operator Session list, safe configuration, Overview, Metrics, Operator Audit Entry, verified backup, and Operator Action result responses are authored as runtime-neutral Zod contracts. The Metrics contract owns accepted intervals, paired UTC range input, its 24-hour default, and its 30-day maximum. The Operator Action contract owns audit kinds, outcomes, finite privacy-safe reasons, range and page bounds, known action results, backup projections, and the fixed problem-code, status, and title catalog. Bun validates and normalizes through those canonical definitions, deterministic generation materializes their marked OpenAPI components, query parameters, and browser policies, and Orval derives the Angular client from the published contract. Shared valid and invalid fixtures prove the runtime validators and published OpenAPI projections together; no parallel Bun response schema remains. A Bun-only `openid-client` module performs generic standards-based OIDC while gateway-owned policy establishes time-bounded Operator Sessions for Operator Identities, and the browser receives only an opaque host-only session cookie.
 
+[Overview and Metrics remote state](./ui-remote-state.md) is owned by one deep
+browser module that retains stale observations, retries explicitly, polls only
+while visible, resumes immediately, and suppresses overlapping requests. The
+generated clients remain transport adapters rather than state owners.
+
 Operator Identity, Operator Session, Operator Audit Entry, aggregate metrics, and operation state live in `/data/admin.sqlite`, separate from the delivery-critical gateway database. The operator API exposes bounded observation and Operator Actions for Firebase validation, cleanup, and verified gateway-database backup rather than general identity, configuration, secret, database, filesystem, or process management.
 
 One deep Operator Audit Entry query module owns accepted filters and ranges,
