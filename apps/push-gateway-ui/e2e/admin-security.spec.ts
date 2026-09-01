@@ -17,6 +17,10 @@ import type {
   Backup,
   OperatorSession,
 } from '../src/app/api/generated/admin-api.schemas';
+import {
+  classifyRequestFailure,
+  observeRequestFailures,
+} from './request-failure-observer';
 
 const UI_OUTPUT = fileURLToPath(
   new URL('../../../dist/apps/push-gateway-ui/browser/', import.meta.url),
@@ -291,6 +295,7 @@ let sessions: OperatorSession[] = [SESSION, OTHER_SESSION];
 let backups: Backup[] = [BACKUP];
 let failOverviewRequests = 0;
 let overviewDelayMilliseconds = 0;
+let truncatedOverviewRequests = 0;
 let emptyMetricsRequests = 0;
 let failedOperationRequests = 0;
 let operationDelayMilliseconds = 0;
@@ -301,6 +306,7 @@ const resetServerState = (): void => {
   backups = [BACKUP];
   failOverviewRequests = 0;
   overviewDelayMilliseconds = 0;
+  truncatedOverviewRequests = 0;
   emptyMetricsRequests = 0;
   failedOperationRequests = 0;
   operationDelayMilliseconds = 0;
@@ -326,6 +332,21 @@ test.beforeAll(async () => {
         request.method === 'GET' &&
         pathname === `${API_ROOT}/overview`
       ) {
+        if (truncatedOverviewRequests > 0) {
+          truncatedOverviewRequests -= 1;
+          response.writeHead(200, {
+            'cache-control': 'no-store',
+            'content-length': '100',
+            'content-type': 'application/json; charset=utf-8',
+          });
+          await new Promise<void>((resolve) => {
+            response.write('{"short":', () => {
+              resolve();
+            });
+          });
+          response.destroy();
+          return;
+        }
         if (overviewDelayMilliseconds > 0) {
           await new Promise((resolve) =>
             setTimeout(resolve, overviewDelayMilliseconds),
@@ -539,18 +560,14 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
       const page = await context.newPage();
       const consoleErrors: string[] = [];
       const pageErrors: string[] = [];
-      const requestFailures: string[] = [];
+      const requestFailures = observeRequestFailures(page);
+      let requestFailuresBeforeClose: string[] | undefined;
       page.on('console', (message) => {
         if (message.type() === 'error') {
           consoleErrors.push(message.text());
         }
       });
       page.on('pageerror', (error) => pageErrors.push(error.message));
-      page.on('requestfailed', (request) => {
-        requestFailures.push(
-          `${request.method()} ${request.url()}: ${request.failure()?.errorText ?? 'unknown error'}`,
-        );
-      });
       await page.addInitScript(() => {
         const securityState = globalThis as typeof globalThis & {
           __securityPolicyViolations?: RecordedViolation[];
@@ -606,25 +623,117 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
           documentSecurity.scriptNonces.every((nonce) => nonce === cspNonce),
         ).toBe(true);
         expect(documentSecurity.violations).toEqual([]);
-        // Axe opens a helper tab to aggregate its results, intentionally
-        // perturbing the application's visibility-driven polling lifecycle.
-        expect(requestFailures).toEqual([]);
 
         const accessibility = await new AxeBuilder({ page }).analyze();
         expect(
           accessibility.violations,
           JSON.stringify(accessibility.violations, null, 2),
         ).toEqual([]);
+        await page.waitForLoadState('networkidle');
         expect(consoleErrors).toEqual([]);
         expect(pageErrors).toEqual([]);
+        requestFailuresBeforeClose = await requestFailures.unexpectedFailures();
         documentNonces.add(cspNonce ?? 'missing');
       } finally {
+        // The context close is the explicit boundary after which cancellation
+        // is caused by the test lifecycle rather than the application.
+        requestFailures.beginExpectedCancellation();
         await context.close();
       }
+
+      expect(requestFailuresBeforeClose).toEqual([]);
+      expect(await requestFailures.unexpectedFailures()).toEqual([]);
     });
   }
 
   expect(documentNonces.size).toBe(ROUTES.length);
+});
+
+test('recognizes a fully received API response despite a late abort event', async ({
+  page,
+}) => {
+  const overviewRequest = page.waitForRequest(`${origin}${API_ROOT}/overview`);
+
+  await page.goto(`${origin}/admin/overview`);
+  await expect(page.getByText(/Last updated/u)).toBeVisible();
+
+  expect(
+    await classifyRequestFailure(
+      page,
+      await overviewRequest,
+      'net::ERR_ABORTED',
+    ),
+  ).toBeUndefined();
+});
+
+test('keeps a genuine administration transport failure observable', async ({
+  page,
+}) => {
+  const requestFailures = observeRequestFailures(page);
+  await page.route(`${origin}${API_ROOT}/overview`, (route) =>
+    route.abort('connectionfailed'),
+  );
+
+  await page.goto(`${origin}/admin/overview`);
+  await expect(page.getByRole('alert')).toContainText(
+    'The Push Gateway UI request failed.',
+  );
+  await page.waitForLoadState('networkidle');
+
+  expect(await requestFailures.unexpectedFailures()).toEqual([
+    `GET ${origin}${API_ROOT}/overview: net::ERR_CONNECTION_FAILED`,
+  ]);
+});
+
+test('keeps a truncated successful response observable', async ({ page }) => {
+  truncatedOverviewRequests = 1;
+  const requestFailures = observeRequestFailures(page);
+
+  await page.goto(`${origin}/admin/overview`);
+  await expect(page.getByRole('alert')).toContainText(
+    'The Push Gateway UI request failed.',
+  );
+  await page.waitForLoadState('networkidle');
+
+  expect(await requestFailures.unexpectedFailures()).toEqual([
+    `GET ${origin}${API_ROOT}/overview: net::ERR_CONTENT_LENGTH_MISMATCH`,
+  ]);
+});
+
+test('recognizes cancellation inside an explicit test lifecycle boundary', async ({
+  page,
+}) => {
+  overviewDelayMilliseconds = 1_000;
+  const requestFailures = observeRequestFailures(page);
+  await page.goto(`${origin}/admin/sign-in`);
+  const overviewRequest = page.waitForRequest(`${origin}${API_ROOT}/overview`);
+  const failedRequest = page.waitForEvent(
+    'requestfailed',
+    (request) => request.url() === `${origin}${API_ROOT}/overview`,
+  );
+  const fetchRequest = page.evaluate((url) => {
+    const lifecycle = globalThis as typeof globalThis & {
+      __abortLifecycleRequest?: () => void;
+    };
+    const controller = new AbortController();
+    lifecycle.__abortLifecycleRequest = () => {
+      controller.abort();
+    };
+    return fetch(url, { signal: controller.signal }).catch(() => undefined);
+  }, `${origin}${API_ROOT}/overview`);
+
+  await overviewRequest;
+  requestFailures.beginExpectedCancellation();
+  await page.evaluate(() => {
+    const lifecycle = globalThis as typeof globalThis & {
+      __abortLifecycleRequest?: () => void;
+    };
+    lifecycle.__abortLifecycleRequest?.();
+  });
+  await failedRequest;
+  await fetchRequest;
+
+  expect(await requestFailures.unexpectedFailures()).toEqual([]);
 });
 
 test('renders and operates all five feature routes', async ({
