@@ -5,23 +5,23 @@ import { fileURLToPath } from 'node:url';
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const providerRoot = path.join(workspaceRoot, 'apps/push-gateway/provider-e2e');
 
-const [workflow, pocketCompose, authentikCompose, blueprint, preparation] =
-  await Promise.all([
-    readFile(
-      path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
-      'utf8',
-    ),
-    readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
-    readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
-    readFile(path.join(providerRoot, 'authentik-blueprint.yaml'), 'utf8'),
-    readFile(path.join(providerRoot, 'prepare-provider.mjs'), 'utf8'),
-  ]);
+const [workflow, project, pocketCompose, authentikCompose] = await Promise.all([
+  readFile(
+    path.join(workspaceRoot, '.github/workflows/provider-compatibility.yml'),
+    'utf8',
+  ),
+  readFile(path.join(workspaceRoot, 'apps/push-gateway/project.json'), 'utf8'),
+  readFile(path.join(providerRoot, 'compose.pocket-id.yml'), 'utf8'),
+  readFile(path.join(providerRoot, 'compose.authentik.yml'), 'utf8'),
+]);
 
 function requireContract(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
 }
+
+const projectConfiguration = JSON.parse(project);
 
 for (const [name, compose, image] of [
   [
@@ -51,27 +51,13 @@ for (const [name, compose, image] of [
 }
 
 for (const required of [
-  'include_claims_in_id_token: true',
-  'matching_mode: strict',
-  'http://127.0.0.1:3000/admin/auth/callback',
-  'http://127.0.0.1:3000/admin/',
-  'gateway-operators',
-  'gateway-denied',
-]) {
-  requireContract(
-    blueprint.includes(required),
-    `The Authentik blueprint is missing ${required}.`,
-  );
-}
-
-for (const required of [
   "cron: '23 3 * * 2'",
   'pnpm nx run push-gateway:test-oidc-provider --skipNxCache',
-  'browser-provider-gate.mjs',
-  'Prove provider failure isolation',
   'release-gates:',
-  'pocket-id-visual-proof-',
-  'authentik-visual-proof-',
+  'provider-gate-workflow.mjs select',
+  'provider-gate-workflow.mjs require',
+  '${{ matrix.id }}-provider-gate-${{ github.run_id }}',
+  'push-gateway:provider-gate --skipNxCache',
 ]) {
   requireContract(
     workflow.includes(required),
@@ -79,31 +65,42 @@ for (const required of [
   );
 }
 requireContract(
-  workflow.includes("github.base_ref }}' == 'master'") ||
-    workflow.includes("github.base_ref }}\" == 'master'"),
-  'Integration pull requests to master must select Authentik.',
+  (workflow.match(/push-gateway:provider-gate --skipNxCache/gu)?.length ??
+    0) === 2,
+  'The provider matrix must invoke one generic run and one cleanup fallback.',
 );
 requireContract(
-  workflow.includes('rm -rf -- "$RUNNER_TEMP/pocket-id-gate"') &&
-    workflow.includes('rm -rf -- "$RUNNER_TEMP/authentik-gate"'),
-  'Disposable provider credentials must be removed during cleanup.',
+  !/^  (?:authentik|pocket_id):$/gmu.test(workflow),
+  'Provider-specific workflow jobs must not duplicate lifecycle orchestration.',
 );
 
-for (const required of [
-  "import { randomBytes } from 'node:crypto'",
-  'randomBytes(bytes)',
-  '::add-mask::',
-  'mode: 0o600',
-  'gateway.env',
-  'provider.env',
-  'browser-state.json',
+for (const [target, command] of [
+  ['provider-gate', 'node provider-e2e/run-provider-gate.mjs'],
+  ['test-provider-gate-lifecycle', 'node --test provider-e2e/*.test.mjs'],
 ]) {
   requireContract(
-    preparation.includes(required),
-    `Provider credential preparation is missing ${required}.`,
+    projectConfiguration.targets?.[target]?.options?.command === command,
+    `The push-gateway project target ${target} is not wired to its reviewed command.`,
   );
 }
+for (const legacyTarget of [
+  'provider-gate-pocket-id',
+  'provider-gate-pocket-id-cleanup',
+  'provider-gate-authentik',
+  'provider-gate-authentik-cleanup',
+]) {
+  requireContract(
+    projectConfiguration.targets?.[legacyTarget] === undefined,
+    `The duplicated Nx target ${legacyTarget} must be removed.`,
+  );
+}
+requireContract(
+  projectConfiguration.targets?.['check-bun']?.dependsOn?.includes(
+    'test-provider-gate-lifecycle',
+  ),
+  'The Bun validation gate must execute the provider lifecycle and adapter tests.',
+);
 
 console.info(
-  'Provider contract: deterministic suite, pinned Pocket ID and Authentik services, ephemeral credentials, browser proof, outage isolation, and release gate.',
+  'Provider contract: observable selection and release policy, one deterministic mock lifecycle, one real-provider matrix, pinned images, artifact evidence, and fail-closed cleanup.',
 );

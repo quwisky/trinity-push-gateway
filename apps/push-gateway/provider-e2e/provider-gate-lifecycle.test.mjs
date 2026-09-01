@@ -1,0 +1,445 @@
+import assert from 'node:assert/strict';
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, test } from 'node:test';
+
+import {
+  cleanupProviderGate,
+  providerGateConfiguration,
+  runProviderGate,
+} from './provider-gate-lifecycle.mjs';
+import { createMockOidcAdapter } from './mock-oidc-adapter.mjs';
+
+const temporaryDirectories = [];
+
+const adapter = createMockOidcAdapter();
+
+async function temporaryGate() {
+  const root = await mkdtemp(
+    path.join(os.tmpdir(), 'provider-lifecycle-test-'),
+  );
+  temporaryDirectories.push(root);
+  const environment = {
+    PROVIDER_GATE_EVIDENCE_DIRECTORY: path.join(root, 'evidence'),
+    PROVIDER_GATE_RUN_ID: 'unit-test',
+    PROVIDER_GATE_WORK_DIRECTORY: path.join(root, 'credentials'),
+  };
+  return {
+    configuration: providerGateConfiguration(adapter, environment),
+    environment,
+  };
+}
+
+function successfulDependencies(configuration, options = {}) {
+  const operations = [];
+  const requests = [];
+  const providerIssuer = options.providerIssuer ?? adapter.issuer;
+  const providerBase = providerIssuer.endsWith('/')
+    ? providerIssuer
+    : `${providerIssuer}/`;
+  let providerUp = false;
+  const processRunner = async (command, arguments_) => {
+    operations.push([command, ...arguments_]);
+    if (arguments_.includes('up')) {
+      providerUp = true;
+    }
+    if (arguments_.includes('stop') || arguments_.includes('down')) {
+      providerUp = false;
+    }
+    return { stderr: '', stdout: '' };
+  };
+  const fetchImplementation = async (url) => {
+    requests.push(url);
+    const parsed = new URL(url);
+    if (parsed.origin === new URL(providerIssuer).origin) {
+      if (!providerUp) {
+        throw new Error('provider unavailable');
+      }
+      return Response.json({
+        authorization_endpoint: `${providerBase}authorize`,
+        end_session_endpoint: `${providerBase}logout`,
+        issuer: providerIssuer,
+        jwks_uri: `${providerBase}jwks`,
+        token_endpoint: `${providerBase}token`,
+      });
+    }
+    return new Response('', { status: 200 });
+  };
+  return {
+    dependencies: {
+      browserContracts:
+        options.browserContracts ??
+        (async () => {
+          await writeFile(configuration.screenshotPath, 'visual proof');
+        }),
+      fetchImplementation,
+      processRunner,
+      secretFactory: (bytes) => `secret-sentinel-${String(bytes)}`,
+      sleep: async () => {},
+    },
+    operations,
+    requests,
+  };
+}
+
+afterEach(async () => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test('one lifecycle owns provisioning through evidence and cleanup', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const browserIdentities = [];
+  const { dependencies, operations } = successfulDependencies(configuration, {
+    browserContracts: async (
+      providerAdapter,
+      identities,
+      gateConfiguration,
+    ) => {
+      for (const identity of [identities.allowed, identities.denied]) {
+        await providerAdapter.authenticate({
+          identity,
+          navigate: async () => browserIdentities.push(identity.subject),
+        });
+      }
+      await writeFile(gateConfiguration.screenshotPath, 'visual proof');
+    },
+  });
+  let provisioned = false;
+  const testAdapter = {
+    ...adapter,
+    async provision(options) {
+      provisioned = true;
+      assert.equal(
+        (await stat(configuration.providerEnvironmentPath)).mode & 0o777,
+        0o600,
+      );
+      assert.equal(
+        (await stat(configuration.gatewayEnvironmentPath)).mode & 0o777,
+        0o600,
+      );
+      return adapter.provision(options);
+    },
+  };
+
+  await runProviderGate(testAdapter, {
+    configuration,
+    dependencies,
+    environment,
+  });
+
+  assert.equal(provisioned, true);
+  assert.deepEqual(browserIdentities, ['allowed-operator', 'denied-operator']);
+  await assert.rejects(access(configuration.workDirectory));
+  assert.equal(
+    await readFile(configuration.screenshotPath, 'utf8'),
+    'visual proof',
+  );
+  const evidence = await readFile(
+    path.join(configuration.evidenceDirectory, 'result.json'),
+    'utf8',
+  );
+  assert.doesNotMatch(evidence, /secret-sentinel/u);
+  assert.deepEqual(JSON.parse(evidence), {
+    checks: {
+      allowedLogin: true,
+      cleanup: true,
+      deepLinkReturn: true,
+      deniedLogin: true,
+      logout: true,
+      providerOutageIsolation: true,
+    },
+    provider: adapter.id,
+    runId: 'unit-test',
+    status: 'passed',
+  });
+  assert.ok(operations.some((operation) => operation.includes('up')));
+  assert.ok(operations.some((operation) => operation.includes('run')));
+  assert.ok(operations.some((operation) => operation.includes('stop')));
+  assert.ok(operations.some((operation) => operation.includes('down')));
+});
+
+test('provider discovery preserves issuer paths without adding a double slash', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const providerIssuer = `${adapter.issuer}/application/o/gateway/`;
+  const { dependencies, requests } = successfulDependencies(configuration, {
+    providerIssuer,
+  });
+
+  await runProviderGate(
+    {
+      ...adapter,
+      issuer: providerIssuer,
+      provision: async () => ({ allowed: {}, denied: {} }),
+    },
+    { configuration, dependencies, environment },
+  );
+
+  assert.ok(
+    requests.includes(`${providerIssuer}.well-known/openid-configuration`),
+  );
+  assert.ok(
+    requests.every(
+      (url) => !url.includes('/gateway//.well-known/openid-configuration'),
+    ),
+  );
+});
+
+test('a failed browser contract still removes credentials and disposable resources', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const { dependencies, operations } = successfulDependencies(configuration, {
+    browserContracts: async () => {
+      throw new Error('browser contract failed');
+    },
+  });
+  const testAdapter = {
+    ...adapter,
+    provision: async () => ({ allowed: {}, denied: {} }),
+  };
+
+  await assert.rejects(
+    runProviderGate(testAdapter, {
+      configuration,
+      dependencies,
+      environment,
+    }),
+    /browser contract failed/u,
+  );
+
+  await assert.rejects(access(configuration.workDirectory));
+  const evidence = JSON.parse(
+    await readFile(
+      path.join(configuration.evidenceDirectory, 'result.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(evidence.status, 'failed');
+  assert.equal(evidence.checks.cleanup, true);
+  assert.ok(operations.some((operation) => operation.includes('down')));
+});
+
+test('credential preparation failures still remove the private work directory', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const { dependencies } = successfulDependencies(configuration);
+
+  await assert.rejects(
+    runProviderGate(adapter, {
+      configuration,
+      dependencies: {
+        ...dependencies,
+        secretFactory: () => {
+          throw new Error('secret generation failed');
+        },
+      },
+      environment,
+    }),
+    /secret generation failed/u,
+  );
+
+  await assert.rejects(access(configuration.workDirectory));
+  const evidence = JSON.parse(
+    await readFile(
+      path.join(configuration.evidenceDirectory, 'result.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(evidence.status, 'failed');
+  assert.equal(evidence.checks.cleanup, true);
+});
+
+test('directory overrides are base roots and cleanup removes only the lifecycle-owned child', async () => {
+  const root = await mkdtemp(
+    path.join(os.tmpdir(), 'provider-lifecycle-ownership-test-'),
+  );
+  temporaryDirectories.push(root);
+  const workBase = path.join(root, 'credentials-base');
+  const evidenceBase = path.join(root, 'evidence-base');
+  await mkdir(workBase, { recursive: true });
+  await writeFile(path.join(workBase, 'sentinel.txt'), 'retain parent');
+  const environment = {
+    PROVIDER_GATE_EVIDENCE_DIRECTORY: evidenceBase,
+    PROVIDER_GATE_RUN_ID: 'owned-child',
+    PROVIDER_GATE_WORK_DIRECTORY: workBase,
+  };
+  const configuration = providerGateConfiguration(adapter, environment);
+  const { dependencies } = successfulDependencies(configuration);
+
+  await assert.rejects(
+    runProviderGate(adapter, {
+      configuration,
+      dependencies: {
+        ...dependencies,
+        secretFactory: () => {
+          throw new Error('secret generation failed');
+        },
+      },
+      environment,
+    }),
+    /secret generation failed/u,
+  );
+
+  assert.equal(
+    await readFile(path.join(workBase, 'sentinel.txt'), 'utf8'),
+    'retain parent',
+  );
+  await assert.rejects(access(configuration.workDirectory));
+  assert.equal(path.dirname(configuration.workDirectory), workBase);
+  assert.equal(path.dirname(configuration.evidenceDirectory), evidenceBase);
+});
+
+test('cleanup command failures fail the gate and cannot be reported as clean', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const { dependencies } = successfulDependencies(configuration);
+  const successfulRunner = dependencies.processRunner;
+  let composeDowns = 0;
+  const testAdapter = {
+    ...adapter,
+    provision: async () => ({ allowed: {}, denied: {} }),
+  };
+
+  await assert.rejects(
+    runProviderGate(testAdapter, {
+      configuration,
+      dependencies: {
+        ...dependencies,
+        processRunner: async (command, arguments_, options) => {
+          if (arguments_.includes('down')) {
+            composeDowns += 1;
+            if (composeDowns === 2) {
+              throw new Error('compose teardown failed');
+            }
+          }
+          return successfulRunner(command, arguments_, options);
+        },
+      },
+      environment,
+    }),
+    /cleanup did not remove every disposable Docker resource/u,
+  );
+
+  await assert.rejects(access(configuration.workDirectory));
+  const evidence = JSON.parse(
+    await readFile(
+      path.join(configuration.evidenceDirectory, 'result.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(evidence.status, 'failed');
+  assert.equal(evidence.checks.cleanup, false);
+});
+
+for (const residual of [
+  {
+    label: 'named gateway container',
+    matches: (arguments_) =>
+      arguments_[0] === 'container' &&
+      arguments_.includes('name=^/tpg-mock-oidc-unit-test-gateway$'),
+  },
+  {
+    label: 'named gateway volume',
+    matches: (arguments_) =>
+      arguments_[0] === 'volume' &&
+      arguments_.includes('name=^tpg-mock-oidc-unit-test-data$'),
+  },
+  {
+    label: 'Compose container',
+    matches: (arguments_) =>
+      arguments_[0] === 'container' &&
+      arguments_.includes(
+        'label=com.docker.compose.project=tpg-mock-oidc-unit-test',
+      ),
+  },
+  {
+    label: 'Compose network',
+    matches: (arguments_) =>
+      arguments_[0] === 'network' &&
+      arguments_.includes(
+        'label=com.docker.compose.project=tpg-mock-oidc-unit-test',
+      ),
+  },
+  {
+    label: 'Compose volume',
+    matches: (arguments_) =>
+      arguments_[0] === 'volume' &&
+      arguments_.includes(
+        'label=com.docker.compose.project=tpg-mock-oidc-unit-test',
+      ),
+  },
+]) {
+  test(`cleanup fails when a ${residual.label} remains`, async () => {
+    const { configuration, environment } = await temporaryGate();
+    const { dependencies } = successfulDependencies(configuration);
+    const successfulRunner = dependencies.processRunner;
+    let composeDowns = 0;
+
+    await assert.rejects(
+      runProviderGate(
+        {
+          ...adapter,
+          provision: async () => ({ allowed: {}, denied: {} }),
+        },
+        {
+          configuration,
+          dependencies: {
+            ...dependencies,
+            processRunner: async (command, arguments_, options) => {
+              if (arguments_.includes('down')) {
+                composeDowns += 1;
+              }
+              const result = await successfulRunner(
+                command,
+                arguments_,
+                options,
+              );
+              if (composeDowns === 2 && residual.matches(arguments_)) {
+                return { ...result, stdout: 'remaining-resource-id\n' };
+              }
+              return result;
+            },
+          },
+          environment,
+        },
+      ),
+      /cleanup did not remove every disposable Docker resource/u,
+    );
+
+    const evidence = JSON.parse(
+      await readFile(
+        path.join(configuration.evidenceDirectory, 'result.json'),
+        'utf8',
+      ),
+    );
+    assert.equal(evidence.status, 'failed');
+    assert.equal(evidence.checks.cleanup, false);
+  });
+}
+
+test('the explicit cleanup entry point reuses lifecycle-owned resource names', async () => {
+  const { configuration, environment } = await temporaryGate();
+  const { dependencies, operations } = successfulDependencies(configuration);
+
+  await cleanupProviderGate(adapter, {
+    configuration,
+    dependencies,
+    environment,
+  });
+
+  await assert.rejects(access(configuration.workDirectory));
+  assert.ok(
+    operations.some(
+      (operation) =>
+        operation.includes(configuration.projectName) &&
+        operation.includes('down'),
+    ),
+  );
+});

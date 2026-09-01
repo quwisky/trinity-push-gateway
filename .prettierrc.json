@@ -1,4 +1,13 @@
 {
+  "plugins": ["prettier-plugin-sql-cst"],
   "singleQuote": true,
-  "trailingComma": "all"
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": "*.sql",
+      "options": {
+        "parser": "sqlite"
+      }
+    }
+  ]
 }

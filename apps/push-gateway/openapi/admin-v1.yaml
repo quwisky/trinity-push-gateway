@@ -258,6 +258,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BackupList'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -289,6 +291,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Backup'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -329,6 +333,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperationResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -368,6 +374,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperationResult'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -392,84 +400,78 @@ components:
         Opaque host-only, Secure, HttpOnly, SameSite=Strict Operator Session
         cookie. Its value is never returned in an API document.
   parameters:
+    # BEGIN GENERATED METRICS PARAMETERS
     MetricsFrom:
-      name: from
-      in: query
+      name: 'from'
+      in: 'query'
       required: false
-      description: |-
-        Inclusive UTC start of the metrics range. `from` and `to` must either
-        both be omitted or both be supplied. The maximum range is 30 days.
+      description: 'Inclusive UTC start of the metrics range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 30 days.'
       schema:
         $ref: '#/components/schemas/UtcTimestamp'
     MetricsTo:
-      name: to
-      in: query
+      name: 'to'
+      in: 'query'
       required: false
-      description: |-
-        Exclusive UTC end of the metrics range. `from` and `to` must either both
-        be omitted or both be supplied. The maximum range is 30 days.
+      description: 'Exclusive UTC end of the metrics range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 30 days.'
       schema:
         $ref: '#/components/schemas/UtcTimestamp'
     MetricsInterval:
-      name: interval
-      in: query
+      name: 'interval'
+      in: 'query'
       required: false
-      description: UTC aggregation interval. Defaults to `hour`.
+      description: 'UTC aggregation interval. Defaults to `hour`.'
       schema:
         $ref: '#/components/schemas/MetricsInterval'
+    # END GENERATED METRICS PARAMETERS
+    # BEGIN GENERATED AUDIT PARAMETERS
     AuditCursor:
-      name: cursor
-      in: query
+      name: 'cursor'
+      in: 'query'
       required: false
-      description: |-
-        Opaque continuation cursor from `nextCursor`. It binds every effective
-        filter and must be replayed without interpretation or modification.
+      description: 'Opaque continuation cursor from `nextCursor`. It binds every effective filter and must be replayed without interpretation or modification.'
       schema:
-        type: string
+        type: 'string'
         minLength: 1
         maxLength: 2048
     AuditLimit:
-      name: limit
-      in: query
+      name: 'limit'
+      in: 'query'
       required: false
-      description: Maximum entries in the page. Defaults to 50 and cannot exceed 100.
+      description: 'Maximum entries in the page. Defaults to 50 and cannot exceed 100.'
       schema:
-        type: integer
+        type: 'integer'
         minimum: 1
         maximum: 100
         default: 50
     AuditEntryKindFilter:
-      name: kind
-      in: query
+      name: 'kind'
+      in: 'query'
       required: false
-      description: Include only entries with this fixed audit-entry kind.
+      description: 'Include only entries with this fixed audit-entry kind.'
       schema:
         $ref: '#/components/schemas/AuditEntryKind'
     AuditEntryOutcomeFilter:
-      name: outcome
-      in: query
+      name: 'outcome'
+      in: 'query'
       required: false
-      description: Include only entries with this fixed audit outcome.
+      description: 'Include only entries with this fixed audit outcome.'
       schema:
         $ref: '#/components/schemas/AuditEntryOutcome'
     AuditFrom:
-      name: from
-      in: query
+      name: 'from'
+      in: 'query'
       required: false
-      description: |-
-        Inclusive UTC start of the audit range. `from` and `to` must either both
-        be omitted or both be supplied. The maximum range is 90 days.
+      description: 'Inclusive UTC start of the audit range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 90 days.'
       schema:
         $ref: '#/components/schemas/UtcTimestamp'
     AuditTo:
-      name: to
-      in: query
+      name: 'to'
+      in: 'query'
       required: false
-      description: |-
-        Exclusive UTC end of the audit range. `from` and `to` must either both
-        be omitted or both be supplied. The maximum range is 90 days.
+      description: 'Exclusive UTC end of the audit range. `from` and `to` must either both be omitted or both be supplied. The maximum range is 90 days.'
       schema:
         $ref: '#/components/schemas/UtcTimestamp'
+    # END GENERATED AUDIT PARAMETERS
     SessionId:
       name: sessionId
       in: path
@@ -509,141 +511,314 @@ components:
         minimum: 0
         maximum: 86400
   responses:
+    # BEGIN GENERATED ADMIN PROBLEM RESPONSES
     InvalidRequest:
-      description: Request parameters are invalid (`invalid_request`).
+      description: 'Request parameters are invalid (`invalid_request`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/invalid_request'
+                  title:
+                    const: 'Invalid request'
+                  status:
+                    const: 400
+                  code:
+                    const: 'invalid_request'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     Unauthenticated:
-      description: The Operator Session is absent, invalid, revoked, or expired (`unauthenticated`).
+      description: 'The Operator Session is absent, invalid, revoked, or expired (`unauthenticated`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/unauthenticated'
+                  title:
+                    const: 'Authentication required'
+                  status:
+                    const: 401
+                  code:
+                    const: 'unauthenticated'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     Forbidden:
-      description: The authenticated Operator Identity is not permitted (`forbidden`).
+      description: 'The authenticated Operator Identity is not permitted (`forbidden`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/forbidden'
+                  title:
+                    const: 'Forbidden'
+                  status:
+                    const: 403
+                  code:
+                    const: 'forbidden'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     MutationForbidden:
-      description: |-
-        The authenticated Operator Identity is not permitted (`forbidden`), or
-        exact-Origin or XSRF validation failed (`csrf_failed`).
+      description: 'The Operator Identity is forbidden (`forbidden`), or exact-Origin or XSRF validation failed (`csrf_failed`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            oneOf:
+              - allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: 'object'
+                    properties:
+                      type:
+                        const: '/admin/problems/forbidden'
+                      title:
+                        const: 'Forbidden'
+                      status:
+                        const: 403
+                      code:
+                        const: 'forbidden'
+                    required:
+                      - 'type'
+                      - 'title'
+                      - 'status'
+                      - 'code'
+              - allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: 'object'
+                    properties:
+                      type:
+                        const: '/admin/problems/csrf_failed'
+                      title:
+                        const: 'Request validation failed'
+                      status:
+                        const: 403
+                      code:
+                        const: 'csrf_failed'
+                    required:
+                      - 'type'
+                      - 'title'
+                      - 'status'
+                      - 'code'
     NotFound:
-      description: The requested fixed resource does not exist (`not_found`).
+      description: 'The requested fixed resource does not exist (`not_found`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/not_found'
+                  title:
+                    const: 'Not found'
+                  status:
+                    const: 404
+                  code:
+                    const: 'not_found'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     OperationInProgress:
-      description: A mutually exclusive maintenance action is already running (`operation_in_progress`).
+      description: 'A mutually exclusive maintenance action is already running (`operation_in_progress`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/operation_in_progress'
+                  title:
+                    const: 'Operation already in progress'
+                  status:
+                    const: 409
+                  code:
+                    const: 'operation_in_progress'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     CooldownActive:
-      description: The action is still in its fixed cooldown (`cooldown_active`).
+      description: 'The action is still in its fixed cooldown (`cooldown_active`).'
       headers:
         Retry-After:
           $ref: '#/components/headers/RetryAfter'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/cooldown_active'
+                  title:
+                    const: 'Operation cooldown active'
+                  status:
+                    const: 429
+                  code:
+                    const: 'cooldown_active'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     OutcomeUnknown:
-      description: |-
-        The action executed but its final audit state could not be persisted;
-        clients must not retry automatically (`outcome_unknown`).
+      description: 'The action executed but its final audit state could not be persisted; clients must not retry automatically (`outcome_unknown`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/outcome_unknown'
+                  title:
+                    const: 'Operation outcome unknown'
+                  status:
+                    const: 500
+                  code:
+                    const: 'outcome_unknown'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     AdminUnavailable:
-      description: The isolated administration subsystem is unavailable (`admin_unavailable`).
+      description: 'The isolated administration subsystem is unavailable (`admin_unavailable`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/admin_unavailable'
+                  title:
+                    const: 'Administration unavailable'
+                  status:
+                    const: 503
+                  code:
+                    const: 'admin_unavailable'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     OperationTimeout:
-      description: The bounded action exceeded its fixed deadline (`operation_timeout`).
+      description: 'The bounded action exceeded its fixed deadline (`operation_timeout`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/operation_timeout'
+                  title:
+                    const: 'Operation timed out'
+                  status:
+                    const: 504
+                  code:
+                    const: 'operation_timeout'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
     BackupLimitExceeded:
-      description: |-
-        The configured backup count or byte limit prevents another backup;
-        operator intervention is required (`backup_limit_exceeded`).
+      description: 'The configured backup count or byte limit prevents another backup; operator intervention is required (`backup_limit_exceeded`).'
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: 'object'
+                properties:
+                  type:
+                    const: '/admin/problems/backup_limit_exceeded'
+                  title:
+                    const: 'Backup limit exceeded'
+                  status:
+                    const: 507
+                  code:
+                    const: 'backup_limit_exceeded'
+                required:
+                  - 'type'
+                  - 'title'
+                  - 'status'
+                  - 'code'
+    # END GENERATED ADMIN PROBLEM RESPONSES
   schemas:
+    # BEGIN GENERATED OPERATOR SESSION CONTRACT
     UtcTimestamp:
-      type: string
-      format: date-time
-      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$'
-      description: RFC 3339 timestamp normalized to UTC and ending in `Z`.
+      type: 'string'
+      format: 'date-time'
+      pattern: '^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$'
+      description: 'RFC 3339 timestamp normalized to UTC and ending in `Z`.'
     OpaqueId:
-      type: string
+      type: 'string'
       pattern: '^[A-Za-z0-9_-]{16,128}$'
-      description: Opaque identifier with no client-meaningful structure.
-    SafeCount:
-      type: integer
-      minimum: 0
-      maximum: 9007199254740991
-      description: Non-negative JSON safe integer.
-    PositiveSafeInteger:
-      type: integer
-      minimum: 1
-      maximum: 9007199254740991
-      description: Positive JSON safe integer.
+      description: 'Opaque identifier with no client-meaningful structure.'
     OperatorIdentity:
-      type: object
-      additionalProperties: false
-      required:
-        - issuer
-        - subject
+      type: 'object'
       properties:
         issuer:
-          type: string
-          format: uri
-          minLength: 1
+          type: 'string'
           maxLength: 2048
-          description: Exact identity-provider issuer for this Operator Identity.
+          format: 'uri'
+          description: 'Exact identity-provider issuer for this Operator Identity.'
         subject:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 512
-          description: Provider-local subject for this Operator Identity.
+          description: 'Provider-local subject for this Operator Identity.'
         displayName:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 256
-          description: Optional display label copied from the current accepted identity claims.
+          description: 'Optional display label copied from the current accepted identity claims.'
         email:
-          type: string
-          format: email
+          type: 'string'
           minLength: 3
           maxLength: 320
-          description: Optional display email copied from the current accepted identity claims.
-    OperatorSession:
-      type: object
-      additionalProperties: false
+          format: 'email'
+          pattern: '^(?!\.)(?!.*\.\.)([A-Za-z0-9_''+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$'
+          description: 'Optional display email copied from the current accepted identity claims.'
       required:
-        - id
-        - operator
-        - createdAt
-        - lastSeenAt
-        - idleExpiresAt
-        - absoluteExpiresAt
-        - current
+        - 'issuer'
+        - 'subject'
+      additionalProperties: false
+      description: 'Privacy-safe Operator Identity attributes accepted for display by the Push Gateway UI.'
+    OperatorSession:
+      type: 'object'
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'
@@ -658,29 +833,39 @@ components:
         absoluteExpiresAt:
           $ref: '#/components/schemas/UtcTimestamp'
         current:
-          type: boolean
-          description: Whether this is the session authenticating the request.
-    OperatorSessionList:
-      type: object
-      additionalProperties: false
+          type: 'boolean'
+          description: 'Whether this is the session authenticating the request.'
       required:
-        - sessions
+        - 'id'
+        - 'operator'
+        - 'createdAt'
+        - 'lastSeenAt'
+        - 'idleExpiresAt'
+        - 'absoluteExpiresAt'
+        - 'current'
+      additionalProperties: false
+      description: 'The authenticated Operator Identity and bounded current Operator Session.'
+    OperatorSessionList:
+      type: 'object'
       properties:
         sessions:
-          type: array
           maxItems: 100
+          type: 'array'
           items:
             $ref: '#/components/schemas/OperatorSession'
-          description: Deployment-wide active sessions, ordered most recently seen first.
-    RequestOutcomeCounts:
-      type: object
-      additionalProperties: false
+          description: 'Deployment-wide active sessions, ordered most recently seen first.'
       required:
-        - processed
-        - invalid
-        - rateLimited
-        - safetyBudgetExhausted
-        - storageUnavailable
+        - 'sessions'
+      additionalProperties: false
+    # END GENERATED OPERATOR SESSION CONTRACT
+    # BEGIN GENERATED OVERVIEW METRICS CONTRACT
+    SafeCount:
+      type: 'integer'
+      minimum: 0
+      maximum: 9007199254740991
+      description: 'Non-negative JSON safe integer.'
+    RequestOutcomeCounts:
+      type: 'object'
       properties:
         processed:
           $ref: '#/components/schemas/SafeCount'
@@ -692,17 +877,16 @@ components:
           $ref: '#/components/schemas/SafeCount'
         storageUnavailable:
           $ref: '#/components/schemas/SafeCount'
-      description: |-
-        Mutually exclusive Notification Request outcomes. Counts contain no
-        request, Matrix, Push Key, Account Route, or Client Installation labels.
-    FcmOutcomeCounts:
-      type: object
-      additionalProperties: false
       required:
-        - attempted
-        - accepted
-        - permanentlyRejected
-        - transientFailure
+        - 'processed'
+        - 'invalid'
+        - 'rateLimited'
+        - 'safetyBudgetExhausted'
+        - 'storageUnavailable'
+      additionalProperties: false
+      description: 'Mutually exclusive Notification Request outcomes. Counts contain no request, Matrix, Push Key, Account Route, or Client Installation labels.'
+    FcmOutcomeCounts:
+      type: 'object'
       properties:
         attempted:
           $ref: '#/components/schemas/SafeCount'
@@ -712,35 +896,32 @@ components:
           $ref: '#/components/schemas/SafeCount'
         transientFailure:
           $ref: '#/components/schemas/SafeCount'
-      description: |-
-        Outcomes for actual FCM network calls only. `attempted` equals the sum
-        of the three mutually exclusive outcomes. `accepted` means accepted by
-        FCM, not delivered to a Client Installation.
-    FcmPlatformTotals:
-      type: object
-      additionalProperties: false
       required:
-        - android
-        - ios
+        - 'attempted'
+        - 'accepted'
+        - 'permanentlyRejected'
+        - 'transientFailure'
+      additionalProperties: false
+      description: 'Outcomes for actual FCM network calls only. `attempted` equals the bounded sum of the three mutually exclusive outcomes. `accepted` means accepted by FCM, not delivered to a Client Installation.'
+    FcmPlatformTotals:
+      type: 'object'
       properties:
         android:
           $ref: '#/components/schemas/FcmOutcomeCounts'
         ios:
           $ref: '#/components/schemas/FcmOutcomeCounts'
-    OperationSummaryOutcome:
-      type: string
-      enum:
-        - succeeded
-        - failed
-        - outcome_unknown
-    OperationSummary:
-      type: object
-      additionalProperties: false
       required:
-        - startedAt
-        - completedAt
-        - outcome
-        - cooldownEndsAt
+        - 'android'
+        - 'ios'
+      additionalProperties: false
+    OperationSummaryOutcome:
+      type: 'string'
+      enum:
+        - 'succeeded'
+        - 'failed'
+        - 'outcome_unknown'
+    OperationSummary:
+      type: 'object'
       properties:
         startedAt:
           $ref: '#/components/schemas/UtcTimestamp'
@@ -751,79 +932,43 @@ components:
         cooldownEndsAt:
           $ref: '#/components/schemas/UtcTimestamp'
         reason:
-          type: string
-          pattern: '^[a-z][a-z0-9_]{0,63}$'
-          description: Optional coarse safe reason code; never a raw external or process error.
-    OperationResult:
-      type: object
-      additionalProperties: false
+          $ref: '#/components/schemas/OperationSummaryReason'
       required:
-        - startedAt
-        - completedAt
-        - outcome
-        - cooldownEndsAt
-      properties:
-        startedAt:
-          $ref: '#/components/schemas/UtcTimestamp'
-        completedAt:
-          $ref: '#/components/schemas/UtcTimestamp'
-        outcome:
-          type: string
-          enum:
-            - succeeded
-            - failed
-          description: Known result of the synchronous action.
-        cooldownEndsAt:
-          $ref: '#/components/schemas/UtcTimestamp'
-        reason:
-          type: string
-          pattern: '^[a-z][a-z0-9_]{0,63}$'
-          description: Optional coarse safe reason code; never a raw external or process error.
+        - 'startedAt'
+        - 'completedAt'
+        - 'outcome'
+        - 'cooldownEndsAt'
+      additionalProperties: false
     DatabaseByteUsage:
-      type: object
-      additionalProperties: false
-      required:
-        - gateway
-        - administration
+      type: 'object'
       properties:
         gateway:
           $ref: '#/components/schemas/SafeCount'
         administration:
           $ref: '#/components/schemas/SafeCount'
-      description: Current database file usage in bytes; no paths or filesystem details.
-    Overview:
-      type: object
-      additionalProperties: false
       required:
-        - observedAt
-        - version
-        - uptimeSeconds
-        - gatewayReady
-        - administrationReady
-        - requestsLast24Hours
-        - fcmAttemptsLast24Hours
-        - databaseBytes
+        - 'gateway'
+        - 'administration'
+      additionalProperties: false
+      description: 'Current database file usage in bytes; no paths or filesystem details.'
+    Overview:
+      type: 'object'
       properties:
         observedAt:
           $ref: '#/components/schemas/UtcTimestamp'
         version:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 128
-          description: Running Push Gateway release version.
+          description: 'Running Push Gateway release version.'
         uptimeSeconds:
           $ref: '#/components/schemas/SafeCount'
         gatewayReady:
-          type: boolean
-          description: |-
-            Delivery readiness last observed by the independent runtime during
-            public health or delivery storage work. The overview does not probe
-            gateway.sqlite.
+          type: 'boolean'
+          description: 'Delivery readiness last observed by the independent runtime during public health or delivery storage work. The overview does not probe gateway.sqlite.'
         administrationReady:
-          type: boolean
-          description: |-
-            Whether the current authenticated request reached the isolated
-            administration subsystem successfully.
+          type: 'boolean'
+          description: 'Whether the current authenticated request reached the isolated administration subsystem successfully.'
         requestsLast24Hours:
           $ref: '#/components/schemas/RequestOutcomeCounts'
         fcmAttemptsLast24Hours:
@@ -836,48 +981,24 @@ components:
           $ref: '#/components/schemas/OperationSummary'
         databaseBytes:
           $ref: '#/components/schemas/DatabaseByteUsage'
+      required:
+        - 'observedAt'
+        - 'version'
+        - 'uptimeSeconds'
+        - 'gatewayReady'
+        - 'administrationReady'
+        - 'requestsLast24Hours'
+        - 'fcmAttemptsLast24Hours'
+        - 'databaseBytes'
+      additionalProperties: false
     MetricsInterval:
-      type: string
+      type: 'string'
       enum:
-        - hour
-        - day
-      default: hour
-    Metrics:
-      type: object
-      additionalProperties: false
-      required:
-        - from
-        - to
-        - interval
-        - requestBuckets
-        - fcmBuckets
-      properties:
-        from:
-          $ref: '#/components/schemas/UtcTimestamp'
-        to:
-          $ref: '#/components/schemas/UtcTimestamp'
-        interval:
-          $ref: '#/components/schemas/MetricsInterval'
-        requestBuckets:
-          type: array
-          maxItems: 720
-          items:
-            $ref: '#/components/schemas/RequestMetricBucket'
-        fcmBuckets:
-          type: array
-          maxItems: 1440
-          items:
-            $ref: '#/components/schemas/FcmMetricBucket'
-      description: |-
-        Aggregate UTC buckets covering the effective `[from,to)` range. Empty
-        intervals may be omitted; all labels and outcomes are fixed by this schema.
+        - 'hour'
+        - 'day'
+      default: 'hour'
     RequestMetricBucket:
-      type: object
-      additionalProperties: false
-      required:
-        - from
-        - to
-        - outcomes
+      type: 'object'
       properties:
         from:
           $ref: '#/components/schemas/UtcTimestamp'
@@ -885,68 +1006,18 @@ components:
           $ref: '#/components/schemas/UtcTimestamp'
         outcomes:
           $ref: '#/components/schemas/RequestOutcomeCounts'
+      required:
+        - 'from'
+        - 'to'
+        - 'outcomes'
+      additionalProperties: false
     FcmPlatform:
-      type: string
+      type: 'string'
       enum:
-        - android
-        - ios
-    FcmMetricBucket:
-      type: object
-      additionalProperties: false
-      required:
-        - from
-        - to
-        - platform
-        - outcomes
-        - latency
-      properties:
-        from:
-          $ref: '#/components/schemas/UtcTimestamp'
-        to:
-          $ref: '#/components/schemas/UtcTimestamp'
-        platform:
-          $ref: '#/components/schemas/FcmPlatform'
-        outcomes:
-          $ref: '#/components/schemas/FcmOutcomeCounts'
-        latency:
-          $ref: '#/components/schemas/FcmLatencyMetrics'
-    FcmLatencyMetrics:
-      type: object
-      additionalProperties: false
-      required:
-        - sampleCount
-        - histogram
-        - approxP95Ms
-      properties:
-        sampleCount:
-          $ref: '#/components/schemas/SafeCount'
-        histogram:
-          $ref: '#/components/schemas/FcmLatencyHistogram'
-        approxP95Ms:
-          type:
-            - integer
-            - 'null'
-          minimum: 0
-          maximum: 10000
-          description: |-
-            Approximate p95 using the upper bound of the first histogram bucket
-            reaching 95 percent. `10000` represents the open-ended final bucket;
-            `null` means there were no samples.
-      description: |-
-        Approximate latency derived only from fixed histogram buckets. No raw
-        samples, per-request timings, arbitrary labels, or sums are returned.
+        - 'android'
+        - 'ios'
     FcmLatencyHistogram:
-      type: object
-      additionalProperties: false
-      required:
-        - under_100_ms
-        - 100_to_249_ms
-        - 250_to_499_ms
-        - 500_to_999_ms
-        - 1000_to_2499_ms
-        - 2500_to_4999_ms
-        - 5000_to_9999_ms
-        - 10000_ms_or_more
+      type: 'object'
       properties:
         under_100_ms:
           $ref: '#/components/schemas/SafeCount'
@@ -964,70 +1035,137 @@ components:
           $ref: '#/components/schemas/SafeCount'
         10000_ms_or_more:
           $ref: '#/components/schemas/SafeCount'
-      description: Fixed non-cumulative latency buckets for actual FCM calls.
-    ConfigurationSource:
-      type: string
-      enum:
-        - env
-        - file
-    SecretPresence:
-      type: object
-      additionalProperties: false
       required:
-        - configured
-        - source
+        - 'under_100_ms'
+        - '100_to_249_ms'
+        - '250_to_499_ms'
+        - '500_to_999_ms'
+        - '1000_to_2499_ms'
+        - '2500_to_4999_ms'
+        - '5000_to_9999_ms'
+        - '10000_ms_or_more'
+      additionalProperties: false
+      description: 'Fixed non-cumulative latency buckets for actual FCM calls.'
+    FcmLatencyMetrics:
+      type: 'object'
+      properties:
+        sampleCount:
+          $ref: '#/components/schemas/SafeCount'
+        histogram:
+          $ref: '#/components/schemas/FcmLatencyHistogram'
+        approxP95Ms:
+          type:
+            - 'integer'
+            - 'null'
+          minimum: 0
+          maximum: 10000
+          description: 'Approximate p95 using the upper bound of the first histogram bucket reaching 95 percent. `10000` represents the open-ended final bucket; `null` means there were no samples.'
+      required:
+        - 'sampleCount'
+        - 'histogram'
+        - 'approxP95Ms'
+      additionalProperties: false
+      description: 'Approximate latency derived only from fixed histogram buckets. No raw samples, per-request timings, arbitrary labels, or sums are returned.'
+    FcmMetricBucket:
+      type: 'object'
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        platform:
+          $ref: '#/components/schemas/FcmPlatform'
+        outcomes:
+          $ref: '#/components/schemas/FcmOutcomeCounts'
+        latency:
+          $ref: '#/components/schemas/FcmLatencyMetrics'
+      required:
+        - 'from'
+        - 'to'
+        - 'platform'
+        - 'outcomes'
+        - 'latency'
+      additionalProperties: false
+    Metrics:
+      type: 'object'
+      properties:
+        from:
+          $ref: '#/components/schemas/UtcTimestamp'
+        to:
+          $ref: '#/components/schemas/UtcTimestamp'
+        interval:
+          $ref: '#/components/schemas/MetricsInterval'
+        requestBuckets:
+          maxItems: 720
+          type: 'array'
+          items:
+            $ref: '#/components/schemas/RequestMetricBucket'
+        fcmBuckets:
+          maxItems: 1440
+          type: 'array'
+          items:
+            $ref: '#/components/schemas/FcmMetricBucket'
+      required:
+        - 'from'
+        - 'to'
+        - 'interval'
+        - 'requestBuckets'
+        - 'fcmBuckets'
+      additionalProperties: false
+      description: 'Aggregate UTC buckets covering the effective `[from,to)` range. Empty intervals may be omitted; all labels and outcomes are fixed by this schema.'
+    # END GENERATED OVERVIEW METRICS CONTRACT
+    # BEGIN GENERATED CONFIGURATION CONTRACT
+    PositiveSafeInteger:
+      type: 'integer'
+      minimum: 1
+      maximum: 9007199254740991
+      description: 'Positive JSON safe integer.'
+    ConfigurationSource:
+      type: 'string'
+      enum:
+        - 'env'
+        - 'file'
+    SecretPresence:
+      type: 'object'
       properties:
         configured:
-          type: boolean
-          description: Whether a non-empty value was accepted at startup.
+          type: 'boolean'
+          description: 'Whether a non-empty value was accepted at startup.'
         source:
           $ref: '#/components/schemas/ConfigurationSource'
-      description: Secret presence and source only; never a value, variable name, or path.
-    GatewayConfiguration:
-      type: object
-      additionalProperties: false
       required:
-        - androidApplicationId
-        - iosApplicationId
-        - firebaseProjectId
-        - gatewayDatabasePath
-        - maxBodyBytes
-        - maxDailyAttempts
-        - maxClientInstallationsPerRequest
-        - pendingLeaseSeconds
-        - requestDeadlineSeconds
-        - terminalRetentionSeconds
-        - upstreamTimeoutSeconds
-        - sourceRateLimit
-        - sourceRatePeriodSeconds
-        - maxSourceKeys
-        - cleanupIntervalSeconds
+        - 'configured'
+        - 'source'
+      additionalProperties: false
+      description: 'Secret presence and source only; never a value, variable name, or path.'
+    GatewayConfiguration:
+      type: 'object'
       properties:
         androidApplicationId:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 255
         iosApplicationId:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 255
         firebaseProjectId:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 255
-          description: Effective non-secret Firebase project identifier.
+          description: 'Effective non-secret Firebase project identifier.'
         gatewayDatabasePath:
-          type: string
-          pattern: '^/'
+          type: 'string'
           minLength: 2
           maxLength: 4096
-          description: Absolute delivery-critical SQLite location.
+          pattern: '^\/'
+          description: 'Absolute delivery-critical SQLite location.'
         maxBodyBytes:
           $ref: '#/components/schemas/PositiveSafeInteger'
         maxDailyAttempts:
           $ref: '#/components/schemas/PositiveSafeInteger'
         maxClientInstallationsPerRequest:
-          type: integer
+          type: 'integer'
           minimum: 1
           maximum: 49
         pendingLeaseSeconds:
@@ -1046,154 +1184,164 @@ components:
           $ref: '#/components/schemas/PositiveSafeInteger'
         cleanupIntervalSeconds:
           $ref: '#/components/schemas/PositiveSafeInteger'
-      description: |-
-        Effective non-secret gateway values. Listener addresses, migration
-        paths, trusted-proxy networks, and raw environment names are excluded.
-    AdministrationConfiguration:
-      type: object
-      additionalProperties: false
       required:
-        - publicOrigin
-        - oidcIssuer
-        - oidcClientId
-        - oidcScopes
-        - oidcGroupClaim
-        - oidcRequiredGroup
-        - oidcTokenEndpointAuthMethod
-        - administrationDatabasePath
-        - backupDirectory
-        - sessionIdleSeconds
-        - sessionAbsoluteSeconds
-        - maxSessionsPerIdentity
-        - maxSessionsDeployment
-        - metricsRetentionDays
-        - auditRetentionDays
-        - firebaseValidationDeadlineSeconds
-        - firebaseValidationCooldownSeconds
-        - cleanupDeadlineSeconds
-        - cleanupCooldownSeconds
-        - backupDeadlineSeconds
-        - backupCooldownSeconds
-        - backupLimitCount
-        - backupLimitBytes
+        - 'androidApplicationId'
+        - 'iosApplicationId'
+        - 'firebaseProjectId'
+        - 'gatewayDatabasePath'
+        - 'maxBodyBytes'
+        - 'maxDailyAttempts'
+        - 'maxClientInstallationsPerRequest'
+        - 'pendingLeaseSeconds'
+        - 'requestDeadlineSeconds'
+        - 'terminalRetentionSeconds'
+        - 'upstreamTimeoutSeconds'
+        - 'sourceRateLimit'
+        - 'sourceRatePeriodSeconds'
+        - 'maxSourceKeys'
+        - 'cleanupIntervalSeconds'
+      additionalProperties: false
+      description: 'Effective non-secret gateway values. Listener addresses, migration paths, trusted-proxy networks, and raw environment names are excluded.'
+    AdministrationConfiguration:
+      type: 'object'
       properties:
+        enabled:
+          type: 'boolean'
+          const: true
+          description: 'The administration surface is enabled for this response.'
         publicOrigin:
-          type: string
-          format: uri
+          type: 'string'
           minLength: 8
           maxLength: 2048
+          format: 'uri'
         oidcIssuer:
-          type: string
-          format: uri
+          type: 'string'
           minLength: 1
           maxLength: 2048
+          format: 'uri'
         oidcClientId:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 512
-          description: Effective non-secret confidential-client identifier.
+          description: 'Effective non-secret confidential-client identifier.'
         oidcScopes:
-          type: array
           minItems: 1
           maxItems: 16
-          uniqueItems: true
+          type: 'array'
           items:
-            type: string
+            type: 'string'
             pattern: '^[A-Za-z0-9._:-]{1,128}$'
-          description: Exact configured OIDC scopes.
+          description: 'Exact configured OIDC scopes.'
+          uniqueItems: true
         oidcGroupClaim:
-          type: string
+          type: 'string'
           pattern: '^[A-Za-z_][A-Za-z0-9_-]{0,127}$'
-          description: Top-level claim used for exact required-group membership.
+          description: 'Top-level claim used for exact required-group membership.'
         oidcRequiredGroup:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 256
-          description: Exact case-sensitive group value required at login.
+          description: 'Exact case-sensitive group value required at login.'
         oidcTokenEndpointAuthMethod:
-          type: string
+          type: 'string'
           enum:
-            - client_secret_post
-            - client_secret_basic
+            - 'client_secret_post'
+            - 'client_secret_basic'
         administrationDatabasePath:
-          type: string
-          pattern: '^/'
+          type: 'string'
           minLength: 2
           maxLength: 4096
-          description: Absolute isolated administration SQLite location.
+          pattern: '^\/'
+          description: 'Absolute isolated administration SQLite location.'
         backupDirectory:
-          type: string
-          pattern: '^/'
+          type: 'string'
           minLength: 2
           maxLength: 4096
-          description: Absolute directory for generated verified gateway backups.
+          pattern: '^\/'
+          description: 'Absolute directory for generated verified gateway backups.'
         sessionIdleSeconds:
-          type: integer
+          type: 'integer'
           minimum: 1800
           maximum: 1800
         sessionAbsoluteSeconds:
-          type: integer
+          type: 'integer'
           minimum: 28800
           maximum: 28800
         maxSessionsPerIdentity:
-          type: integer
+          type: 'integer'
           minimum: 5
           maximum: 5
         maxSessionsDeployment:
-          type: integer
+          type: 'integer'
           minimum: 100
           maximum: 100
         metricsRetentionDays:
-          type: integer
+          type: 'integer'
           minimum: 30
           maximum: 30
         auditRetentionDays:
-          type: integer
+          type: 'integer'
           minimum: 90
           maximum: 90
         firebaseValidationDeadlineSeconds:
-          type: integer
+          type: 'integer'
           minimum: 20
           maximum: 20
         firebaseValidationCooldownSeconds:
-          type: integer
+          type: 'integer'
           minimum: 60
           maximum: 60
         cleanupDeadlineSeconds:
-          type: integer
+          type: 'integer'
           minimum: 30
           maximum: 30
         cleanupCooldownSeconds:
-          type: integer
+          type: 'integer'
           minimum: 300
           maximum: 300
         backupDeadlineSeconds:
-          type: integer
+          type: 'integer'
           minimum: 120
           maximum: 120
         backupCooldownSeconds:
-          type: integer
+          type: 'integer'
           minimum: 3600
           maximum: 3600
         backupLimitCount:
-          type: integer
+          type: 'integer'
           minimum: 1
           maximum: 1000
         backupLimitBytes:
           $ref: '#/components/schemas/PositiveSafeInteger'
-      description: |-
-        Effective non-secret administration policy and storage locations.
-        Credential paths and raw environment names are excluded.
-    CredentialPresence:
-      type: object
-      additionalProperties: false
       required:
-        - firebaseClientEmail
-        - firebasePrivateKey
-        - firebaseProjectId
-        - fingerprintKey
-        - oidcClientSecret
-        - sessionSecret
+        - 'enabled'
+        - 'publicOrigin'
+        - 'oidcIssuer'
+        - 'oidcClientId'
+        - 'oidcScopes'
+        - 'oidcGroupClaim'
+        - 'oidcRequiredGroup'
+        - 'oidcTokenEndpointAuthMethod'
+        - 'administrationDatabasePath'
+        - 'backupDirectory'
+        - 'sessionIdleSeconds'
+        - 'sessionAbsoluteSeconds'
+        - 'maxSessionsPerIdentity'
+        - 'maxSessionsDeployment'
+        - 'metricsRetentionDays'
+        - 'auditRetentionDays'
+        - 'firebaseValidationDeadlineSeconds'
+        - 'firebaseValidationCooldownSeconds'
+        - 'cleanupDeadlineSeconds'
+        - 'cleanupCooldownSeconds'
+        - 'backupDeadlineSeconds'
+        - 'backupCooldownSeconds'
+        - 'backupLimitCount'
+        - 'backupLimitBytes'
+      additionalProperties: false
+      description: 'Effective non-secret administration policy and storage locations. Credential paths and raw environment names are excluded.'
+    CredentialPresence:
+      type: 'object'
       properties:
         firebaseClientEmail:
           $ref: '#/components/schemas/SecretPresence'
@@ -1207,191 +1355,536 @@ components:
           $ref: '#/components/schemas/SecretPresence'
         sessionSecret:
           $ref: '#/components/schemas/SecretPresence'
-    Configuration:
-      type: object
-      additionalProperties: false
       required:
-        - observedAt
-        - version
-        - gateway
-        - administration
-        - credentials
+        - 'firebaseClientEmail'
+        - 'firebasePrivateKey'
+        - 'firebaseProjectId'
+        - 'fingerprintKey'
+        - 'oidcClientSecret'
+        - 'sessionSecret'
+      additionalProperties: false
+    Configuration:
+      type: 'object'
       properties:
         observedAt:
           $ref: '#/components/schemas/UtcTimestamp'
         version:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 128
-          description: Running Push Gateway release version.
+          description: 'Running Push Gateway release version.'
         gateway:
           $ref: '#/components/schemas/GatewayConfiguration'
         administration:
           $ref: '#/components/schemas/AdministrationConfiguration'
         credentials:
           $ref: '#/components/schemas/CredentialPresence'
-    AuditEntryKind:
-      type: string
-      enum:
-        - login
-        - logout
-        - session_expired
-        - session_revoked
-        - session_cap_eviction
-        - policy_rejected
-        - session_purge
-        - firebase_validation
-        - cleanup
-        - backup
-    AuditEntryOutcome:
-      type: string
-      enum:
-        - succeeded
-        - failed
-        - started
-        - outcome_unknown
-    OperatorAuditEntry:
-      type: object
-      additionalProperties: false
       required:
-        - id
-        - occurredAt
-        - operator
-        - kind
-        - outcome
+        - 'observedAt'
+        - 'version'
+        - 'gateway'
+        - 'administration'
+        - 'credentials'
+      additionalProperties: false
+    # END GENERATED CONFIGURATION CONTRACT
+    # BEGIN GENERATED OPERATOR ACTION CONTRACT
+    OperationSummaryReason:
+      type: 'string'
+      enum:
+        - 'access_denied'
+        - 'audit_finalization_failed'
+        - 'backup_failed'
+        - 'backup_limit_exceeded'
+        - 'cleanup_failed'
+        - 'firebase_validation_failed'
+        - 'operation_timeout'
+        - 'request_rejected'
+        - 'unavailable'
+      description: 'Finite privacy-safe reason for an administration operation summary or known Operator Action result.'
+    OperationResultOutcome:
+      type: 'string'
+      enum:
+        - 'succeeded'
+        - 'failed'
+      description: 'Known result of the synchronous Operator Action.'
+    OperationResult:
+      type: 'object'
+      properties:
+        startedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        completedAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        outcome:
+          $ref: '#/components/schemas/OperationResultOutcome'
+        cooldownEndsAt:
+          $ref: '#/components/schemas/UtcTimestamp'
+        reason:
+          $ref: '#/components/schemas/OperationSummaryReason'
+      required:
+        - 'startedAt'
+        - 'completedAt'
+        - 'outcome'
+        - 'cooldownEndsAt'
+      additionalProperties: false
+      description: 'Known success or failure result of a bounded synchronous Operator Action.'
+    AuditEntryKind:
+      type: 'string'
+      enum:
+        - 'login'
+        - 'logout'
+        - 'session_expired'
+        - 'session_revoked'
+        - 'session_cap_eviction'
+        - 'policy_rejected'
+        - 'session_purge'
+        - 'firebase_validation'
+        - 'cleanup'
+        - 'backup'
+    AuditEntryOutcome:
+      type: 'string'
+      enum:
+        - 'succeeded'
+        - 'failed'
+        - 'started'
+        - 'outcome_unknown'
+    AuditEntryReason:
+      type: 'string'
+      enum:
+        - 'access_denied'
+        - 'audit_finalization_failed'
+        - 'backup_failed'
+        - 'backup_limit_exceeded'
+        - 'cleanup_failed'
+        - 'firebase_validation_failed'
+        - 'operation_timeout'
+        - 'request_rejected'
+        - 'unavailable'
+        - 'absolute_expired'
+        - 'idle_expired'
+        - 'no_active_sessions'
+        - 'policy_changed'
+        - 'session_cap'
+      description: 'Finite privacy-safe reason for an Operator Audit Entry; raw claims, identifiers, external errors, and process errors are excluded.'
+    OperatorAuditEntry:
+      type: 'object'
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'
         occurredAt:
           $ref: '#/components/schemas/UtcTimestamp'
         operator:
-          oneOf:
+          anyOf:
             - $ref: '#/components/schemas/OperatorIdentity'
             - type: 'null'
-          description: Responsible Operator Identity, or `null` for a system or CLI occurrence.
+          description: 'Responsible Operator Identity, or `null` for a system or CLI occurrence.'
         kind:
           $ref: '#/components/schemas/AuditEntryKind'
         outcome:
           $ref: '#/components/schemas/AuditEntryOutcome'
         reason:
-          type: string
-          pattern: '^[a-z][a-z0-9_]{0,63}$'
-          description: Optional coarse safe reason code; never raw claims or external errors.
-    OperatorAuditEntryPage:
-      type: object
-      additionalProperties: false
+          $ref: '#/components/schemas/AuditEntryReason'
       required:
-        - entries
+        - 'id'
+        - 'occurredAt'
+        - 'operator'
+        - 'kind'
+        - 'outcome'
+      additionalProperties: false
+    OperatorAuditEntryPage:
+      type: 'object'
       properties:
         entries:
-          type: array
           maxItems: 100
+          type: 'array'
           items:
             $ref: '#/components/schemas/OperatorAuditEntry'
         nextCursor:
-          type: string
+          type: 'string'
           minLength: 1
           maxLength: 2048
-          description: Opaque continuation cursor; absent when no later page exists.
-    BackupIntegrity:
-      type: string
-      enum:
-        - verified
-    Backup:
-      type: object
-      additionalProperties: false
+          description: 'Opaque continuation cursor; absent when no later page exists.'
       required:
-        - id
-        - name
-        - createdAt
-        - sizeBytes
-        - sha256
-        - integrity
-        - operator
+        - 'entries'
+      additionalProperties: false
+    BackupIntegrity:
+      type: 'string'
+      const: 'verified'
+    Backup:
+      type: 'object'
       properties:
         id:
           $ref: '#/components/schemas/OpaqueId'
         name:
-          type: string
+          type: 'string'
           pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
-          description: Strict generated basename only; never a filesystem path.
+          description: 'Strict generated basename only; never a filesystem path.'
         createdAt:
           $ref: '#/components/schemas/UtcTimestamp'
         sizeBytes:
           $ref: '#/components/schemas/PositiveSafeInteger'
         sha256:
-          type: string
+          type: 'string'
           pattern: '^[a-f0-9]{64}$'
-          description: Lowercase hexadecimal SHA-256 digest of the verified backup.
+          description: 'Lowercase hexadecimal SHA-256 digest of the verified backup.'
         integrity:
           $ref: '#/components/schemas/BackupIntegrity'
         operator:
-          oneOf:
+          anyOf:
             - $ref: '#/components/schemas/OperatorIdentity'
             - type: 'null'
-          description: Requesting Operator Identity, or `null` for a CLI-created backup.
-    BackupList:
-      type: object
-      additionalProperties: false
+          description: 'Requesting Operator Identity, or `null` for a CLI-created backup.'
       required:
-        - backups
+        - 'id'
+        - 'name'
+        - 'createdAt'
+        - 'sizeBytes'
+        - 'sha256'
+        - 'integrity'
+        - 'operator'
+      additionalProperties: false
+    BackupList:
+      type: 'object'
       properties:
         backups:
-          type: array
           maxItems: 1000
+          type: 'array'
           items:
             $ref: '#/components/schemas/Backup'
-          description: Verified backup metadata ordered newest first.
-    ProblemCode:
-      type: string
-      enum:
-        - unauthenticated
-        - forbidden
-        - invalid_request
-        - csrf_failed
-        - operation_in_progress
-        - cooldown_active
-        - operation_timeout
-        - outcome_unknown
-        - backup_limit_exceeded
-        - admin_unavailable
-        - not_found
-    Problem:
-      type: object
-      additionalProperties: false
+          description: 'Verified backup metadata ordered newest first.'
       required:
-        - type
-        - title
-        - status
-        - code
-      properties:
-        type:
-          type: string
-          format: uri-reference
-          maxLength: 2048
-          description: Stable problem type URI for the code.
-        title:
-          type: string
-          minLength: 1
-          maxLength: 128
-          description: Stable short title without request-specific data.
-        status:
-          type: integer
-          minimum: 400
-          maximum: 599
-          description: HTTP response status repeated in the document.
-        code:
-          $ref: '#/components/schemas/ProblemCode'
-        detail:
-          type: string
-          minLength: 1
-          maxLength: 512
-          description: |-
-            Generic safe explanation. It never includes secret values, tokens,
-            identifiers, paths, external response bodies, or raw process errors.
-        instance:
-          type: string
-          format: uri-reference
-          maxLength: 2048
-          description: Optional request-local problem URI containing no private identifier.
-      description: RFC 9457-style problem details with a stable safe code.
+        - 'backups'
+      additionalProperties: false
+    Problem:
+      anyOf:
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/unauthenticated'
+            title:
+              type: 'string'
+              const: 'Authentication required'
+            status:
+              type: 'number'
+              const: 401
+            code:
+              type: 'string'
+              const: 'unauthenticated'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/forbidden'
+            title:
+              type: 'string'
+              const: 'Forbidden'
+            status:
+              type: 'number'
+              const: 403
+            code:
+              type: 'string'
+              const: 'forbidden'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/invalid_request'
+            title:
+              type: 'string'
+              const: 'Invalid request'
+            status:
+              type: 'number'
+              const: 400
+            code:
+              type: 'string'
+              const: 'invalid_request'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/csrf_failed'
+            title:
+              type: 'string'
+              const: 'Request validation failed'
+            status:
+              type: 'number'
+              const: 403
+            code:
+              type: 'string'
+              const: 'csrf_failed'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/operation_in_progress'
+            title:
+              type: 'string'
+              const: 'Operation already in progress'
+            status:
+              type: 'number'
+              const: 409
+            code:
+              type: 'string'
+              const: 'operation_in_progress'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/cooldown_active'
+            title:
+              type: 'string'
+              const: 'Operation cooldown active'
+            status:
+              type: 'number'
+              const: 429
+            code:
+              type: 'string'
+              const: 'cooldown_active'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/operation_timeout'
+            title:
+              type: 'string'
+              const: 'Operation timed out'
+            status:
+              type: 'number'
+              const: 504
+            code:
+              type: 'string'
+              const: 'operation_timeout'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/outcome_unknown'
+            title:
+              type: 'string'
+              const: 'Operation outcome unknown'
+            status:
+              type: 'number'
+              const: 500
+            code:
+              type: 'string'
+              const: 'outcome_unknown'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/backup_limit_exceeded'
+            title:
+              type: 'string'
+              const: 'Backup limit exceeded'
+            status:
+              type: 'number'
+              const: 507
+            code:
+              type: 'string'
+              const: 'backup_limit_exceeded'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/admin_unavailable'
+            title:
+              type: 'string'
+              const: 'Administration unavailable'
+            status:
+              type: 'number'
+              const: 503
+            code:
+              type: 'string'
+              const: 'admin_unavailable'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+        - type: 'object'
+          properties:
+            type:
+              type: 'string'
+              const: '/admin/problems/not_found'
+            title:
+              type: 'string'
+              const: 'Not found'
+            status:
+              type: 'number'
+              const: 404
+            code:
+              type: 'string'
+              const: 'not_found'
+            detail:
+              type: 'string'
+              minLength: 1
+              maxLength: 512
+              description: 'Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.'
+            instance:
+              type: 'string'
+              maxLength: 2048
+              description: 'Optional request-local problem URI containing no private identifier.'
+              format: 'uri-reference'
+          required:
+            - 'type'
+            - 'title'
+            - 'status'
+            - 'code'
+          additionalProperties: false
+      description: 'RFC 9457-style problem details constrained to the exact stable code, status, title, and type catalog.'
+    # END GENERATED OPERATOR ACTION CONTRACT

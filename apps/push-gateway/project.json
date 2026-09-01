@@ -37,7 +37,8 @@
         "test-coverage",
         "check-migrations",
         "check-bundle",
-        "check-openapi"
+        "check-openapi",
+        "check-admin-contract"
       ]
     },
     "check-bun": {
@@ -51,6 +52,7 @@
         "check-auth-selection",
         "check-container-contract",
         "check-provider-contract",
+        "test-provider-gate-lifecycle",
         "check-migrations"
       ]
     },
@@ -79,16 +81,17 @@
     },
     "check-container-contract": {
       "executor": "nx:run-commands",
-      "cache": true,
+      "cache": false,
       "inputs": [
         "default",
         "{workspaceRoot}/.dockerignore",
+        "{workspaceRoot}/.env.self-host.example",
         "{workspaceRoot}/.env.self-host-admin.example",
         "{workspaceRoot}/compose.admin.yml",
         "{workspaceRoot}/compose.yml"
       ],
       "options": {
-        "command": "node apps/push-gateway/scripts/check-container-contract.mjs"
+        "command": "bun apps/push-gateway/scripts/check-container-contract.mjs"
       }
     },
     "check-provider-contract": {
@@ -118,6 +121,20 @@
       "options": {
         "command": "redocly lint --config ../../redocly.yaml admin@v1",
         "cwd": "apps/push-gateway"
+      }
+    },
+    "check-admin-contract": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/apps/push-gateway-ui/src/app/api/admin-contract.generated.ts",
+        {
+          "runtime": "bun --version"
+        }
+      ],
+      "options": {
+        "command": "bun apps/push-gateway/scripts/generate-admin-contract.ts --check"
       }
     },
     "check-migrations": {
@@ -167,6 +184,13 @@
         "command": "node apps/push-gateway/scripts/generate-migration.mjs"
       }
     },
+    "generate-admin-contract": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun apps/push-gateway/scripts/generate-admin-contract.ts"
+      }
+    },
     "test-bun": {
       "executor": "nx:run-commands",
       "options": {
@@ -179,6 +203,22 @@
       "cache": false,
       "options": {
         "command": "bun test test/bun/auth test/bun/admin/app.spec.ts",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "test-provider-gate-lifecycle": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "options": {
+        "command": "node --test provider-e2e/*.test.mjs",
+        "cwd": "apps/push-gateway"
+      }
+    },
+    "provider-gate": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node provider-e2e/run-provider-gate.mjs",
         "cwd": "apps/push-gateway"
       }
     },

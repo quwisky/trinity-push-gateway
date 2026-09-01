@@ -47,15 +47,21 @@ are ignored in disabled mode.
 Delivery is correctly isolated from an invalid or failed administration
 subsystem. Check exact public origin and issuer values, both secret files,
 `admin.sqlite` ownership/separation, administration migrations, browser assets,
-and available disk space. Never point administration at `gateway.sqlite`.
+and available disk space. An `admin_request_failed` event identifies one
+unexpected request failure without recording the exception or request data.
+Never point administration at `gateway.sqlite`.
 
 ## Login returns unavailable
 
 Fetch the configured issuer's discovery document from the gateway host. Verify
 its exact issuer, authorization/token/JWKS endpoints, client authentication
 method, client secret, PKCE support, and callback URL. Check provider and gateway
-clock synchronization. Provider tokens and raw claims are intentionally not
-logged.
+clock synchronization. In the supported TLS-terminating proxy topology, keep
+the configured public origin HTTPS and forward the callback path and complete
+authorization-response query unchanged to Bun over HTTP. Forwarded host and
+protocol headers cannot repair an incorrect public origin because the gateway
+does not trust them for callback authority. Provider tokens and raw claims are
+intentionally not logged.
 
 ## Login returns forbidden
 

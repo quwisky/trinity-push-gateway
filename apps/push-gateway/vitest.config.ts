@@ -26,6 +26,10 @@ export default defineConfig({
   test: {
     include: ['test/*.spec.ts'],
     coverage: {
+      exclude: [
+        'src/configuration-catalog/administration.ts',
+        'src/configuration-catalog/bun.ts',
+      ],
       provider: 'istanbul',
       reportsDirectory: '../../coverage/apps/push-gateway',
       reporter: ['text', 'json-summary'],

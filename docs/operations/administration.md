@@ -44,19 +44,43 @@ completed even though its final audit record failed. Review the audit page,
 backup directory, health, and redacted logs first. A busy or cooldown response
 should be allowed to expire rather than bypassed.
 
+The operator API publishes one fixed mapping from every problem code to its HTTP
+status and safe title. Known cleanup and Firebase-validation results use only
+`succeeded` or `failed`; timeouts, busy leases, cooldowns, unknown finalization,
+backup limits, and administration unavailability remain explicit problem
+responses. The browser client and Bun response boundary are generated or
+validated from the same contract.
+
 ## Metrics and audit privacy
 
 Metrics use only hourly/daily fixed-cardinality request, platform, outcome, and
 latency buckets. Metrics-writer startup, lock, corruption, or worker death drops
 new aggregates and never changes a Matrix response. Audit records contain the
-operator issuer/subject, action kind, coarse outcome, and bounded reason; they
+operator issuer/subject, action kind, coarse outcome, and finite reason; they
 do not contain provider tokens, client secrets, Matrix identifiers, Push Keys,
 account routes, or notification content.
+
+The Metrics page requests a UTC half-open range. Omitting both endpoints selects
+the preceding 24 hours; supplying a range requires both endpoints in UTC, in
+order, and no more than 30 days apart. Only `hour` and `day` intervals are
+accepted. Duplicate or unknown query parameters are rejected rather than
+silently ignored.
+
+Overview operation summaries expose only the gateway's finite safe reason
+vocabulary. Arbitrary provider, process, token, path, or request-derived values
+are rejected at the response boundary.
 
 The defaults retain metrics for 30 days and audit entries for 90 days. Cleanup
 is bounded per pass. Treat `admin.sqlite`, browser sessions, audit data, and
 backups as sensitive operational metadata even though message content is never
 stored.
+
+The Security page queries a UTC half-open range of at most 90 days. Its opaque
+load-older cursor fixes the initial range, filters, page size, timestamp, and
+identifier boundary; it is signed with the administration session secret and
+expires 15 minutes after the first page. Replaying it with the same filters is
+safe and deterministic. Changing any filter starts a new query; editing,
+reusing after expiry, or replaying the cursor with different filters is rejected.
 
 ## Recover from an identity-provider outage
 

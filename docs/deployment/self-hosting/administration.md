@@ -74,6 +74,11 @@ The public origin is an origin, not a path: no credentials, query, fragment, or
 trailing slash. The callback is matched exactly. Except for explicit loopback
 development, both issuer and public origin must use HTTPS.
 
+When an unauthenticated operator opens a known administration route such as
+`/admin/metrics`, the sign-in flow returns to that route after authentication.
+The gateway accepts only its fixed administration routes as return targets and
+falls back to `/admin/overview` for an unknown or external value.
+
 ## Pocket ID
 
 Create a confidential OIDC client in Pocket ID with Authorization Code, PKCE,
@@ -134,9 +139,12 @@ push.example.com {
 ```
 
 Enable `includeSubDomains` only when every subdomain is permanently HTTPS. The
-proxy must preserve the original host and scheme so browser redirects resolve
-to the configured public origin. It must replace, not append, the client-address
-header, and its direct network must appear in
+proxy must forward the exact `/admin/*` path and query without rewriting them.
+The gateway derives the OIDC callback origin and path exclusively from
+`TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN`; forwarded host and protocol headers
+are not callback trust sources. This allows the public callback to remain HTTPS
+while the proxy sends plain HTTP to Bun. The proxy must replace, not append, the
+client-address header, and its direct network must appear in
 `TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS` before forwarded addresses are
 trusted.
 
@@ -150,9 +158,10 @@ self-contained.
 
 Rotate either secret by replacing its Docker secret file and recreating the
 container. Rotating the session secret immediately invalidates every local
-Operator Session. Rotating the OIDC client secret blocks new login until the
-provider and gateway agree, but it does not expand an existing session's
-lifetime. There is no live reload and no local break-glass login.
+Operator Session and outstanding Operator Audit Entry cursor. Rotating the OIDC
+client secret blocks new login until the provider and gateway agree, but it does
+not expand an existing session's lifetime. There is no live reload and no local
+break-glass login.
 
 Continue with [administration operations and recovery](/operations/administration)
 and [backup scope](/operations/backup-and-restore).

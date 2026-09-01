@@ -85,11 +85,7 @@ function readyRuntime(
       if (!available) {
         return adminUnavailableResponse();
       }
-      try {
-        return await surface.fetch(request);
-      } catch {
-        return adminUnavailableResponse();
-      }
+      return surface.fetch(request);
     },
     kind: 'ready' as const,
     metrics,
@@ -163,6 +159,7 @@ export async function createAdministrationRuntime(
       configuration: state.configuration,
       gatewayConfiguration,
       gatewayReady: options.gatewayReady,
+      log: options.log,
       operations,
       ...(options.now === undefined ? {} : { now: options.now }),
       safeConfiguration: state.safe,

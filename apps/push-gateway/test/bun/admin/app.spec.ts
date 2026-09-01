@@ -4,11 +4,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { version as gatewayVersion } from '../../../../../package.json';
+import { adminProblem } from '../../../src/admin-contract/operator-actions';
 import {
   createAdminSurface,
   type AdminSurface,
 } from '../../../src/bun/admin/app';
-import { loadAdminAssets } from '../../../src/bun/admin/assets';
+import {
+  loadAdminAssets,
+  type AdminAssetCatalog,
+} from '../../../src/bun/admin/assets';
 import { SqliteAdminStore } from '../../../src/bun/admin/store';
 import { loadBunConfiguration } from '../../../src/bun/config';
 import { readMigrations } from '../../../src/bun/migrations';
@@ -46,8 +50,15 @@ type MutableClock = Readonly<{
 
 type AdminHarness = Readonly<{
   clock: MutableClock;
+  logs: Readonly<Record<string, unknown>>[];
   provider: TestOidcProvider;
+  publicOrigin: string;
   surface: AdminSurface;
+}>;
+
+type UnexpectedFailure = Readonly<{
+  kind: 'asset' | 'route';
+  value: unknown;
 }>;
 
 type LoginStart = Readonly<{
@@ -127,11 +138,14 @@ async function createHarness(
   contract: ProviderContract,
   mode: 'missing-group' | 'no-profile' | 'success' | 'wrong-group' = 'success',
   suppliedProvider?: TestOidcProvider,
+  unexpectedFailure?: UnexpectedFailure,
+  publicOrigin = PUBLIC_ORIGIN,
 ): Promise<AdminHarness> {
   const provider =
     suppliedProvider ??
     (await startTestOidcProvider({
       clientSecretMethod: contract.clientSecretMethod,
+      gatewayOrigin: publicOrigin,
       mode,
       profile: contract.profile,
     }));
@@ -159,7 +173,7 @@ async function createHarness(
     TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES: contract.scopes,
     TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD:
       contract.clientSecretMethod,
-    TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN: PUBLIC_ORIGIN,
+    TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN: publicOrigin,
     TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET: SESSION_SECRET,
     TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: 'example.android',
     TRINITY_PUSH_GATEWAY_DATABASE_PATH: path.join(directory, 'gateway.sqlite'),
@@ -181,13 +195,31 @@ async function createHarness(
     ADMIN_MIGRATIONS,
   );
   const clock = mutableClock();
+  const loadedAssets = loadAdminAssets(assetsPath, {
+    nonce: () => 'AAAAAAAAAAAAAAAAAAAAAA',
+  });
+  const assets: AdminAssetCatalog =
+    unexpectedFailure?.kind === 'asset'
+      ? {
+          responseFor(): Response | undefined {
+            throw unexpectedFailure.value;
+          },
+        }
+      : loadedAssets;
+  const logs: Readonly<Record<string, unknown>>[] = [];
   const surface = createAdminSurface({
-    assets: loadAdminAssets(assetsPath, {
-      nonce: () => 'AAAAAAAAAAAAAAAAAAAAAA',
-    }),
+    assets,
     configuration: administration.configuration,
     gatewayConfiguration,
-    gatewayReady: () => true,
+    gatewayReady: (): boolean => {
+      if (unexpectedFailure?.kind === 'route') {
+        throw unexpectedFailure.value;
+      }
+      return true;
+    },
+    log: (event: Readonly<Record<string, unknown>>): void => {
+      logs.push(event);
+    },
     now: clock.now,
     operations: {
       async backup() {
@@ -222,13 +254,18 @@ async function createHarness(
     store,
   });
   surfaces.push(surface);
-  return { clock, provider, surface };
+  return { clock, logs, provider, publicOrigin, surface };
 }
 
-async function beginLogin(harness: AdminHarness): Promise<LoginStart> {
-  const response = await harness.surface.fetch(
-    new Request(`${PUBLIC_ORIGIN}/admin/auth/login`),
-  );
+async function beginLogin(
+  harness: AdminHarness,
+  returnPath?: string,
+): Promise<LoginStart> {
+  const loginUrl = new URL('/admin/auth/login', harness.publicOrigin);
+  if (returnPath !== undefined) {
+    loginUrl.searchParams.set('returnPath', returnPath);
+  }
+  const response = await harness.surface.fetch(new Request(loginUrl));
   const location = response.headers.get('location');
   const oidcCookie = cookieValue(response, OIDC_COOKIE);
   expect(response.status).toBe(303);
@@ -370,6 +407,45 @@ describe('production administration HTTP surface', () => {
     },
   );
 
+  it('establishes a session through an external HTTPS and internal HTTP proxy topology', async () => {
+    const harness = await createHarness(
+      {
+        clientSecretMethod: 'client_secret_basic',
+        profile: 'pocket-id',
+        scopes: 'openid profile email groups',
+      },
+      'success',
+      undefined,
+      undefined,
+      'https://gateway.example',
+    );
+    const start = await beginLogin(harness);
+    expect(start.authorizationUrl.searchParams.get('redirect_uri')).toBe(
+      'https://gateway.example/admin/auth/callback',
+    );
+    const internalCallback = new URL(
+      '/admin/auth/callback',
+      'http://127.0.0.1:3000',
+    );
+    internalCallback.search = start.callbackUrl.search;
+
+    const response = await harness.surface.fetch(
+      new Request(internalCallback, {
+        headers: {
+          cookie: cookies([OIDC_COOKIE, start.oidcCookie]),
+          forwarded: 'host=attacker.example;proto=https',
+          'x-forwarded-host': 'attacker.example',
+          'x-forwarded-proto': 'https',
+        },
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/admin/overview');
+    expect(cookieValue(response, SESSION_COOKIE)).toBeDefined();
+    expect(cookieValue(response, XSRF_COOKIE)).toBeDefined();
+  });
+
   it('binds a one-use login attempt to the exact browser cookie', async () => {
     const harness = await createHarness({
       clientSecretMethod: 'client_secret_basic',
@@ -400,6 +476,29 @@ describe('production administration HTTP surface', () => {
       '/admin/sign-in?reason=unauthenticated',
     );
     expect(cookieValue(replay, SESSION_COOKIE)).toBeUndefined();
+  });
+
+  it('returns an authenticated browser to a validated administration deep link', async () => {
+    const harness = await createHarness({
+      clientSecretMethod: 'client_secret_basic',
+      profile: 'pocket-id',
+      scopes: 'openid profile email groups',
+    });
+
+    const deepLink = await completeLogin(
+      harness,
+      await beginLogin(harness, '/admin/metrics'),
+    );
+    expect(deepLink.status).toBe(303);
+    expect(deepLink.headers.get('location')).toBe('/admin/metrics');
+    expect(cookieValue(deepLink, SESSION_COOKIE)).toBeDefined();
+
+    const external = await completeLogin(
+      harness,
+      await beginLogin(harness, 'https://attacker.example/admin/metrics'),
+    );
+    expect(external.status).toBe(303);
+    expect(external.headers.get('location')).toBe('/admin/overview');
   });
 
   it.each([
@@ -451,6 +550,10 @@ describe('production administration HTTP surface', () => {
     );
     expect(cookieValue(response, SESSION_COOKIE)).toBeUndefined();
     expect(cookieValue(response, XSRF_COOKIE)).toBeUndefined();
+    expect(harness.logs).not.toContainEqual({
+      event: 'admin_request_failed',
+      outcome: 'unavailable',
+    });
   });
 
   it('requires the exact Origin and XSRF token and revokes locally before provider logout', async () => {
@@ -745,6 +848,28 @@ describe('production administration HTTP surface', () => {
       authenticatedRequest('/admin/api/v1/metrics?label=secret', session),
     );
     expect(invalidMetrics.status).toBe(400);
+    expect(await invalidMetrics.json()).toEqual(
+      adminProblem('invalid_request'),
+    );
+    const invalidActionRequests = [
+      authenticatedRequest('/admin/api/v1/backups?unexpected=true', session),
+      mutationRequest('/admin/api/v1/backups?unexpected=true', session, {
+        method: 'POST',
+      }),
+      mutationRequest('/admin/api/v1/operations/cleanup', session, {
+        body: '{}',
+        method: 'POST',
+      }),
+      mutationRequest('/admin/api/v1/operations/firebase-validation', session, {
+        body: '{}',
+        method: 'POST',
+      }),
+    ];
+    for (const request of invalidActionRequests) {
+      const response = await harness.surface.fetch(request);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual(adminProblem('invalid_request'));
+    }
     const projections = JSON.stringify({
       overview: overviewBody,
       session: currentSessionBody,
@@ -820,6 +945,8 @@ describe('production administration HTTP surface', () => {
       ['GET', '/admin/api/v1/session/', 404],
       ['HEAD', '/admin/api/v1/session', 404],
       ['OPTIONS', '/admin/api/v1/session', 404],
+      ['GET', '/admin/auth/callback-suffix', 404],
+      ['GET', '/admin/auth/callback/', 404],
       ['GET', '/admin/auth/unknown', 404],
       ['POST', '/admin/auth/login', 404],
       ['HEAD', '/admin/auth/login', 404],
@@ -832,4 +959,87 @@ describe('production administration HTTP surface', () => {
       expectNoCors(response);
     }
   });
+
+  it.each([
+    [
+      'route',
+      'Error',
+      new Error(
+        'authorization=Bearer route-secret cookie=route-cookie stack-sentinel',
+      ),
+    ],
+    [
+      'route',
+      'non-Error',
+      {
+        authorization: 'Bearer route-secret',
+        cookie: 'route-cookie',
+        query: 'route-query-secret',
+      },
+    ],
+    [
+      'asset',
+      'Error',
+      new Error(
+        'authorization=Bearer asset-secret cookie=asset-cookie stack-sentinel',
+      ),
+    ],
+    [
+      'asset',
+      'non-Error',
+      {
+        authorization: 'Bearer asset-secret',
+        cookie: 'asset-cookie',
+        query: 'asset-query-secret',
+      },
+    ],
+  ] satisfies readonly [UnexpectedFailure['kind'], string, unknown][])(
+    'reports one privacy-safe event when an unexpected %s failure throws an %s value',
+    async (kind, _valueType, value) => {
+      const harness = await createHarness(
+        {
+          clientSecretMethod: 'client_secret_basic',
+          profile: 'pocket-id',
+          scopes: 'openid profile email groups',
+        },
+        'success',
+        undefined,
+        { kind, value },
+      );
+
+      const expectedResponse = await harness.surface.fetch(
+        new Request(`${PUBLIC_ORIGIN}/admin/api/v1/session`),
+      );
+      expect(expectedResponse.status).toBe(401);
+      expect(harness.logs).toEqual([]);
+
+      const request =
+        kind === 'route'
+          ? authenticatedRequest('/admin/api/v1/overview', await login(harness))
+          : new Request(
+              `${PUBLIC_ORIGIN}/admin/missing.js?token=request-query-secret`,
+              {
+                headers: {
+                  authorization: 'Bearer request-secret',
+                  cookie: 'request-cookie',
+                },
+              },
+            );
+      const response = await harness.surface.fetch(request);
+      const body = await response.text();
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get('content-type')).toBe(
+        'application/problem+json; charset=utf-8',
+      );
+      expect(JSON.parse(body)).toEqual(adminProblem('admin_unavailable'));
+      expectNoCors(response);
+      expect(harness.logs).toEqual([
+        { event: 'admin_request_failed', outcome: 'unavailable' },
+      ]);
+      expect(`${body}\n${JSON.stringify(harness.logs)}`).not.toMatch(
+        /authorization|bearer|cookie|query-secret|request-secret|stack-sentinel/iu,
+      );
+    },
+  );
 });

@@ -2,25 +2,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   inject,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { from } from 'rxjs';
 import type {
   OperationSummary,
   Overview,
   RequestOutcomeCounts,
 } from '../../api/generated/admin-api.schemas';
 import { OverviewService } from '../../api/generated/overview/overview.service';
-import { RemoteResource } from '../../api/remote-resource';
 import {
   formatBytes,
   formatCount,
   formatDuration,
   humanizeToken,
 } from '../../core/presentation/format';
-import { pollWhileVisible } from '../../core/polling/visibility-poller';
+import { RemoteQuery } from '../../core/remote-state/remote-query';
 import { TimeService } from '../../core/time/time.service';
 import { RemoteStatus } from '../../ui/remote-status';
 
@@ -43,7 +39,7 @@ const requestTotal = (counts: RequestOutcomeCounts): number =>
         hours. Accepted by FCM does not mean delivered to a Client Installation.
       </p>
       <tpg-remote-status
-        [state]="resource.state()"
+        [state]="remote.state()"
         label="overview"
         (retry)="reload()"
       />
@@ -236,15 +232,11 @@ const requestTotal = (counts: RequestOutcomeCounts): number =>
 })
 export class OverviewPage {
   private readonly overviewApi = inject(OverviewService);
-  private readonly destroyRef = inject(DestroyRef);
   protected readonly time = inject(TimeService);
-  protected readonly resource = new RemoteResource<Overview>();
-  protected readonly overview = computed(() => {
-    const state = this.resource.state();
-    return state.kind === 'fresh' || state.kind === 'stale'
-      ? state.data
-      : undefined;
-  });
+  protected readonly remote = new RemoteQuery<Overview>(() =>
+    this.overviewApi.getOverview(),
+  );
+  protected readonly overview = this.remote.data;
   protected readonly requestsTotal = computed(() => {
     const overview = this.overview();
     return overview ? requestTotal(overview.requestsLast24Hours) : 0;
@@ -260,14 +252,8 @@ export class OverviewPage {
   protected readonly formatCount = formatCount;
   protected readonly formatDuration = formatDuration;
 
-  constructor() {
-    pollWhileVisible(() => from(this.reload()))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
-  }
-
   protected reload(): Promise<unknown> {
-    return this.resource.load(() => this.overviewApi.getOverview());
+    return this.remote.refresh();
   }
 
   protected operationText(operation: OperationSummary | undefined): string {

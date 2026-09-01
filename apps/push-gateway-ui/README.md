@@ -22,23 +22,50 @@ pnpm nx run push-gateway-ui:check
 
 The production build emits hashed browser assets under
 `dist/apps/push-gateway-ui/browser`. `check` runs inferred ESLint, strict
-TypeScript checks, Angular-native Vitest coverage, generated-client drift,
-source policy, and raw/compressed browser bundle policy.
+TypeScript checks, Angular-native Vitest coverage, canonical browser-policy and
+generated-client drift, source policy, and raw/compressed browser bundle
+policy.
 
 ## Generated operator API client
 
-The canonical API contract is
-`apps/push-gateway/openapi/admin-v1.yaml`. Regenerate its Angular HttpClient
-client with:
+The published API contract is `apps/push-gateway/openapi/admin-v1.yaml`.
+Runtime-neutral administration schemas migrate into
+`apps/push-gateway/src/admin-contract` one capability at a time. The Operator
+Session, Operator Session list, safe configuration, Overview, Metrics, Operator
+Audit Entry, verified backup, and Operator Action result schemas own Bun
+response validation and generate their marked OpenAPI components. The canonical
+Metrics and audit queries own their vocabularies, defaults, and bounded UTC
+range policies; generation publishes the matching OpenAPI parameters plus
+`src/app/api/admin-contract.generated.ts`, and the browser uses those policies
+for ranges, page size, interval options, filters, copy, and exact safe Problem
+tuples. The Operator Action contract also owns finite safe reason codes and the
+fixed problem-code, status, and title catalog. Shared valid and invalid fixtures
+exercise both the canonical runtime validators and their generated OpenAPI
+projections; no Bun or browser response schema remains beside the canonical
+module.
+
+Regenerate the canonical administration component before regenerating its
+Angular HttpClient client:
 
 ```sh
+pnpm nx run push-gateway:generate-admin-contract
 pnpm nx run push-gateway-ui:generate-api
+pnpm nx run push-gateway:check-admin-contract
 pnpm nx run push-gateway-ui:check-api
 ```
 
-Generated files under `src/app/api/generated` are committed, deterministic,
-and never edited by hand. The drift check regenerates twice in temporary Nx
-workspace data, validates the owned output set, and compares content hashes.
+Generated files under `src/app/api/generated` and the browser policy beside it
+are committed, deterministic, and never edited by hand. The contract drift
+check verifies repeated canonical projections and the committed policy; the
+client drift check regenerates Orval twice in temporary Nx workspace data,
+validates the owned output set, and compares content hashes.
+
+The read-only Configuration route consumes the catalog-backed safe projection
+through the same canonical response contract that generates its client type.
+It presents only non-secret effective values, configured presence, and direct
+or file source; secret values, raw environment names, and credential file paths
+never enter the browser contract. Disabled administration returns before either
+administration secret source is read.
 
 ## Browser boundary
 

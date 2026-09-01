@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
+import type { OperationSummaryReason } from '../../admin-contract/overview-metrics';
 import type { FirebaseValidator } from '../../fcm';
 import type { AdminConfiguration } from './config';
 import type {
@@ -21,7 +22,7 @@ export type KnownOperationResult = Readonly<{
   completedAt: number;
   cooldownEndsAt: number;
   outcome: 'failed' | 'succeeded';
-  reason?: string;
+  reason?: OperationSummaryReason;
   startedAt: number;
 }>;
 
@@ -48,7 +49,7 @@ export type OperationBackend = Readonly<{
   validateFirebase(deadlineMs: number): Promise<
     Readonly<{
       kind: 'failed' | 'succeeded';
-      reason?: string;
+      reason?: OperationSummaryReason;
     }>
   >;
 }>;
@@ -141,6 +142,11 @@ function ensureBackupDirectory(directory: string): void {
 
 const GENERATED_BACKUP_NAME =
   /^trinity-gateway-\d{8}T\d{6}Z-[a-f0-9]{12}\.sqlite$/u;
+
+const failedOperationReason = (
+  kind: Exclude<AdminOperationKind, 'backup'>,
+): OperationSummaryReason =>
+  kind === 'cleanup' ? 'cleanup_failed' : 'firebase_validation_failed';
 
 function regularFileSize(filePath: string): number {
   if (!existsSync(filePath)) return 0;
@@ -312,10 +318,12 @@ export class AdminOperations {
   private async run(
     kind: Exclude<AdminOperationKind, 'backup'>,
     actor: AdminOperatorIdentity,
-    execute: (
-      deadlineMs: number,
-    ) => Promise<
-      boolean | Readonly<{ kind: 'failed' | 'succeeded'; reason?: string }>
+    execute: (deadlineMs: number) => Promise<
+      | boolean
+      | Readonly<{
+          kind: 'failed' | 'succeeded';
+          reason?: OperationSummaryReason;
+        }>
     >,
   ): Promise<OperationResponse> {
     const policy = this.policy(kind);
@@ -338,7 +346,7 @@ export class AdminOperations {
         typeof executed === 'boolean'
           ? succeeded
             ? undefined
-            : `${kind}_failed`
+            : failedOperationReason(kind)
           : executed.reason;
       return this.finish(
         kind,
@@ -359,7 +367,7 @@ export class AdminOperations {
             startedAt,
             policy.cooldown,
             'failed',
-            `${kind}_failed`,
+            failedOperationReason(kind),
           );
     }
   }
@@ -371,7 +379,7 @@ export class AdminOperations {
     startedAt: number,
     cooldownSeconds: number,
     outcome: 'failed' | 'succeeded',
-    reason?: string,
+    reason?: OperationSummaryReason,
     backup?: AdminVerifiedBackup,
   ): OperationResponse {
     const completedAt = Math.floor(this.now() / 1_000);

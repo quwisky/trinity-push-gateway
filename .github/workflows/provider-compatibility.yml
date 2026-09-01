@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      authentik: ${{ steps.gates.outputs.authentik }}
       deterministic: ${{ steps.gates.outputs.deterministic }}
       image: ${{ steps.gates.outputs.image }}
-      pocket_id: ${{ steps.gates.outputs.pocket_id }}
+      plan: ${{ steps.gates.outputs.plan }}
+      provider_matrix: ${{ steps.gates.outputs.provider_matrix }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,53 +39,12 @@ jobs:
       - name: Select required gates
         id: gates
         env:
+          BASE_REF: ${{ github.base_ref }}
           EVENT_NAME: ${{ github.event_name }}
           MANUAL_PROVIDER: ${{ inputs.provider }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          deterministic=false
-          pocket_id=false
-          authentik=false
-
-          if [[ "$EVENT_NAME" == 'schedule' ]]; then
-            deterministic=true
-            pocket_id=true
-            authentik=true
-          elif [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
-            deterministic=true
-            [[ "$MANUAL_PROVIDER" == 'all' || "$MANUAL_PROVIDER" == 'pocket-id' ]] && pocket_id=true
-            [[ "$MANUAL_PROVIDER" == 'all' || "$MANUAL_PROVIDER" == 'authentik' ]] && authentik=true
-          else
-            changed="$RUNNER_TEMP/provider-changed-paths.txt"
-            git diff --name-only "$PR_BASE_SHA...$PR_HEAD_SHA" > "$changed"
-            if grep --extended-regexp --quiet \
-              '^(apps/push-gateway/|package\.json$|pnpm-lock\.yaml$|\.github/workflows/provider-compatibility\.yml$)' \
-              "$changed"; then
-              deterministic=true
-            fi
-            if grep --extended-regexp --quiet \
-              '^(apps/push-gateway/(provider-e2e/|src/bun/(admin|auth)/|scripts/test-oidc-provider\.mjs)|package\.json$|pnpm-lock\.yaml$|\.github/workflows/provider-compatibility\.yml$)' \
-              "$changed"; then
-              pocket_id=true
-            fi
-            if [[ "${{ github.base_ref }}" == 'master' ]] || grep --extended-regexp --quiet \
-              '^(apps/push-gateway/provider-e2e/|\.github/workflows/provider-compatibility\.yml$)' \
-              "$changed"; then
-              authentik=true
-            fi
-          fi
-
-          image=false
-          if [[ "$pocket_id" == true || "$authentik" == true ]]; then
-            image=true
-          fi
-          printf 'deterministic=%s\npocket_id=%s\nauthentik=%s\nimage=%s\n' \
-            "$deterministic" "$pocket_id" "$authentik" "$image" >> "$GITHUB_OUTPUT"
-          printf 'Selected gates: deterministic=%s pocket-id=%s authentik=%s image=%s\n' \
-            "$deterministic" "$pocket_id" "$authentik" "$image"
+        run: node apps/push-gateway/provider-e2e/provider-gate-workflow.mjs select
 
   deterministic:
     name: Deterministic OIDC provider
@@ -141,12 +100,20 @@ jobs:
           path: ${{ runner.temp }}/provider-image.tar.gz
           retention-days: 1
 
-  pocket_id:
-    name: Pocket ID ${{ github.sha }}
-    if: needs.classify.outputs.pocket_id == 'true'
+  providers:
+    name: ${{ matrix.displayName }} ${{ github.sha }}
+    if: needs.classify.outputs.image == 'true'
     needs: [classify, image]
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: ${{ matrix.timeoutMinutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.classify.outputs.provider_matrix) }}
+    env:
+      PROVIDER_GATE_IMAGE: trinity-push-gateway:provider-gate
+      PROVIDER_GATE_PROVIDER: ${{ matrix.id }}
+      PROVIDER_GATE_RUN_ID: ${{ github.run_id }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -168,208 +135,41 @@ jobs:
           path: ${{ runner.temp }}/provider-image
       - name: Load assembled image
         run: gzip --decompress --stdout "$RUNNER_TEMP/provider-image/provider-image.tar.gz" | docker load
-      - name: Prepare disposable credentials
-        run: node apps/push-gateway/provider-e2e/prepare-provider.mjs pocket-id "$RUNNER_TEMP/pocket-id-gate"
-      - name: Start and provision Pocket ID
-        run: |
-          set -Eeuo pipefail
-          docker compose \
-            --project-name "gateway-pocket-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/pocket-id-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.pocket-id.yml \
-            up --detach --wait
-          node apps/push-gateway/provider-e2e/wait-provider.mjs http://127.0.0.1:1411
-          set -a
-          source "$RUNNER_TEMP/pocket-id-gate/provider.env"
-          set +a
-          node apps/push-gateway/provider-e2e/provision-pocket-id.mjs "$RUNNER_TEMP/pocket-id-gate"
-      - name: Start assembled gateway
-        run: |
-          set -Eeuo pipefail
-          docker volume create "gateway-pocket-data-${GITHUB_RUN_ID}" >/dev/null
-          docker run --detach \
-            --name "gateway-pocket-${GITHUB_RUN_ID}" \
-            --network host \
-            --cap-drop ALL \
-            --init \
-            --read-only \
-            --security-opt no-new-privileges \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000 \
-            --mount "type=volume,source=gateway-pocket-data-${GITHUB_RUN_ID},destination=/data" \
-            --env-file "$RUNNER_TEMP/pocket-id-gate/gateway.env" \
-            trinity-push-gateway:provider-gate >/dev/null
-          for attempt in $(seq 1 90); do
-            if [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/admin/)" == 200 ]]; then
-              exit 0
-            fi
-            sleep 1
-          done
-          exit 1
-      - name: Exercise Pocket ID browser contracts
+      - name: Run the provider lifecycle
         env:
-          PROVIDER_SCREENSHOT_PATH: ${{ runner.temp }}/pocket-id-gate/overview.png
-        run: node apps/push-gateway/provider-e2e/browser-provider-gate.mjs "$RUNNER_TEMP/pocket-id-gate/browser-state.json"
-      - name: Prove provider failure isolation
-        run: |
-          set -Eeuo pipefail
-          docker compose \
-            --project-name "gateway-pocket-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/pocket-id-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.pocket-id.yml \
-            stop pocket-id
-          curl --fail --silent http://127.0.0.1:3000/health >/dev/null
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            --header 'content-type: application/json' \
-            --data '{"notification":{"devices":[]}}' \
-            http://127.0.0.1:3000/_matrix/push/v1/notify)" = 200
-      - name: Upload visual proof
+          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/provider-evidence
+          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/provider-credentials
+        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate --skipNxCache
+      - name: Upload provider evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: pocket-id-visual-proof-${{ github.run_id }}
-          path: ${{ runner.temp }}/pocket-id-gate/overview.png
+          if-no-files-found: error
+          name: ${{ matrix.id }}-provider-gate-${{ github.run_id }}
+          path: ${{ runner.temp }}/provider-evidence
           retention-days: 14
-      - name: Clean Pocket ID gate
+      - name: Clean provider gate
         if: always()
-        run: |
-          docker rm --force "gateway-pocket-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
-          docker volume rm "gateway-pocket-data-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
-          docker compose \
-            --project-name "gateway-pocket-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/pocket-id-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.pocket-id.yml \
-            down --volumes --remove-orphans >/dev/null 2>&1 || true
-          rm -rf -- "$RUNNER_TEMP/pocket-id-gate"
-
-  authentik:
-    name: Authentik ${{ github.sha }}
-    if: needs.classify.outputs.authentik == 'true'
-    needs: [classify, image]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - name: Install Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          cache: pnpm
-          node-version-file: .nvmrc
-      - name: Install browser gate dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
-      - name: Download assembled image
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: provider-image-${{ github.run_id }}
-          path: ${{ runner.temp }}/provider-image
-      - name: Load assembled image
-        run: gzip --decompress --stdout "$RUNNER_TEMP/provider-image/provider-image.tar.gz" | docker load
-      - name: Prepare disposable credentials
-        run: node apps/push-gateway/provider-e2e/prepare-provider.mjs authentik "$RUNNER_TEMP/authentik-gate"
-      - name: Start Authentik and wait for OIDC readiness
-        run: |
-          set -Eeuo pipefail
-          docker compose \
-            --project-name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/authentik-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.authentik.yml \
-            up --detach --wait
-          for attempt in $(seq 1 180); do
-            if curl --fail --silent http://127.0.0.1:9000/-/health/ready/ >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-          curl --fail --silent http://127.0.0.1:9000/-/health/ready/ >/dev/null
-          node apps/push-gateway/provider-e2e/wait-provider.mjs \
-            http://127.0.0.1:9000/application/o/trinity-push-gateway/
-      - name: Start assembled gateway
-        run: |
-          set -Eeuo pipefail
-          docker volume create "gateway-authentik-data-${GITHUB_RUN_ID}" >/dev/null
-          docker run --detach \
-            --name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --network host \
-            --cap-drop ALL \
-            --init \
-            --read-only \
-            --security-opt no-new-privileges \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000 \
-            --mount "type=volume,source=gateway-authentik-data-${GITHUB_RUN_ID},destination=/data" \
-            --env-file "$RUNNER_TEMP/authentik-gate/gateway.env" \
-            trinity-push-gateway:provider-gate >/dev/null
-          for attempt in $(seq 1 90); do
-            if [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/admin/)" == 200 ]]; then
-              exit 0
-            fi
-            sleep 1
-          done
-          exit 1
-      - name: Exercise Authentik browser contracts
         env:
-          PROVIDER_SCREENSHOT_PATH: ${{ runner.temp }}/authentik-gate/overview.png
-        run: node apps/push-gateway/provider-e2e/browser-provider-gate.mjs "$RUNNER_TEMP/authentik-gate/browser-state.json"
-      - name: Prove provider failure isolation
-        run: |
-          set -Eeuo pipefail
-          docker compose \
-            --project-name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/authentik-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.authentik.yml \
-            stop server worker
-          curl --fail --silent http://127.0.0.1:3000/health >/dev/null
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            --header 'content-type: application/json' \
-            --data '{"notification":{"devices":[]}}' \
-            http://127.0.0.1:3000/_matrix/push/v1/notify)" = 200
-      - name: Upload visual proof
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: authentik-visual-proof-${{ github.run_id }}
-          path: ${{ runner.temp }}/authentik-gate/overview.png
-          retention-days: 14
-      - name: Clean Authentik gate
-        if: always()
-        run: |
-          docker rm --force "gateway-authentik-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
-          docker volume rm "gateway-authentik-data-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
-          docker compose \
-            --project-name "gateway-authentik-${GITHUB_RUN_ID}" \
-            --env-file "$RUNNER_TEMP/authentik-gate/provider.env" \
-            --file apps/push-gateway/provider-e2e/compose.authentik.yml \
-            down --volumes --remove-orphans >/dev/null 2>&1 || true
-          rm -rf -- "$RUNNER_TEMP/authentik-gate"
+          PROVIDER_GATE_EVIDENCE_DIRECTORY: ${{ runner.temp }}/provider-evidence
+          PROVIDER_GATE_OPERATION: cleanup
+          PROVIDER_GATE_WORK_DIRECTORY: ${{ runner.temp }}/provider-credentials
+        run: NX_DAEMON=false pnpm nx run push-gateway:provider-gate --skipNxCache
 
   release-gates:
     name: release-gates
     if: always()
-    needs: [classify, deterministic, image, pocket_id, authentik]
+    needs: [classify, deterministic, image, providers]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Require every selected provider gate
         env:
-          AUTHENTIK_REQUIRED: ${{ needs.classify.outputs.authentik }}
-          AUTHENTIK_RESULT: ${{ needs.authentik.result }}
           CLASSIFY_RESULT: ${{ needs.classify.result }}
-          DETERMINISTIC_REQUIRED: ${{ needs.classify.outputs.deterministic }}
           DETERMINISTIC_RESULT: ${{ needs.deterministic.result }}
-          IMAGE_REQUIRED: ${{ needs.classify.outputs.image }}
           IMAGE_RESULT: ${{ needs.image.result }}
-          POCKET_ID_REQUIRED: ${{ needs.classify.outputs.pocket_id }}
-          POCKET_ID_RESULT: ${{ needs.pocket_id.result }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$CLASSIFY_RESULT" == 'success' ]]
-          for gate in DETERMINISTIC IMAGE POCKET_ID AUTHENTIK; do
-            required_name="${gate}_REQUIRED"
-            result_name="${gate}_RESULT"
-            if [[ "${!required_name}" == 'true' && "${!result_name}" != 'success' ]]; then
-              printf '%s gate was selected but finished as %s.\n' "$gate" "${!result_name}" >&2
-              exit 1
-            fi
-          done
-          printf '%s\n' 'Every selected provider and assembled-image gate passed.'
+          PROVIDERS_RESULT: ${{ needs.providers.result }}
+          PROVIDER_PLAN: ${{ needs.classify.outputs.plan }}
+        run: node apps/push-gateway/provider-e2e/provider-gate-workflow.mjs require

@@ -1,25 +1,16 @@
+import { METRICS_QUERY_POLICY } from '../../api/admin-contract.generated';
 import type { GetMetricsParams } from '../../api/generated/admin-api.schemas';
 
 export const includesCurrentUtcBucket = (
   parameters: GetMetricsParams,
   now = Date.now(),
 ): boolean => {
-  const current = new Date(now);
+  const interval = parameters.interval ?? METRICS_QUERY_POLICY.defaultInterval;
+  const intervalMilliseconds =
+    METRICS_QUERY_POLICY.intervalSeconds[interval] * 1_000;
   const bucketStart =
-    parameters.interval === 'day'
-      ? Date.UTC(
-          current.getUTCFullYear(),
-          current.getUTCMonth(),
-          current.getUTCDate(),
-        )
-      : Date.UTC(
-          current.getUTCFullYear(),
-          current.getUTCMonth(),
-          current.getUTCDate(),
-          current.getUTCHours(),
-        );
-  const bucketEnd =
-    bucketStart + (parameters.interval === 'day' ? 86_400_000 : 3_600_000);
+    Math.floor(now / intervalMilliseconds) * intervalMilliseconds;
+  const bucketEnd = bucketStart + intervalMilliseconds;
   const from = parameters.from
     ? new Date(parameters.from).getTime()
     : Number.NEGATIVE_INFINITY;

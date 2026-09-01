@@ -9,6 +9,10 @@ import {
   ADMIN_SPA_ROUTES,
   loadAdminAssets,
 } from '../../push-gateway/src/bun/admin/assets';
+import {
+  ADMIN_PROBLEM_CATALOG,
+  AUDIT_QUERY_POLICY,
+} from '../src/app/api/admin-contract.generated';
 import type {
   Backup,
   OperatorSession,
@@ -188,6 +192,7 @@ const CONFIGURATION = Object.freeze({
     cleanupIntervalSeconds: 3600,
   },
   administration: {
+    enabled: true,
     publicOrigin: 'https://gateway.example.test',
     oidcIssuer: 'https://identity.example.test',
     oidcClientId: 'trinity-push-gateway',
@@ -330,11 +335,12 @@ test.beforeAll(async () => {
           failOverviewRequests -= 1;
           served = new Response(
             JSON.stringify({
-              title: 'Overview temporarily unavailable.',
-              status: 503,
+              code: 'admin_unavailable',
+              detail: 'Overview temporarily unavailable.',
+              ...ADMIN_PROBLEM_CATALOG.admin_unavailable,
             }),
             {
-              status: 503,
+              status: ADMIN_PROBLEM_CATALOG.admin_unavailable.status,
               headers: { 'content-type': 'application/problem+json' },
             },
           );
@@ -405,12 +411,12 @@ test.beforeAll(async () => {
           failedOperationRequests -= 1;
           served = new Response(
             JSON.stringify({
-              title: 'Operator Action unavailable.',
+              code: 'cooldown_active',
               detail: 'Cooldown active; retry after the displayed boundary.',
-              status: 409,
+              ...ADMIN_PROBLEM_CATALOG.cooldown_active,
             }),
             {
-              status: 409,
+              status: ADMIN_PROBLEM_CATALOG.cooldown_active.status,
               headers: { 'content-type': 'application/problem+json' },
             },
           );
@@ -565,6 +571,9 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
         await expect(
           page.getByRole('heading', { level: 1, name: route.heading }),
         ).toBeVisible();
+        if (route.heading === 'Overview' || route.heading === 'Metrics') {
+          await expect(page.getByText(/Last updated/u)).toBeVisible();
+        }
         await page.waitForLoadState('networkidle');
 
         const csp = navigation?.headers()['content-security-policy'];
@@ -597,6 +606,9 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
           documentSecurity.scriptNonces.every((nonce) => nonce === cspNonce),
         ).toBe(true);
         expect(documentSecurity.violations).toEqual([]);
+        // Axe opens a helper tab to aggregate its results, intentionally
+        // perturbing the application's visibility-driven polling lifecycle.
+        expect(requestFailures).toEqual([]);
 
         const accessibility = await new AxeBuilder({ page }).analyze();
         expect(
@@ -605,7 +617,6 @@ test('loads every route with a fresh nonce, strict CSP, and no axe violations', 
         ).toEqual([]);
         expect(consoleErrors).toEqual([]);
         expect(pageErrors).toEqual([]);
-        expect(requestFailures).toEqual([]);
         documentNonces.add(cspNonce ?? 'missing');
       } finally {
         await context.close();
@@ -731,6 +742,8 @@ test('renders and operates all five feature routes', async ({
   await failedOperationDialog.getByRole('button', { name: 'Cancel' }).click();
 
   await page.getByRole('link', { name: 'Configuration' }).click();
+  await expect(page.getByText('Administration enabled')).toBeVisible();
+  await expect(page.getByText('true', { exact: true })).toBeVisible();
   await expect(page.getByText('ovh.qwky.trinity.android')).toBeVisible();
   await expect(page.getByText('Firebase client identity')).toBeVisible();
   await expect(page.getByText('/private/gateway.sqlite')).toBeVisible();
@@ -745,6 +758,11 @@ test('renders and operates all five feature routes', async ({
   });
 
   await page.getByRole('link', { name: 'Security' }).click();
+  await expect(
+    page.getByText(
+      `Maximum ${String(AUDIT_QUERY_POLICY.maximumRangeDays)} days`,
+    ),
+  ).toBeVisible();
   await expect(page.getByText('Other Operator Session')).toBeVisible();
   await page.getByRole('combobox', { name: 'Kind' }).selectOption('cleanup');
   await page

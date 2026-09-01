@@ -4,7 +4,7 @@
  */
 /**
  * RFC 3339 timestamp normalized to UTC and ending in `Z`.
- * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+ * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
  */
 export type UtcTimestamp = string;
 
@@ -15,23 +15,11 @@ export type UtcTimestamp = string;
 export type OpaqueId = string;
 
 /**
- * Non-negative JSON safe integer.
- * @minimum 0
- * @maximum 9007199254740991
+ * Privacy-safe Operator Identity attributes accepted for display by the Push Gateway UI.
  */
-export type SafeCount = number;
-
-/**
- * Positive JSON safe integer.
- * @minimum 1
- * @maximum 9007199254740991
- */
-export type PositiveSafeInteger = number;
-
 export interface OperatorIdentity {
   /**
    * Exact identity-provider issuer for this Operator Identity.
-   * @minLength 1
    * @maxLength 2048
    */
   issuer: string;
@@ -51,10 +39,14 @@ export interface OperatorIdentity {
    * Optional display email copied from the current accepted identity claims.
    * @minLength 3
    * @maxLength 320
+   * @pattern ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
    */
   email?: string;
 }
 
+/**
+ * The authenticated Operator Identity and bounded current Operator Session.
+ */
 export interface OperatorSession {
   id: OpaqueId;
   operator: OperatorIdentity;
@@ -75,8 +67,14 @@ export interface OperatorSessionList {
 }
 
 /**
- * Mutually exclusive Notification Request outcomes. Counts contain no
- * request, Matrix, Push Key, Account Route, or Client Installation labels.
+ * Non-negative JSON safe integer.
+ * @minimum 0
+ * @maximum 9007199254740991
+ */
+export type SafeCount = number;
+
+/**
+ * Mutually exclusive Notification Request outcomes. Counts contain no request, Matrix, Push Key, Account Route, or Client Installation labels.
  */
 export interface RequestOutcomeCounts {
   processed: SafeCount;
@@ -87,9 +85,7 @@ export interface RequestOutcomeCounts {
 }
 
 /**
- * Outcomes for actual FCM network calls only. `attempted` equals the sum
- * of the three mutually exclusive outcomes. `accepted` means accepted by
- * FCM, not delivered to a Client Installation.
+ * Outcomes for actual FCM network calls only. `attempted` equals the bounded sum of the three mutually exclusive outcomes. `accepted` means accepted by FCM, not delivered to a Client Installation.
  */
 export interface FcmOutcomeCounts {
   attempted: SafeCount;
@@ -112,40 +108,30 @@ export const OperationSummaryOutcome = {
   outcome_unknown: 'outcome_unknown',
 } as const;
 
+/**
+ * Finite privacy-safe reason for an administration operation summary or known Operator Action result.
+ */
+export type OperationSummaryReason =
+  (typeof OperationSummaryReason)[keyof typeof OperationSummaryReason];
+
+export const OperationSummaryReason = {
+  access_denied: 'access_denied',
+  audit_finalization_failed: 'audit_finalization_failed',
+  backup_failed: 'backup_failed',
+  backup_limit_exceeded: 'backup_limit_exceeded',
+  cleanup_failed: 'cleanup_failed',
+  firebase_validation_failed: 'firebase_validation_failed',
+  operation_timeout: 'operation_timeout',
+  request_rejected: 'request_rejected',
+  unavailable: 'unavailable',
+} as const;
+
 export interface OperationSummary {
   startedAt: UtcTimestamp;
   completedAt: UtcTimestamp;
   outcome: OperationSummaryOutcome;
   cooldownEndsAt: UtcTimestamp;
-  /**
-   * Optional coarse safe reason code; never a raw external or process error.
-   * @pattern ^[a-z][a-z0-9_]{0,63}$
-   */
-  reason?: string;
-}
-
-/**
- * Known result of the synchronous action.
- */
-export type OperationResultOutcome =
-  (typeof OperationResultOutcome)[keyof typeof OperationResultOutcome];
-
-export const OperationResultOutcome = {
-  succeeded: 'succeeded',
-  failed: 'failed',
-} as const;
-
-export interface OperationResult {
-  startedAt: UtcTimestamp;
-  completedAt: UtcTimestamp;
-  /** Known result of the synchronous action. */
-  outcome: OperationResultOutcome;
-  cooldownEndsAt: UtcTimestamp;
-  /**
-   * Optional coarse safe reason code; never a raw external or process error.
-   * @pattern ^[a-z][a-z0-9_]{0,63}$
-   */
-  reason?: string;
+  reason?: OperationSummaryReason;
 }
 
 /**
@@ -165,16 +151,9 @@ export interface Overview {
    */
   version: string;
   uptimeSeconds: SafeCount;
-  /**
-   * Delivery readiness last observed by the independent runtime during
-   * public health or delivery storage work. The overview does not probe
-   * gateway.sqlite.
-   */
+  /** Delivery readiness last observed by the independent runtime during public health or delivery storage work. The overview does not probe gateway.sqlite. */
   gatewayReady: boolean;
-  /**
-   * Whether the current authenticated request reached the isolated
-   * administration subsystem successfully.
-   */
+  /** Whether the current authenticated request reached the isolated administration subsystem successfully. */
   administrationReady: boolean;
   requestsLast24Hours: RequestOutcomeCounts;
   fcmAttemptsLast24Hours: FcmPlatformTotals;
@@ -220,16 +199,13 @@ export interface FcmLatencyHistogram {
 }
 
 /**
- * Approximate latency derived only from fixed histogram buckets. No raw
- * samples, per-request timings, arbitrary labels, or sums are returned.
+ * Approximate latency derived only from fixed histogram buckets. No raw samples, per-request timings, arbitrary labels, or sums are returned.
  */
 export interface FcmLatencyMetrics {
   sampleCount: SafeCount;
   histogram: FcmLatencyHistogram;
   /**
-   * Approximate p95 using the upper bound of the first histogram bucket
-   * reaching 95 percent. `10000` represents the open-ended final bucket;
-   * `null` means there were no samples.
+   * Approximate p95 using the upper bound of the first histogram bucket reaching 95 percent. `10000` represents the open-ended final bucket; `null` means there were no samples.
    * @minimum 0
    * @maximum 10000
    * @nullable
@@ -246,8 +222,7 @@ export interface FcmMetricBucket {
 }
 
 /**
- * Aggregate UTC buckets covering the effective `[from,to)` range. Empty
- * intervals may be omitted; all labels and outcomes are fixed by this schema.
+ * Aggregate UTC buckets covering the effective `[from,to)` range. Empty intervals may be omitted; all labels and outcomes are fixed by this schema.
  */
 export interface Metrics {
   from: UtcTimestamp;
@@ -258,6 +233,13 @@ export interface Metrics {
   /** @maxItems 1440 */
   fcmBuckets: FcmMetricBucket[];
 }
+
+/**
+ * Positive JSON safe integer.
+ * @minimum 1
+ * @maximum 9007199254740991
+ */
+export type PositiveSafeInteger = number;
 
 export type ConfigurationSource =
   (typeof ConfigurationSource)[keyof typeof ConfigurationSource];
@@ -277,8 +259,7 @@ export interface SecretPresence {
 }
 
 /**
- * Effective non-secret gateway values. Listener addresses, migration
- * paths, trusted-proxy networks, and raw environment names are excluded.
+ * Effective non-secret gateway values. Listener addresses, migration paths, trusted-proxy networks, and raw environment names are excluded.
  */
 export interface GatewayConfiguration {
   /**
@@ -301,7 +282,7 @@ export interface GatewayConfiguration {
    * Absolute delivery-critical SQLite location.
    * @minLength 2
    * @maxLength 4096
-   * @pattern ^/
+   * @pattern ^\/
    */
   gatewayDatabasePath: string;
   maxBodyBytes: PositiveSafeInteger;
@@ -330,10 +311,11 @@ export const AdministrationConfigurationOidcTokenEndpointAuthMethod = {
 } as const;
 
 /**
- * Effective non-secret administration policy and storage locations.
- * Credential paths and raw environment names are excluded.
+ * Effective non-secret administration policy and storage locations. Credential paths and raw environment names are excluded.
  */
 export interface AdministrationConfiguration {
+  /** The administration surface is enabled for this response. */
+  enabled: true;
   /**
    * @minLength 8
    * @maxLength 2048
@@ -373,14 +355,14 @@ export interface AdministrationConfiguration {
    * Absolute isolated administration SQLite location.
    * @minLength 2
    * @maxLength 4096
-   * @pattern ^/
+   * @pattern ^\/
    */
   administrationDatabasePath: string;
   /**
    * Absolute directory for generated verified gateway backups.
    * @minLength 2
    * @maxLength 4096
-   * @pattern ^/
+   * @pattern ^\/
    */
   backupDirectory: string;
   /**
@@ -473,6 +455,28 @@ export interface Configuration {
   credentials: CredentialPresence;
 }
 
+/**
+ * Known result of the synchronous Operator Action.
+ */
+export type OperationResultOutcome =
+  (typeof OperationResultOutcome)[keyof typeof OperationResultOutcome];
+
+export const OperationResultOutcome = {
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+/**
+ * Known success or failure result of a bounded synchronous Operator Action.
+ */
+export interface OperationResult {
+  startedAt: UtcTimestamp;
+  completedAt: UtcTimestamp;
+  outcome: OperationResultOutcome;
+  cooldownEndsAt: UtcTimestamp;
+  reason?: OperationSummaryReason;
+}
+
 export type AuditEntryKind =
   (typeof AuditEntryKind)[keyof typeof AuditEntryKind];
 
@@ -499,6 +503,29 @@ export const AuditEntryOutcome = {
   outcome_unknown: 'outcome_unknown',
 } as const;
 
+/**
+ * Finite privacy-safe reason for an Operator Audit Entry; raw claims, identifiers, external errors, and process errors are excluded.
+ */
+export type AuditEntryReason =
+  (typeof AuditEntryReason)[keyof typeof AuditEntryReason];
+
+export const AuditEntryReason = {
+  access_denied: 'access_denied',
+  audit_finalization_failed: 'audit_finalization_failed',
+  backup_failed: 'backup_failed',
+  backup_limit_exceeded: 'backup_limit_exceeded',
+  cleanup_failed: 'cleanup_failed',
+  firebase_validation_failed: 'firebase_validation_failed',
+  operation_timeout: 'operation_timeout',
+  request_rejected: 'request_rejected',
+  unavailable: 'unavailable',
+  absolute_expired: 'absolute_expired',
+  idle_expired: 'idle_expired',
+  no_active_sessions: 'no_active_sessions',
+  policy_changed: 'policy_changed',
+  session_cap: 'session_cap',
+} as const;
+
 export interface OperatorAuditEntry {
   id: OpaqueId;
   occurredAt: UtcTimestamp;
@@ -506,11 +533,7 @@ export interface OperatorAuditEntry {
   operator: OperatorIdentity | null;
   kind: AuditEntryKind;
   outcome: AuditEntryOutcome;
-  /**
-   * Optional coarse safe reason code; never raw claims or external errors.
-   * @pattern ^[a-z][a-z0-9_]{0,63}$
-   */
-  reason?: string;
+  reason?: AuditEntryReason;
 }
 
 export interface OperatorAuditEntryPage {
@@ -524,12 +547,7 @@ export interface OperatorAuditEntryPage {
   nextCursor?: string;
 }
 
-export type BackupIntegrity =
-  (typeof BackupIntegrity)[keyof typeof BackupIntegrity];
-
-export const BackupIntegrity = {
-  verified: 'verified',
-} as const;
+export type BackupIntegrity = 'verified';
 
 export interface Backup {
   id: OpaqueId;
@@ -558,115 +576,281 @@ export interface BackupList {
   backups: Backup[];
 }
 
-export type ProblemCode = (typeof ProblemCode)[keyof typeof ProblemCode];
-
-export const ProblemCode = {
-  unauthenticated: 'unauthenticated',
-  forbidden: 'forbidden',
-  invalid_request: 'invalid_request',
-  csrf_failed: 'csrf_failed',
-  operation_in_progress: 'operation_in_progress',
-  cooldown_active: 'cooldown_active',
-  operation_timeout: 'operation_timeout',
-  outcome_unknown: 'outcome_unknown',
-  backup_limit_exceeded: 'backup_limit_exceeded',
-  admin_unavailable: 'admin_unavailable',
-  not_found: 'not_found',
-} as const;
-
 /**
- * RFC 9457-style problem details with a stable safe code.
+ * RFC 9457-style problem details constrained to the exact stable code, status, title, and type catalog.
  */
-export interface Problem {
-  /**
-   * Stable problem type URI for the code.
-   * @maxLength 2048
-   */
-  type: string;
-  /**
-   * Stable short title without request-specific data.
-   * @minLength 1
-   * @maxLength 128
-   */
-  title: string;
-  /**
-   * HTTP response status repeated in the document.
-   * @minimum 400
-   * @maximum 599
-   */
-  status: number;
-  code: ProblemCode;
-  /**
-   * Generic safe explanation. It never includes secret values, tokens,
-   * identifiers, paths, external response bodies, or raw process errors.
-   * @minLength 1
-   * @maxLength 512
-   */
-  detail?: string;
-  /**
-   * Optional request-local problem URI containing no private identifier.
-   * @maxLength 2048
-   */
-  instance?: string;
-}
+export type Problem =
+  | {
+      type: '/admin/problems/unauthenticated';
+      title: 'Authentication required';
+      status: 401;
+      code: 'unauthenticated';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/forbidden';
+      title: 'Forbidden';
+      status: 403;
+      code: 'forbidden';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/invalid_request';
+      title: 'Invalid request';
+      status: 400;
+      code: 'invalid_request';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/csrf_failed';
+      title: 'Request validation failed';
+      status: 403;
+      code: 'csrf_failed';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/operation_in_progress';
+      title: 'Operation already in progress';
+      status: 409;
+      code: 'operation_in_progress';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/cooldown_active';
+      title: 'Operation cooldown active';
+      status: 429;
+      code: 'cooldown_active';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/operation_timeout';
+      title: 'Operation timed out';
+      status: 504;
+      code: 'operation_timeout';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/outcome_unknown';
+      title: 'Operation outcome unknown';
+      status: 500;
+      code: 'outcome_unknown';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/backup_limit_exceeded';
+      title: 'Backup limit exceeded';
+      status: 507;
+      code: 'backup_limit_exceeded';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/admin_unavailable';
+      title: 'Administration unavailable';
+      status: 503;
+      code: 'admin_unavailable';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    }
+  | {
+      type: '/admin/problems/not_found';
+      title: 'Not found';
+      status: 404;
+      code: 'not_found';
+      /**
+       * Generic safe explanation. It never includes secret values, tokens, identifiers, paths, external response bodies, or raw process errors.
+       * @minLength 1
+       * @maxLength 512
+       */
+      detail?: string;
+      /**
+       * Optional request-local problem URI containing no private identifier.
+       * @maxLength 2048
+       */
+      instance?: string;
+    };
 
-/**
- * Request parameters are invalid (`invalid_request`).
- */
-export type InvalidRequestResponse = Problem;
+export type InvalidRequestResponse = Problem & {
+  type: '/admin/problems/invalid_request';
+  title: 'Invalid request';
+  status: 400;
+  code: 'invalid_request';
+};
 
-/**
- * The Operator Session is absent, invalid, revoked, or expired (`unauthenticated`).
- */
-export type UnauthenticatedResponse = Problem;
+export type UnauthenticatedResponse = Problem & {
+  type: '/admin/problems/unauthenticated';
+  title: 'Authentication required';
+  status: 401;
+  code: 'unauthenticated';
+};
 
-/**
- * The authenticated Operator Identity is not permitted (`forbidden`).
- */
-export type ForbiddenResponse = Problem;
+export type ForbiddenResponse = Problem & {
+  type: '/admin/problems/forbidden';
+  title: 'Forbidden';
+  status: 403;
+  code: 'forbidden';
+};
 
-/**
- * The authenticated Operator Identity is not permitted (`forbidden`), or
- * exact-Origin or XSRF validation failed (`csrf_failed`).
- */
-export type MutationForbiddenResponse = Problem;
+export type MutationForbiddenResponse =
+  | (Problem & {
+      type: '/admin/problems/forbidden';
+      title: 'Forbidden';
+      status: 403;
+      code: 'forbidden';
+    })
+  | (Problem & {
+      type: '/admin/problems/csrf_failed';
+      title: 'Request validation failed';
+      status: 403;
+      code: 'csrf_failed';
+    });
 
-/**
- * The requested fixed resource does not exist (`not_found`).
- */
-export type NotFoundResponse = Problem;
+export type NotFoundResponse = Problem & {
+  type: '/admin/problems/not_found';
+  title: 'Not found';
+  status: 404;
+  code: 'not_found';
+};
 
-/**
- * A mutually exclusive maintenance action is already running (`operation_in_progress`).
- */
-export type OperationInProgressResponse = Problem;
+export type OperationInProgressResponse = Problem & {
+  type: '/admin/problems/operation_in_progress';
+  title: 'Operation already in progress';
+  status: 409;
+  code: 'operation_in_progress';
+};
 
-/**
- * The action is still in its fixed cooldown (`cooldown_active`).
- */
-export type CooldownActiveResponse = Problem;
+export type CooldownActiveResponse = Problem & {
+  type: '/admin/problems/cooldown_active';
+  title: 'Operation cooldown active';
+  status: 429;
+  code: 'cooldown_active';
+};
 
-/**
- * The action executed but its final audit state could not be persisted;
- * clients must not retry automatically (`outcome_unknown`).
- */
-export type OutcomeUnknownResponse = Problem;
+export type OutcomeUnknownResponse = Problem & {
+  type: '/admin/problems/outcome_unknown';
+  title: 'Operation outcome unknown';
+  status: 500;
+  code: 'outcome_unknown';
+};
 
-/**
- * The isolated administration subsystem is unavailable (`admin_unavailable`).
- */
-export type AdminUnavailableResponse = Problem;
+export type AdminUnavailableResponse = Problem & {
+  type: '/admin/problems/admin_unavailable';
+  title: 'Administration unavailable';
+  status: 503;
+  code: 'admin_unavailable';
+};
 
-/**
- * The bounded action exceeded its fixed deadline (`operation_timeout`).
- */
-export type OperationTimeoutResponse = Problem;
+export type OperationTimeoutResponse = Problem & {
+  type: '/admin/problems/operation_timeout';
+  title: 'Operation timed out';
+  status: 504;
+  code: 'operation_timeout';
+};
 
-/**
- * The configured backup count or byte limit prevents another backup;
- * operator intervention is required (`backup_limit_exceeded`).
- */
-export type BackupLimitExceededResponse = Problem;
+export type BackupLimitExceededResponse = Problem & {
+  type: '/admin/problems/backup_limit_exceeded';
+  title: 'Backup limit exceeded';
+  status: 507;
+  code: 'backup_limit_exceeded';
+};
 
 export type MetricsFromParameter = UtcTimestamp;
 
@@ -675,8 +859,7 @@ export type MetricsToParameter = UtcTimestamp;
 export type MetricsIntervalParameter = MetricsInterval;
 
 /**
- * Opaque continuation cursor from `nextCursor`. It binds every effective
- * filter and must be replayed without interpretation or modification.
+ * Opaque continuation cursor from `nextCursor`. It binds every effective filter and must be replayed without interpretation or modification.
  */
 export type AuditCursorParameter = string;
 
@@ -709,12 +892,12 @@ export type XsrfTokenParameter = string;
 export type GetMetricsParams = {
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   from?: MetricsFromParameter;
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   to?: MetricsToParameter;
   /**
@@ -725,8 +908,7 @@ export type GetMetricsParams = {
 
 export type ListAuditEntriesParams = {
   /**
-   * Opaque continuation cursor from `nextCursor`. It binds every effective
-   * filter and must be replayed without interpretation or modification.
+   * Opaque continuation cursor from `nextCursor`. It binds every effective filter and must be replayed without interpretation or modification.
    * @minLength 1
    * @maxLength 2048
    */
@@ -747,12 +929,12 @@ export type ListAuditEntriesParams = {
   outcome?: AuditEntryOutcomeFilterParameter;
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   from?: AuditFromParameter;
   /**
    * RFC 3339 timestamp normalized to UTC and ending in `Z`.
-   * @pattern ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
    */
   to?: AuditToParameter;
 };

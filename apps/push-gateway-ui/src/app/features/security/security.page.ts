@@ -10,6 +10,7 @@ import { Router } from '@angular/router';
 import { DynamicForm, FormConfig } from '@ng-forge/dynamic-forms';
 import { standardSchema } from '@ng-forge/dynamic-forms/schema';
 import { firstValueFrom } from 'rxjs';
+import { AUDIT_QUERY_POLICY } from '../../api/admin-contract.generated';
 import type {
   AuditEntryKind,
   AuditEntryOutcome,
@@ -126,7 +127,9 @@ const isAuditOutcome = (value: string): value is AuditEntryOutcome =>
           <p class="eyebrow">Privacy-safe history</p>
           <h2 id="audit-title">Operator Audit Entries</h2>
         </div>
-        <span class="status-pill">Maximum 90 days</span>
+        <span class="status-pill">
+          Maximum {{ auditPolicy.maximumRangeDays }} days
+        </span>
       </div>
 
       <form
@@ -219,10 +222,11 @@ export class SecurityPage {
   private readonly dialog = viewChild.required(ConfirmationDialog);
   private readonly initialTo = new Date();
   private readonly initialFrom = new Date(
-    this.initialTo.getTime() - 86_400_000,
+    this.initialTo.getTime() - AUDIT_QUERY_POLICY.defaultRangeSeconds * 1_000,
   );
 
   protected readonly time = inject(TimeService);
+  protected readonly auditPolicy = AUDIT_QUERY_POLICY;
   protected readonly sessionResource =
     new RemoteResource<OperatorSessionList>();
   protected readonly auditResource =
@@ -233,7 +237,7 @@ export class SecurityPage {
   protected readonly auditParameters = signal<ListAuditEntriesParams>({
     from: this.initialFrom.toISOString(),
     to: this.initialTo.toISOString(),
-    limit: 50,
+    limit: AUDIT_QUERY_POLICY.defaultPageSize,
   });
   protected readonly sessions = computed(() => {
     const state = this.sessionResource.state();
@@ -348,7 +352,7 @@ export class SecurityPage {
     this.auditParameters.set({
       from,
       to,
-      limit: 50,
+      limit: AUDIT_QUERY_POLICY.defaultPageSize,
       ...(value.kind === 'all' ? {} : { kind: value.kind }),
       ...(value.outcome === 'all' ? {} : { outcome: value.outcome }),
     });

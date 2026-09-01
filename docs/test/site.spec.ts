@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { PUSH_GATEWAY_CONFIGURATION_CATALOG } from '../../apps/push-gateway/src/configuration-catalog';
 import {
   canonicalDocumentationUrl,
   docsBuildContext,
@@ -70,7 +71,12 @@ describe('documentation build context', () => {
 describe('configuration reference rendering', () => {
   it('renders public metadata for every setting without secret values', () => {
     const markdown = renderConfigurationReference();
+    const references = PUSH_GATEWAY_CONFIGURATION_CATALOG.references();
 
+    expect(markdown.split('\n')).toHaveLength(references.length + 2);
+    for (const reference of references) {
+      expect(markdown).toContain(`\`${reference.name}\``);
+    }
     expect(markdown).toContain('TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY');
     expect(markdown).toContain('Secret');
     expect(markdown).toContain('65536');

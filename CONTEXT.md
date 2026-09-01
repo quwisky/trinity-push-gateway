@@ -22,6 +22,8 @@ _Avoid_: Administrator, UI user
 
 **Operator Session**:
 A bounded period during which a Push Gateway UI recognizes an Operator Identity as able to act.
+One canonical response contract owns every runtime, published, and client
+projection of an Operator Session.
 _Avoid_: Login, UI session
 
 **Operator Action**:

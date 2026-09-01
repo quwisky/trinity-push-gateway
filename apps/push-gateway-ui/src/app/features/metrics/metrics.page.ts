@@ -2,23 +2,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DynamicForm, FormConfig } from '@ng-forge/dynamic-forms';
 import { standardSchema } from '@ng-forge/dynamic-forms/schema';
-import { from, of } from 'rxjs';
+import { METRICS_QUERY_POLICY } from '../../api/admin-contract.generated';
 import type {
   FcmMetricBucket,
   GetMetricsParams,
   Metrics,
+  MetricsInterval,
   RequestMetricBucket,
 } from '../../api/generated/admin-api.schemas';
 import { MetricsService } from '../../api/generated/metrics/metrics.service';
-import { RemoteResource } from '../../api/remote-resource';
-import { pollWhileVisible } from '../../core/polling/visibility-poller';
+import { RemoteQuery } from '../../core/remote-state/remote-query';
 import { StatusAnnouncer } from '../../core/status/status-announcer';
 import { TimeService } from '../../core/time/time.service';
 import { metricsFilterSchema } from '../../core/validation/schemas';
@@ -27,7 +25,7 @@ import '../../ui/form/spartan-form.types';
 import { GatewayChart, GatewayChartSeries } from './gateway-chart';
 import { includesCurrentUtcBucket } from './metrics-range';
 
-const utcBucketLabel = (timestamp: string, interval: 'hour' | 'day'): string =>
+const utcBucketLabel = (timestamp: string, interval: MetricsInterval): string =>
   new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
@@ -65,7 +63,7 @@ const fcmColors = [
         it is not proof of device delivery.
       </p>
       <tpg-remote-status
-        [state]="resource.state()"
+        [state]="remote.state()"
         label="metrics"
         (retry)="reload()"
       />
@@ -80,7 +78,9 @@ const fcmColors = [
           <p class="eyebrow">UTC range</p>
           <h2 id="metrics-filter-title">Choose an interval</h2>
         </div>
-        <span class="status-pill">Maximum 30 days</span>
+        <span class="status-pill">
+          Maximum {{ metricsPolicy.maximumRangeDays }} days
+        </span>
       </div>
       <form
         class="filter-form three-columns"
@@ -172,20 +172,26 @@ const fcmColors = [
 })
 export class MetricsPage {
   private readonly metricsApi = inject(MetricsService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly announcer = inject(StatusAnnouncer);
   private readonly time = inject(TimeService);
   private readonly initialTo = new Date();
   private readonly initialFrom = new Date(
-    this.initialTo.getTime() - 86_400_000,
+    this.initialTo.getTime() - METRICS_QUERY_POLICY.defaultRangeSeconds * 1_000,
   );
 
-  protected readonly resource = new RemoteResource<Metrics>();
+  protected readonly metricsPolicy = METRICS_QUERY_POLICY;
   protected readonly parameters = signal<GetMetricsParams>({
     from: this.initialFrom.toISOString(),
     to: this.initialTo.toISOString(),
-    interval: 'hour',
+    interval: METRICS_QUERY_POLICY.defaultInterval,
   });
+  protected readonly remote = new RemoteQuery<Metrics>(
+    () => this.metricsApi.getMetrics(this.parameters()),
+    {
+      automaticRefreshWhen: () => includesCurrentUtcBucket(this.parameters()),
+      requestKey: () => this.parameters(),
+    },
+  );
   protected readonly filterForm = {
     fields: [
       {
@@ -205,27 +211,25 @@ export class MetricsPage {
       {
         key: 'interval',
         type: 'select',
-        value: 'hour',
+        value: METRICS_QUERY_POLICY.defaultInterval,
         label: 'Interval',
-        options: [
-          { value: 'hour', label: 'Hour' },
-          { value: 'day', label: 'Day' },
-        ],
+        options: METRICS_QUERY_POLICY.intervals.map((interval) => ({
+          value: interval,
+          label: `${interval.charAt(0).toUpperCase()}${interval.slice(1)}`,
+        })),
       },
       { key: 'apply', type: 'submit', label: 'Apply range' },
     ],
     schema: standardSchema(metricsFilterSchema),
     options: { idPrefix: 'metrics-filter' },
   } as const satisfies FormConfig;
-  protected readonly metrics = computed(() => {
-    const state = this.resource.state();
-    return state.kind === 'fresh' || state.kind === 'stale'
-      ? state.data
-      : undefined;
-  });
+  protected readonly metrics = this.remote.data;
   protected readonly requestLabels = computed(() =>
     (this.metrics()?.requestBuckets ?? []).map((bucket) =>
-      utcBucketLabel(bucket.from, this.metrics()?.interval ?? 'hour'),
+      utcBucketLabel(
+        bucket.from,
+        this.metrics()?.interval ?? METRICS_QUERY_POLICY.defaultInterval,
+      ),
     ),
   );
   protected readonly requestSeries = computed<readonly GatewayChartSeries[]>(
@@ -236,7 +240,10 @@ export class MetricsPage {
   );
   protected readonly fcmLabels = computed(() =>
     fcmRows(this.metrics()?.fcmBuckets ?? []).map(({ from }) =>
-      utcBucketLabel(from, this.metrics()?.interval ?? 'hour'),
+      utcBucketLabel(
+        from,
+        this.metrics()?.interval ?? METRICS_QUERY_POLICY.defaultInterval,
+      ),
     ),
   );
   protected readonly fcmSeries = computed<readonly GatewayChartSeries[]>(() =>
@@ -246,20 +253,8 @@ export class MetricsPage {
     () => fcmLatencySeries(this.metrics()?.fcmBuckets ?? []),
   );
 
-  constructor() {
-    pollWhileVisible(() =>
-      includesCurrentUtcBucket(this.parameters())
-        ? from(this.reload())
-        : of(undefined),
-    )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
-  }
-
   protected reload(): Promise<unknown> {
-    return this.resource.load(() =>
-      this.metricsApi.getMetrics(this.parameters()),
-    );
+    return this.remote.refresh();
   }
 
   protected async applyFilters(
@@ -268,7 +263,7 @@ export class MetricsPage {
     if (
       typeof value.from !== 'string' ||
       typeof value.to !== 'string' ||
-      (value.interval !== 'hour' && value.interval !== 'day')
+      !isMetricsInterval(value.interval)
     ) {
       this.announcer.announce('The metrics range is incomplete.');
       return;
@@ -284,6 +279,9 @@ export class MetricsPage {
     this.announcer.announce('Metrics range applied.');
   }
 }
+
+const isMetricsInterval = (value: unknown): value is MetricsInterval =>
+  METRICS_QUERY_POLICY.intervals.some((interval) => interval === value);
 
 const requestSeries = (
   buckets: readonly RequestMetricBucket[],

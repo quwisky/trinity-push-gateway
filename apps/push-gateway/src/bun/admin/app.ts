@@ -10,28 +10,43 @@ import {
 } from 'hono/cookie';
 
 import { version as gatewayVersion } from '../../../../../package.json';
+import {
+  BACKUP_LIST_SCHEMA,
+  BACKUP_SCHEMA,
+  OPERATION_RESULT_SCHEMA,
+} from '../../admin-contract/operator-actions';
+import {
+  CONFIGURATION_RESPONSE_SCHEMA,
+  type ConfigurationResponse,
+} from '../../admin-contract/configuration';
+import {
+  OPERATOR_SESSION_ID_SCHEMA,
+  OPERATOR_SESSION_LIST_RESPONSE_SCHEMA,
+  OPERATOR_SESSION_RESPONSE_SCHEMA,
+  type OperatorSessionResponse,
+} from '../../admin-contract/operator-session';
+import {
+  boundedFcmAttempted,
+  METRICS_QUERY_POLICY,
+  METRICS_RESPONSE_SCHEMA,
+  OVERVIEW_RESPONSE_SCHEMA,
+  parseMetricsRange,
+  type EffectiveMetricsRange,
+} from '../../admin-contract/overview-metrics';
+import {
+  boundedSafeCountSum as safeCountAdd,
+  validatedAdminResponse,
+} from '../../admin-contract/shared';
 import type { BunConfiguration } from '../config';
 import {
   createOidcAuthenticator,
   OidcAuthenticationError,
   type OidcAuthenticator,
 } from '../auth/oidc-client';
-import type { AdminAssetCatalog } from './assets';
+import { ADMIN_SPA_ROUTES, type AdminAssetCatalog } from './assets';
+import { createOperatorAuditEntryQuery } from './audit-query';
 import type { AdminOperations, OperationResponse } from './operations';
 import type { AdminConfiguration, SafeAdminConfiguration } from './config';
-import {
-  ADMIN_AUDIT_PAGE_SCHEMA,
-  ADMIN_BACKUP_LIST_SCHEMA,
-  ADMIN_BACKUP_SCHEMA,
-  ADMIN_CONFIGURATION_RESPONSE_SCHEMA,
-  ADMIN_METRICS_SCHEMA,
-  ADMIN_OPERATION_RESULT_SCHEMA,
-  ADMIN_OPERATOR_SESSION_LIST_SCHEMA,
-  ADMIN_OPERATOR_SESSION_SCHEMA,
-  ADMIN_OVERVIEW_SCHEMA,
-  ADMIN_SESSION_ID_SCHEMA,
-  validatedAdminResponse,
-} from './contract';
 import {
   adminJsonResponse,
   adminNoStoreHeaders,
@@ -39,7 +54,6 @@ import {
   adminProblemResponse,
   adminUnavailableResponse,
 } from './responses';
-import { ADMIN_AUDIT_KINDS, ADMIN_AUDIT_OUTCOMES } from './schema';
 import {
   type AdminAuthenticatedSession,
   type AdminOperatorSession,
@@ -51,12 +65,17 @@ const XSRF_COOKIE = 'TRINITY_ADMIN_XSRF';
 const OIDC_COOKIE = 'TRINITY_ADMIN_OIDC';
 const API_PREFIX = '/admin/api/';
 const AUTH_PREFIX = '/admin/auth/';
+const DEFAULT_ADMIN_RETURN_PATH = '/admin/overview';
+const AUTHENTICATED_ADMIN_ROUTES = new Set<string>(
+  ADMIN_SPA_ROUTES.filter((route) => route !== '/admin/sign-in'),
+);
 
 type AdminApplicationOptions = Readonly<{
   assets: AdminAssetCatalog;
   configuration: AdminConfiguration;
   gatewayConfiguration: BunConfiguration;
   gatewayReady: () => boolean;
+  log: (event: Readonly<Record<string, unknown>>) => void;
   now?: () => number;
   operations?: Pick<
     AdminOperations,
@@ -99,6 +118,32 @@ function randomOpaqueId(): string {
   return randomBytes(18).toString('base64url');
 }
 
+function requestedAdminReturnPath(requestUrl: string): string {
+  const requested = new URL(requestUrl).searchParams.get('returnPath');
+  return requested !== null && AUTHENTICATED_ADMIN_ROUTES.has(requested)
+    ? requested
+    : DEFAULT_ADMIN_RETURN_PATH;
+}
+
+function oidcBrowserCookie(returnPath: string): string {
+  const routeIndex = ADMIN_SPA_ROUTES.findIndex(
+    (route) => route === returnPath,
+  );
+  if (routeIndex < 0 || returnPath === '/admin/sign-in') {
+    throw new Error('OIDC return path is not an authenticated admin route.');
+  }
+  return `${randomToken()}.${routeIndex.toString(36)}`;
+}
+
+function oidcReturnPath(cookie: string): string {
+  const separator = cookie.lastIndexOf('.');
+  const routeIndex = Number.parseInt(cookie.slice(separator + 1), 36);
+  const route = ADMIN_SPA_ROUTES[routeIndex];
+  return separator > 0 && route !== undefined && route !== '/admin/sign-in'
+    ? route
+    : DEFAULT_ADMIN_RETURN_PATH;
+}
+
 function digest(secret: string, purpose: string, value: string): string {
   return createHmac('sha256', secret)
     .update('trinity-push-gateway-admin\0')
@@ -124,7 +169,7 @@ function secondsToTimestamp(seconds: number): string {
 function sessionProjection(
   session: AdminOperatorSession,
   currentSessionId: string,
-): unknown {
+): OperatorSessionResponse {
   return {
     absoluteExpiresAt: secondsToTimestamp(session.absoluteExpiresAt),
     createdAt: secondsToTimestamp(session.createdAt),
@@ -145,52 +190,6 @@ function safeFileSize(filePath: string): number {
   }
 }
 
-type EffectiveRange = Readonly<{
-  from: number;
-  interval: 'day' | 'hour';
-  to: number;
-}>;
-
-function parseRange(
-  url: URL,
-  nowSeconds: number,
-  maximumSeconds: number,
-  allowInterval: boolean,
-): EffectiveRange | undefined {
-  const allowed = new Set([
-    'from',
-    'to',
-    ...(allowInterval ? ['interval'] : []),
-  ]);
-  if (
-    [...url.searchParams.keys()].some((key) => !allowed.has(key)) ||
-    [...allowed].some((key) => url.searchParams.getAll(key).length > 1)
-  ) {
-    return undefined;
-  }
-  const rawFrom = url.searchParams.get('from');
-  const rawTo = url.searchParams.get('to');
-  if ((rawFrom === null) !== (rawTo === null)) return undefined;
-  const to =
-    rawTo === null ? nowSeconds : Math.floor(Date.parse(rawTo) / 1_000);
-  const from =
-    rawFrom === null
-      ? to - 24 * 60 * 60
-      : Math.floor(Date.parse(rawFrom) / 1_000);
-  const interval = url.searchParams.get('interval') ?? 'hour';
-  if (
-    !Number.isSafeInteger(from) ||
-    !Number.isSafeInteger(to) ||
-    from < 0 ||
-    to <= from ||
-    to - from > maximumSeconds ||
-    (interval !== 'hour' && interval !== 'day')
-  ) {
-    return undefined;
-  }
-  return { from, interval, to };
-}
-
 const ZERO_REQUEST_OUTCOMES = Object.freeze({
   invalid: 0,
   processed: 0,
@@ -205,28 +204,11 @@ const ZERO_FCM_OUTCOMES = Object.freeze({
   transientFailure: 0,
 });
 
-function safeCountAdd(left: number, right: number): number {
-  return Math.min(Number.MAX_SAFE_INTEGER, left + right);
-}
-
-function fcmAttempted(
-  row: Readonly<{
-    accepted: number;
-    permanentlyRejected: number;
-    transientFailure: number;
-  }>,
-): number {
-  return safeCountAdd(
-    safeCountAdd(row.accepted, row.permanentlyRejected),
-    row.transientFailure,
-  );
-}
-
 function metricsProjection(
   rows: ReturnType<SqliteAdminStore['metrics']>,
-  range: EffectiveRange,
+  range: EffectiveMetricsRange,
 ): unknown {
-  const seconds = range.interval === 'hour' ? 3_600 : 86_400;
+  const seconds = METRICS_QUERY_POLICY.intervalSeconds[range.interval];
   const bucketStart = (hour: number): number =>
     Math.floor(hour / seconds) * seconds;
   const requests = new Map<
@@ -308,7 +290,7 @@ function metricsProjection(
       latency: { approxP95Ms, histogram, sampleCount },
       outcomes: {
         accepted: row.accepted,
-        attempted: fcmAttempted(row),
+        attempted: boundedFcmAttempted(row),
         permanentlyRejected: row.permanentlyRejected,
         transientFailure: row.transientFailure,
       },
@@ -331,23 +313,19 @@ function metricsProjection(
 
 function operationProjection(result: OperationResponse): Response {
   if (result.kind === 'busy') {
-    return adminProblemResponse('operation_in_progress', 409);
+    return adminProblemResponse('operation_in_progress');
   }
   if (result.kind === 'cooldown') {
-    return adminProblemResponse(
-      'cooldown_active',
-      429,
-      result.retryAfterSeconds,
-    );
+    return adminProblemResponse('cooldown_active', result.retryAfterSeconds);
   }
   if (result.kind === 'timeout') {
-    return adminProblemResponse('operation_timeout', 504);
+    return adminProblemResponse('operation_timeout');
   }
   if (result.kind === 'outcome_unknown') {
-    return adminProblemResponse('outcome_unknown', 500);
+    return adminProblemResponse('outcome_unknown');
   }
   if (result.kind === 'limit') {
-    return adminProblemResponse('backup_limit_exceeded', 507);
+    return adminProblemResponse('backup_limit_exceeded');
   }
   if (result.kind === 'unavailable') {
     return adminUnavailableResponse();
@@ -363,15 +341,12 @@ function operationProjection(result: OperationResponse): Response {
   };
   if (result.kind === 'backup') {
     return adminJsonResponse(
-      validatedAdminResponse(
-        ADMIN_BACKUP_SCHEMA,
-        backupProjection(result.backup),
-      ),
+      validatedAdminResponse(BACKUP_SCHEMA, backupProjection(result.backup)),
       201,
     );
   }
   return adminJsonResponse(
-    validatedAdminResponse(ADMIN_OPERATION_RESULT_SCHEMA, projected),
+    validatedAdminResponse(OPERATION_RESULT_SCHEMA, projected),
   );
 }
 
@@ -496,66 +471,27 @@ function callbackFailureReason(error: unknown): string {
     : 'unavailable';
 }
 
+function configuredOidcCallback(
+  configuredCallbackUrl: string,
+  requestUrl: string,
+): URL {
+  const callback = new URL(configuredCallbackUrl);
+  callback.search = new URL(requestUrl).search;
+  return callback;
+}
+
 function configurationProjection(
   options: AdminApplicationOptions,
   observedAt: string,
-): unknown {
-  const environment = options.gatewayConfiguration.environment;
+): ConfigurationResponse {
   return {
     administration: options.safeConfiguration.administration,
     credentials: {
-      firebaseClientEmail: {
-        configured: true,
-        source:
-          options.gatewayConfiguration.credentialSources.firebaseClientEmail,
-      },
-      firebasePrivateKey: {
-        configured: true,
-        source:
-          options.gatewayConfiguration.credentialSources.firebasePrivateKey,
-      },
-      firebaseProjectId: {
-        configured: true,
-        source:
-          options.gatewayConfiguration.credentialSources.firebaseProjectId,
-      },
-      fingerprintKey: {
-        configured: true,
-        source: options.gatewayConfiguration.credentialSources.fingerprintKey,
-      },
+      ...options.gatewayConfiguration.safe.credentials,
       oidcClientSecret: options.safeConfiguration.credentials.oidcClientSecret,
       sessionSecret: options.safeConfiguration.credentials.sessionSecret,
     },
-    gateway: {
-      androidApplicationId: environment.TRINITY_PUSH_GATEWAY_ANDROID_APP_ID,
-      cleanupIntervalSeconds:
-        options.gatewayConfiguration.cleanupIntervalSeconds,
-      firebaseProjectId: environment.TRINITY_PUSH_GATEWAY_FCM_PROJECT_ID,
-      gatewayDatabasePath: options.gatewayConfiguration.databasePath,
-      iosApplicationId: environment.TRINITY_PUSH_GATEWAY_IOS_APP_ID,
-      maxBodyBytes: Number(environment.TRINITY_PUSH_GATEWAY_MAX_BODY_BYTES),
-      maxClientInstallationsPerRequest: Number(
-        environment.TRINITY_PUSH_GATEWAY_MAX_DEVICES,
-      ),
-      maxDailyAttempts: Number(
-        environment.TRINITY_PUSH_GATEWAY_MAX_DAILY_ATTEMPTS,
-      ),
-      maxSourceKeys: options.gatewayConfiguration.maxSourceKeys,
-      pendingLeaseSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_PENDING_LEASE_SECONDS,
-      ),
-      requestDeadlineSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_REQUEST_DEADLINE_SECONDS,
-      ),
-      sourceRateLimit: options.gatewayConfiguration.sourceLimit,
-      sourceRatePeriodSeconds: options.gatewayConfiguration.sourcePeriodSeconds,
-      terminalRetentionSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS,
-      ),
-      upstreamTimeoutSeconds: Number(
-        environment.TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS,
-      ),
-    },
+    gateway: options.gatewayConfiguration.safe.gateway,
     observedAt,
     version: gatewayVersion,
   };
@@ -572,32 +508,14 @@ export function createAdminSurface(
   let resolvedAuthenticator: OidcAuthenticator | undefined;
   let lastCleanupHour: number | undefined;
   let lastCleanupDay: number | undefined;
-  const cursorFor = (payload: Readonly<Record<string, unknown>>): string => {
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    return `${encoded}.${digest(secret, 'audit-cursor', encoded)}`;
-  };
-  const parseCursor = (
-    value: string,
-  ): Readonly<Record<string, unknown>> | undefined => {
-    const [encoded, signature, extra] = value.split('.');
-    if (
-      encoded === undefined ||
-      signature === undefined ||
-      extra !== undefined ||
-      !secretsEqual(signature, digest(secret, 'audit-cursor', encoded))
-    ) {
-      return undefined;
-    }
-    try {
-      const parsed: unknown = JSON.parse(
-        Buffer.from(encoded, 'base64url').toString('utf8'),
-      );
-      return typeof parsed === 'object' && parsed !== null
-        ? (parsed as Readonly<Record<string, unknown>>)
-        : undefined;
-    } catch {
-      return undefined;
-    }
+  const auditEntries = createOperatorAuditEntryQuery({
+    cursorSecret: secret,
+    nowSeconds: () => Math.floor(now() / 1_000),
+    storage: options.store,
+  });
+  const unexpectedRequestFailure = (): Response => {
+    options.log({ event: 'admin_request_failed', outcome: 'unavailable' });
+    return adminUnavailableResponse();
   };
   const authenticator = (): Promise<OidcAuthenticator> => {
     authenticatorPromise ??= createOidcAuthenticator(
@@ -632,7 +550,7 @@ export function createAdminSurface(
     if (sessionToken === undefined || sessionToken.length > 256) {
       return {
         kind: 'response',
-        response: adminProblemResponse('unauthenticated', 401),
+        response: adminProblemResponse('unauthenticated'),
       };
     }
     const result = await options.store.authenticateSession(
@@ -644,7 +562,7 @@ export function createAdminSurface(
       return {
         kind: 'response',
         response: withClearedSessionCookies(
-          adminProblemResponse('unauthenticated', 401),
+          adminProblemResponse('unauthenticated'),
         ),
       };
     }
@@ -685,13 +603,14 @@ export function createAdminSurface(
     authenticatedRoute((context, session) =>
       authorizeMutation(context, session)
         ? route(context, session)
-        : adminProblemResponse('csrf_failed', 403),
+        : adminProblemResponse('csrf_failed'),
     );
 
   const app = new Hono({ strict: true });
 
   app.get('/admin/auth/login', async (context) => {
-    const oidcCookie = randomToken();
+    const returnPath = requestedAdminReturnPath(context.req.url);
+    const oidcCookie = oidcBrowserCookie(returnPath);
     try {
       const authorizationUrl = await (
         await authenticator()
@@ -713,7 +632,7 @@ export function createAdminSurface(
       const identity = await (
         await authenticator()
       ).completeLogin(
-        new URL(context.req.url),
+        configuredOidcCallback(callbackUrl, context.req.url),
         digest(secret, 'oidc', oidcCookie),
       );
       const sessionToken = randomToken();
@@ -726,7 +645,7 @@ export function createAdminSurface(
         xsrfDigest: digest(secret, 'xsrf', xsrfToken),
       });
       setSessionCookies(context, sessionToken, xsrfToken);
-      return redirectResponse(context, '/admin/overview');
+      return redirectResponse(context, oidcReturnPath(oidcCookie));
     } catch (error) {
       return redirectResponse(
         context,
@@ -762,7 +681,7 @@ export function createAdminSurface(
     authenticatedRoute((_context, session) => {
       return adminJsonResponse(
         validatedAdminResponse(
-          ADMIN_OPERATOR_SESSION_SCHEMA,
+          OPERATOR_SESSION_RESPONSE_SCHEMA,
           sessionProjection(session, session.id),
         ),
       );
@@ -777,7 +696,7 @@ export function createAdminSurface(
         options.configuration.policyFingerprint,
       );
       return adminJsonResponse(
-        validatedAdminResponse(ADMIN_OPERATOR_SESSION_LIST_SCHEMA, {
+        validatedAdminResponse(OPERATOR_SESSION_LIST_RESPONSE_SCHEMA, {
           sessions: sessions.map((session) =>
             sessionProjection(session, currentSession.id),
           ),
@@ -789,11 +708,11 @@ export function createAdminSurface(
   app.delete(
     '/admin/api/v1/sessions/:sessionId',
     mutationRoute(async (context, currentSession) => {
-      const parsedSessionId = ADMIN_SESSION_ID_SCHEMA.safeParse(
+      const parsedSessionId = OPERATOR_SESSION_ID_SCHEMA.safeParse(
         context.req.param('sessionId'),
       );
       if (!parsedSessionId.success) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       const revoked = await options.store.revokeSession(
         parsedSessionId.data,
@@ -820,7 +739,7 @@ export function createAdminSurface(
       const observedAt = new Date(now()).toISOString();
       return adminJsonResponse(
         validatedAdminResponse(
-          ADMIN_CONFIGURATION_RESPONSE_SCHEMA,
+          CONFIGURATION_RESPONSE_SCHEMA,
           configurationProjection(options, observedAt),
         ),
       );
@@ -872,7 +791,7 @@ export function createAdminSurface(
           totals.transientFailure,
           row.transientFailure,
         );
-        totals.attempted = fcmAttempted(totals);
+        totals.attempted = boundedFcmAttempted(totals);
       }
       const summaries = Object.fromEntries(
         options.store.operationSummaries().map((summary) => [
@@ -887,7 +806,7 @@ export function createAdminSurface(
         ]),
       );
       return adminJsonResponse(
-        validatedAdminResponse(ADMIN_OVERVIEW_SCHEMA, {
+        validatedAdminResponse(OVERVIEW_RESPONSE_SCHEMA, {
           // Authentication immediately above proved the isolated store usable;
           // avoid running an integrity scan for every overview request.
           administrationReady: true,
@@ -921,19 +840,17 @@ export function createAdminSurface(
   app.get(
     '/admin/api/v1/metrics',
     authenticatedRoute((context) => {
-      const range = parseRange(
-        new URL(context.req.url),
+      const range = parseMetricsRange(
+        new URL(context.req.url).searchParams,
         Math.floor(now() / 1_000),
-        30 * 24 * 60 * 60,
-        true,
       );
       if (range === undefined) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       const rows = options.store.metrics(range.from, range.to);
       return adminJsonResponse(
         validatedAdminResponse(
-          ADMIN_METRICS_SCHEMA,
+          METRICS_RESPONSE_SCHEMA,
           metricsProjection(rows, range),
         ),
       );
@@ -943,152 +860,10 @@ export function createAdminSurface(
   app.get(
     '/admin/api/v1/audit-entries',
     authenticatedRoute((context) => {
-      const url = new URL(context.req.url);
-      const allowed = new Set([
-        'cursor',
-        'from',
-        'kind',
-        'limit',
-        'outcome',
-        'to',
-      ]);
-      if (
-        [...url.searchParams.keys()].some((key) => !allowed.has(key)) ||
-        [...allowed].some((key) => url.searchParams.getAll(key).length > 1)
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const nowSeconds = Math.floor(now() / 1_000);
-      const cursorValue = url.searchParams.get('cursor');
-      const cursor =
-        cursorValue === null ? undefined : parseCursor(cursorValue);
-      if (
-        cursorValue !== null &&
-        (cursorValue.length > 2_048 ||
-          cursor === undefined ||
-          typeof cursor.expiresAt !== 'number' ||
-          !Number.isSafeInteger(cursor.expiresAt) ||
-          cursor.expiresAt <= nowSeconds ||
-          typeof cursor.from !== 'number' ||
-          !Number.isSafeInteger(cursor.from) ||
-          typeof cursor.to !== 'number' ||
-          !Number.isSafeInteger(cursor.to) ||
-          typeof cursor.limit !== 'number' ||
-          !Number.isSafeInteger(cursor.limit) ||
-          (cursor.kind !== null && typeof cursor.kind !== 'string') ||
-          (cursor.outcome !== null && typeof cursor.outcome !== 'string') ||
-          typeof cursor.beforeAt !== 'number' ||
-          !Number.isSafeInteger(cursor.beforeAt) ||
-          typeof cursor.beforeId !== 'string' ||
-          cursor.beforeId.length < 16 ||
-          cursor.beforeId.length > 128)
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const rawFrom = url.searchParams.get('from');
-      const rawTo = url.searchParams.get('to');
-      if ((rawFrom === null) !== (rawTo === null)) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const to =
-        rawTo === null
-          ? Number(cursor?.to ?? nowSeconds)
-          : Math.floor(Date.parse(rawTo) / 1_000);
-      const from =
-        rawFrom === null
-          ? Number(cursor?.from ?? to - 86_400)
-          : Math.floor(Date.parse(rawFrom) / 1_000);
-      const limit = Number(
-        url.searchParams.get('limit') ?? cursor?.limit ?? '50',
-      );
-      const kind =
-        url.searchParams.get('kind') ??
-        (cursor?.kind === null
-          ? undefined
-          : (cursor?.kind as string | undefined));
-      const outcome =
-        url.searchParams.get('outcome') ??
-        (cursor?.outcome === null
-          ? undefined
-          : (cursor?.outcome as string | undefined));
-      const auditKinds = new Set<string>(ADMIN_AUDIT_KINDS);
-      const auditOutcomes = new Set<string>(ADMIN_AUDIT_OUTCOMES);
-      if (
-        !Number.isSafeInteger(from) ||
-        !Number.isSafeInteger(to) ||
-        from < 0 ||
-        to <= from ||
-        to - from > 90 * 86_400 ||
-        !Number.isSafeInteger(limit) ||
-        limit < 1 ||
-        limit > 100 ||
-        (kind !== undefined && !auditKinds.has(kind)) ||
-        (outcome !== undefined && !auditOutcomes.has(outcome))
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      if (
-        cursorValue !== null &&
-        (cursor?.from !== from ||
-          cursor.to !== to ||
-          cursor.limit !== limit ||
-          cursor.kind !== (kind ?? null) ||
-          cursor.outcome !== (outcome ?? null) ||
-          typeof cursor.beforeAt !== 'number' ||
-          typeof cursor.beforeId !== 'string')
-      ) {
-        return adminProblemResponse('invalid_request', 400);
-      }
-      const entries = options.store.listAuditEntries({
-        ...(cursor === undefined
-          ? {}
-          : {
-              before: {
-                id: String(cursor.beforeId),
-                occurredAt: Number(cursor.beforeAt),
-              },
-            }),
-        from,
-        ...(kind === undefined
-          ? {}
-          : { kind: kind as (typeof ADMIN_AUDIT_KINDS)[number] }),
-        limit,
-        ...(outcome === undefined
-          ? {}
-          : { outcome: outcome as (typeof ADMIN_AUDIT_OUTCOMES)[number] }),
-        to,
-      });
-      const page = entries.slice(0, limit);
-      const last = page.at(-1);
-      const nextCursor =
-        entries.length <= limit || last === undefined
-          ? undefined
-          : cursorFor({
-              beforeAt: last.occurredAt,
-              beforeId: last.id,
-              expiresAt: nowSeconds + 15 * 60,
-              from,
-              kind: kind ?? null,
-              limit,
-              outcome: outcome ?? null,
-              to,
-            });
-      return adminJsonResponse(
-        validatedAdminResponse(ADMIN_AUDIT_PAGE_SCHEMA, {
-          entries: page.map((entry) => ({
-            id: entry.id,
-            kind: entry.kind,
-            occurredAt: secondsToTimestamp(entry.occurredAt),
-            operator:
-              entry.issuer === null || entry.subject === null
-                ? null
-                : { issuer: entry.issuer, subject: entry.subject },
-            outcome: entry.outcome,
-            ...(entry.reason === null ? {} : { reason: entry.reason }),
-          })),
-          ...(nextCursor === undefined ? {} : { nextCursor }),
-        }),
-      );
+      const result = auditEntries.query(new URL(context.req.url).searchParams);
+      return result.kind === 'invalid'
+        ? adminProblemResponse('invalid_request')
+        : adminJsonResponse(result.page);
     }),
   );
 
@@ -1097,11 +872,11 @@ export function createAdminSurface(
     authenticatedRoute((context) =>
       new URL(context.req.url).search === ''
         ? adminJsonResponse(
-            validatedAdminResponse(ADMIN_BACKUP_LIST_SCHEMA, {
+            validatedAdminResponse(BACKUP_LIST_SCHEMA, {
               backups: options.store.listBackups().map(backupProjection),
             }),
           )
-        : adminProblemResponse('invalid_request', 400),
+        : adminProblemResponse('invalid_request'),
     ),
   );
 
@@ -1109,7 +884,7 @@ export function createAdminSurface(
     '/admin/api/v1/backups',
     mutationRoute(async (context, session) => {
       if (!isEmptyMutation(context)) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       if (options.operations === undefined) return adminUnavailableResponse();
       return operationProjection(
@@ -1122,7 +897,7 @@ export function createAdminSurface(
     '/admin/api/v1/operations/cleanup',
     mutationRoute(async (context, session) => {
       if (!isEmptyMutation(context)) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       if (options.operations === undefined) return adminUnavailableResponse();
       return operationProjection(
@@ -1135,7 +910,7 @@ export function createAdminSurface(
     '/admin/api/v1/operations/firebase-validation',
     mutationRoute(async (context, session) => {
       if (!isEmptyMutation(context)) {
-        return adminProblemResponse('invalid_request', 400);
+        return adminProblemResponse('invalid_request');
       }
       if (options.operations === undefined) return adminUnavailableResponse();
       return operationProjection(
@@ -1148,7 +923,7 @@ export function createAdminSurface(
     const staticResponse = options.assets.responseFor(context.req.raw);
     return staticResponse ?? adminNotFoundResponse();
   });
-  app.onError(() => adminUnavailableResponse());
+  app.onError(unexpectedRequestFailure);
 
   return Object.freeze({
     cleanup: async (nowSeconds): Promise<void> => {
@@ -1179,7 +954,7 @@ export function createAdminSurface(
       try {
         return await app.fetch(request);
       } catch {
-        return adminUnavailableResponse();
+        return unexpectedRequestFailure();
       }
     },
     purgeSessions: (nowSeconds): Promise<number> =>

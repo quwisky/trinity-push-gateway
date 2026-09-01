@@ -1,4 +1,3 @@
-import { BUN_CONFIGURATION_DEFAULTS } from '../configuration-defaults';
 import {
   migrateAdministration,
   purgeAdministrationSessions,
@@ -13,10 +12,7 @@ function log(event: Readonly<Record<string, unknown>>): void {
 }
 
 const config = loadBunConfiguration(process.env);
-const migrations = readMigrations(
-  process.env.TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH ??
-    BUN_CONFIGURATION_DEFAULTS.TRINITY_PUSH_GATEWAY_MIGRATIONS_PATH,
-);
+const migrations = readMigrations(config.migrationsPath);
 const command = process.argv[2] ?? 'serve';
 
 if (command === 'serve') {

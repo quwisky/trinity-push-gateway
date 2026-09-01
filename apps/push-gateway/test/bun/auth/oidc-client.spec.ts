@@ -466,7 +466,7 @@ describe('OIDC authenticator', () => {
     ).toMatchObject({ code: 'login_state_invalid' });
   });
 
-  it('rejects a callback delivered to any endpoint other than the configured one', async () => {
+  it('rejects callback origins and paths other than the configured endpoint', async () => {
     const provider = startDiscoveryServer();
     const attempts = new AtomicAttemptStore();
     const authenticator = await createOidcAuthenticator(
@@ -483,16 +483,21 @@ describe('OIDC authenticator', () => {
       attempts,
     );
     const authorizationUrl = await authenticator.beginLogin();
-    const callback = new URL('/admin/auth/callback-suffix', provider.issuer);
-    callback.searchParams.set('code', 'must-not-be-exchanged');
-    callback.searchParams.set(
-      'state',
-      authorizationUrl.searchParams.get('state') ?? 'missing',
-    );
+    const callbacks = [
+      new URL('/admin/auth/callback', 'https://attacker.example'),
+      new URL('/admin/auth/callback-suffix', provider.issuer),
+    ];
+    for (const callback of callbacks) {
+      callback.searchParams.set('code', 'must-not-be-exchanged');
+      callback.searchParams.set(
+        'state',
+        authorizationUrl.searchParams.get('state') ?? 'missing',
+      );
 
-    expect(
-      await rejectionOf(authenticator.completeLogin(callback)),
-    ).toMatchObject({ code: 'login_state_invalid' });
+      expect(
+        await rejectionOf(authenticator.completeLogin(callback)),
+      ).toMatchObject({ code: 'login_state_invalid' });
+    }
     expect(attempts.attempts.size).toBe(1);
   });
 

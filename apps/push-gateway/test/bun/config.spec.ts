@@ -50,6 +50,35 @@ describe('Bun runtime configuration', () => {
       TRINITY_PUSH_GATEWAY_TERMINAL_RETENTION_SECONDS: '86400',
       TRINITY_PUSH_GATEWAY_UPSTREAM_TIMEOUT_SECONDS: '10',
     });
+    expect(config.safe).toEqual({
+      credentials: {
+        firebaseClientEmail: { configured: true, source: 'env' },
+        firebasePrivateKey: { configured: true, source: 'env' },
+        firebaseProjectId: { configured: true, source: 'env' },
+        fingerprintKey: { configured: true, source: 'env' },
+      },
+      gateway: {
+        androidApplicationId: 'example.android',
+        cleanupIntervalSeconds: 86_400,
+        firebaseProjectId: 'example-project',
+        gatewayDatabasePath: '/data/gateway.sqlite',
+        iosApplicationId: 'example.ios',
+        maxBodyBytes: 65_536,
+        maxClientInstallationsPerRequest: 49,
+        maxDailyAttempts: 20_000,
+        maxSourceKeys: 10_000,
+        pendingLeaseSeconds: 120,
+        requestDeadlineSeconds: 30,
+        sourceRateLimit: 300,
+        sourceRatePeriodSeconds: 10,
+        terminalRetentionSeconds: 86_400,
+        upstreamTimeoutSeconds: 10,
+      },
+    });
+    const safe = JSON.stringify(config.safe);
+    expect(safe).not.toContain('gateway@example.test');
+    expect(safe).not.toContain('private-key');
+    expect(safe).not.toContain('ffffffff');
   });
 
   it('loads credentials from files without silently preferring one source', () => {
@@ -69,6 +98,16 @@ describe('Bun runtime configuration', () => {
     environment.TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY = 'direct-private-key';
     expect(() => loadBunConfiguration(environment)).toThrow(
       'TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY and TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY_FILE cannot both be set',
+    );
+
+    delete environment.TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY;
+    writeFileSync(privateKeyPath, '\n');
+    expect(() => loadBunConfiguration(environment)).toThrow(
+      'TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY_FILE contains an empty value',
+    );
+    environment.TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY_FILE = '';
+    expect(() => loadBunConfiguration(environment)).toThrow(
+      'TRINITY_PUSH_GATEWAY_FCM_PRIVATE_KEY_FILE cannot be empty',
     );
   });
 

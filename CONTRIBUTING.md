@@ -23,13 +23,15 @@ Pull-request and `master` CI use Nx affected execution. Shared dependencies, wor
 
 ## Database migrations
 
-The D1 and Bun adapters share one Drizzle SQLite schema and one reviewed migration lineage. After changing `apps/push-gateway/src/schema.ts`, generate the next migration with an explicit name:
+The D1 and Bun adapters share one Drizzle SQLite schema and one reviewed migration lineage. Until the first stable `vX.Y.Z` release exists, architecture work may deliberately rebase the unreleased gateway and administration lineages in place because no supported database can contain them yet. A pre-release rebase must update the schema, reviewed SQL, Drizzle snapshots, and reviewed baseline hashes together; discard and recreate any local database created from an earlier unreleased revision.
+
+For ordinary schema changes, and for every schema change after the first stable release, generate the next migration with an explicit name:
 
 ```sh
 pnpm nx run push-gateway:generate-migration --name=add_delivery_note
 ```
 
-The target runs the D1 and Bun generation profiles sequentially and inserts `-- minimum-reader: <previous migration filename>` as the first line. Review the SQL rather than applying it with `drizzle-kit push` or a Drizzle runtime migrator. Keep migrations expand-first, verify the generated minimum-reader metadata, and retain required physical SQLite clauses such as `WITHOUT ROWID` that Drizzle cannot model. Wrangler remains the D1 runner, while Bun keeps its compatibility-aware startup runner. `push-gateway:check-migrations` validates both profiles, the snapshot lineage, the immutable initial migration, and no-op regeneration.
+The target runs the D1 and Bun generation profiles sequentially and inserts `-- minimum-reader: <previous migration filename>` as the first line. Review the SQL rather than applying it with `drizzle-kit push` or a Drizzle runtime migrator. Keep migrations expand-first, verify the generated minimum-reader metadata, and retain required physical SQLite clauses such as `WITHOUT ROWID` that Drizzle cannot model. Wrangler remains the D1 runner, while Bun keeps its compatibility-aware startup runner. `push-gateway:check-migrations` validates both profiles, the snapshot lineage, the reviewed initial-migration baselines, and no-op regeneration. The first stable release freezes every published migration filename and artifact; from that point onward, never rewrite a migration and use forward-only additions exclusively.
 
 ## Commits and pull requests
 

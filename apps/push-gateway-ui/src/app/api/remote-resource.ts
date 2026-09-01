@@ -1,5 +1,5 @@
 import { Signal, signal } from '@angular/core';
-import { firstValueFrom, Observable } from 'rxjs';
+import { lastValueFrom, Observable } from 'rxjs';
 import { SafeApiProblem, toSafeApiProblem } from './api-problem';
 
 export type RemoteState<T> =
@@ -34,7 +34,7 @@ export class RemoteResource<T> {
     }
 
     try {
-      const data = await firstValueFrom(request());
+      const data = await lastValueFrom(request());
       const next = { kind: 'fresh', data, observedAt: now() } as const;
       this.mutableState.set(next);
       return next;

@@ -135,6 +135,22 @@
         "cwd": "apps/push-gateway-ui"
       }
     },
+    "check-admin-contract": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/apps/push-gateway/openapi/admin-v1.yaml",
+        "{workspaceRoot}/apps/push-gateway/scripts/generate-admin-contract.ts",
+        "{workspaceRoot}/apps/push-gateway/src/admin-contract/**/*",
+        {
+          "runtime": "bun --version"
+        }
+      ],
+      "options": {
+        "command": "bun apps/push-gateway/scripts/generate-admin-contract.ts --check"
+      }
+    },
     "check-source": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -176,6 +192,7 @@
         "lint",
         "typecheck",
         "test-coverage",
+        "check-admin-contract",
         "check-api",
         "check-source",
         "check-bundle",

@@ -156,6 +156,12 @@ importers:
       '@vitest/coverage-istanbul':
         specifier: 4.1.11
         version: 4.1.11(supports-color@7.2.0)(vitest@4.1.11)
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.20.0)
       angular-eslint:
         specifier: 22.1.0
         version: 22.1.0(@angular/cli@22.1.6(@types/node@26.4.0)(chokidar@5.0.0)(supports-color@7.2.0))(chokidar@5.0.0)(eslint@10.9.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript-eslint@8.68.0(eslint@10.9.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3))(typescript@6.0.3)
@@ -192,6 +198,9 @@ importers:
       prettier:
         specifier: 3.9.6
         version: 3.9.6
+      prettier-plugin-sql-cst:
+        specifier: 0.22.1
+        version: 0.22.1
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
@@ -6125,6 +6134,9 @@ packages:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
 
+  prettier-plugin-sql-cst@0.22.1:
+    resolution: {integrity: sha512-QEJnqIZ+KRykv+SzZmjwkQ+6qA5Xen+xyvNsMi9shCVqRVOyzz6t51pANy91ih9bZL9cmXAaBgmXp2bOMtZCpg==}
+
   prettier@3.9.6:
     resolution: {integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==}
     engines: {node: '>=14'}
@@ -6415,6 +6427,9 @@ packages:
   speakingurl@14.0.1:
     resolution: {integrity: sha512-1POYv7uv2gXoyGFpBCmpDVSNV74IfsWlDW216UPjbWufNf+bSU6GdbDsxdcxtfwb4xlI3yxzOTKClUosxARYrQ==}
     engines: {node: '>=0.10.0'}
+
+  sql-parser-cst@0.42.1:
+    resolution: {integrity: sha512-lfpuhl60s2IRIxWCARthbBvXb2NBLOsVZxzaQLBDDgEZAmT8QYzRWD3qfFX2egZ5y0BYVur7DAQEJSrXxs1WKQ==}
 
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
@@ -12886,6 +12901,11 @@ snapshots:
 
   prelude-ls@1.2.1: {}
 
+  prettier-plugin-sql-cst@0.22.1:
+    dependencies:
+      prettier: 3.9.6
+      sql-parser-cst: 0.42.1
+
   prettier@3.9.6: {}
 
   pretty-ms@9.3.1:
@@ -13274,6 +13294,8 @@ snapshots:
   space-separated-tokens@2.0.2: {}
 
   speakingurl@14.0.1: {}
+
+  sql-parser-cst@0.42.1: {}
 
   stackback@0.0.2: {}
 
