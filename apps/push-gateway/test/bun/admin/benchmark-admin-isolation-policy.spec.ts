@@ -6,28 +6,30 @@ import {
 } from '../../../scripts/benchmark-admin-isolation-policy';
 
 describe('administration isolation benchmark policy', () => {
-  it('requires a separate confirmation for a noisy regressed series', () => {
-    const noisy = summarizeAdministrationIsolationSeries([
-      { disabledP95Ms: 193.805, enabledP95Ms: 226.135 },
-      { disabledP95Ms: 75.084, enabledP95Ms: 248.795 },
-      { disabledP95Ms: 71.692, enabledP95Ms: 186.33 },
-      { disabledP95Ms: 61.868, enabledP95Ms: 45.915 },
-      { disabledP95Ms: 59.949, enabledP95Ms: 45.754 },
+  it('rejects repeated three-of-five host variance as confirmation', () => {
+    const initial = summarizeAdministrationIsolationSeries([
+      { disabledP95Ms: 46.354, enabledP95Ms: 131.54 },
+      { disabledP95Ms: 45.619, enabledP95Ms: 51.567 },
+      { disabledP95Ms: 39.644, enabledP95Ms: 53.411 },
+      { disabledP95Ms: 207.37, enabledP95Ms: 87.083 },
+      { disabledP95Ms: 198.571, enabledP95Ms: 38.955 },
     ]);
-    const stable = summarizeAdministrationIsolationSeries([
-      { disabledP95Ms: 13.304, enabledP95Ms: 18.126 },
-      { disabledP95Ms: 20.34, enabledP95Ms: 20.532 },
-      { disabledP95Ms: 13.304, enabledP95Ms: 18.871 },
-      { disabledP95Ms: 9.846, enabledP95Ms: 10.286 },
-      { disabledP95Ms: 11.418, enabledP95Ms: 11.432 },
+    const confirmation = summarizeAdministrationIsolationSeries([
+      { disabledP95Ms: 36.251, enabledP95Ms: 169.3 },
+      { disabledP95Ms: 31.112, enabledP95Ms: 31.574 },
+      { disabledP95Ms: 30.121, enabledP95Ms: 35.443 },
+      { disabledP95Ms: 47.943, enabledP95Ms: 32.82 },
+      { disabledP95Ms: 31.021, enabledP95Ms: 35.244 },
     ]);
 
-    expect(noisy.requiresConfirmation).toBe(true);
-    expect(stable.requiresConfirmation).toBe(false);
-    expect(hasSustainedAdministrationRegression(noisy, stable)).toBe(false);
+    expect(initial.requiresConfirmation).toBe(true);
+    expect(confirmation.requiresConfirmation).toBe(true);
+    expect(hasSustainedAdministrationRegression(initial, confirmation)).toBe(
+      false,
+    );
   });
 
-  it('rejects the same administration regression in both series', () => {
+  it('rejects an administration regression in every confirmation round', () => {
     const first = summarizeAdministrationIsolationSeries(
       Array.from({ length: 5 }, () => ({
         disabledP95Ms: 20,

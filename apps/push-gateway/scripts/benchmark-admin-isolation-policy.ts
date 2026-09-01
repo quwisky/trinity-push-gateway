@@ -1,5 +1,7 @@
 export const ADMIN_ISOLATION_REGRESSION_PERCENT = 5;
 export const ADMIN_ISOLATION_ROUNDS_PER_SERIES = 5;
+export const ADMIN_ISOLATION_CONFIRMATION_REGRESSED_ROUNDS =
+  ADMIN_ISOLATION_ROUNDS_PER_SERIES;
 
 export type AdministrationIsolationRound = Readonly<{
   disabledP95Ms: number;
@@ -80,5 +82,10 @@ export function hasSustainedAdministrationRegression(
   first: AdministrationIsolationSummary,
   confirmation: AdministrationIsolationSummary,
 ): boolean {
-  return first.requiresConfirmation && confirmation.requiresConfirmation;
+  return (
+    first.requiresConfirmation &&
+    confirmation.medianDeltaPercent > ADMIN_ISOLATION_REGRESSION_PERCENT &&
+    confirmation.regressedRounds ===
+      ADMIN_ISOLATION_CONFIRMATION_REGRESSED_ROUNDS
+  );
 }
