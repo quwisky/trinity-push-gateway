@@ -178,7 +178,7 @@
       "outputs": ["{workspaceRoot}/test-output/test-results/push-gateway-ui"],
       "options": {
         "commands": [
-          "pnpm exec prettier --check apps/push-gateway-ui/playwright.config.ts apps/push-gateway-ui/e2e/admin-security.spec.ts",
+          "pnpm exec prettier --check apps/push-gateway-ui/playwright.config.ts apps/push-gateway-ui/e2e/admin-security.spec.ts apps/push-gateway-ui/e2e/request-failure-observer.ts",
           "pnpm exec tsc --noEmit --project apps/push-gateway-ui/tsconfig.e2e.json",
           "pnpm exec playwright test --config apps/push-gateway-ui/playwright.config.ts"
         ],
