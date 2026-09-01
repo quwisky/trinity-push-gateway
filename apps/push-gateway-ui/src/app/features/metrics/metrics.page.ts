@@ -2,14 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DynamicForm, FormConfig } from '@ng-forge/dynamic-forms';
 import { standardSchema } from '@ng-forge/dynamic-forms/schema';
-import { from, of } from 'rxjs';
 import { METRICS_QUERY_POLICY } from '../../api/admin-contract.generated';
 import type {
   FcmMetricBucket,
@@ -19,8 +16,7 @@ import type {
   RequestMetricBucket,
 } from '../../api/generated/admin-api.schemas';
 import { MetricsService } from '../../api/generated/metrics/metrics.service';
-import { RemoteResource } from '../../api/remote-resource';
-import { pollWhileVisible } from '../../core/polling/visibility-poller';
+import { RemoteQuery } from '../../core/remote-state/remote-query';
 import { StatusAnnouncer } from '../../core/status/status-announcer';
 import { TimeService } from '../../core/time/time.service';
 import { metricsFilterSchema } from '../../core/validation/schemas';
@@ -67,7 +63,7 @@ const fcmColors = [
         it is not proof of device delivery.
       </p>
       <tpg-remote-status
-        [state]="resource.state()"
+        [state]="remote.state()"
         label="metrics"
         (retry)="reload()"
       />
@@ -176,7 +172,6 @@ const fcmColors = [
 })
 export class MetricsPage {
   private readonly metricsApi = inject(MetricsService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly announcer = inject(StatusAnnouncer);
   private readonly time = inject(TimeService);
   private readonly initialTo = new Date();
@@ -185,12 +180,18 @@ export class MetricsPage {
   );
 
   protected readonly metricsPolicy = METRICS_QUERY_POLICY;
-  protected readonly resource = new RemoteResource<Metrics>();
   protected readonly parameters = signal<GetMetricsParams>({
     from: this.initialFrom.toISOString(),
     to: this.initialTo.toISOString(),
     interval: METRICS_QUERY_POLICY.defaultInterval,
   });
+  protected readonly remote = new RemoteQuery<Metrics>(
+    () => this.metricsApi.getMetrics(this.parameters()),
+    {
+      automaticRefreshWhen: () => includesCurrentUtcBucket(this.parameters()),
+      requestKey: () => this.parameters(),
+    },
+  );
   protected readonly filterForm = {
     fields: [
       {
@@ -222,12 +223,7 @@ export class MetricsPage {
     schema: standardSchema(metricsFilterSchema),
     options: { idPrefix: 'metrics-filter' },
   } as const satisfies FormConfig;
-  protected readonly metrics = computed(() => {
-    const state = this.resource.state();
-    return state.kind === 'fresh' || state.kind === 'stale'
-      ? state.data
-      : undefined;
-  });
+  protected readonly metrics = this.remote.data;
   protected readonly requestLabels = computed(() =>
     (this.metrics()?.requestBuckets ?? []).map((bucket) =>
       utcBucketLabel(
@@ -257,20 +253,8 @@ export class MetricsPage {
     () => fcmLatencySeries(this.metrics()?.fcmBuckets ?? []),
   );
 
-  constructor() {
-    pollWhileVisible(() =>
-      includesCurrentUtcBucket(this.parameters())
-        ? from(this.reload())
-        : of(undefined),
-    )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
-  }
-
   protected reload(): Promise<unknown> {
-    return this.resource.load(() =>
-      this.metricsApi.getMetrics(this.parameters()),
-    );
+    return this.remote.refresh();
   }
 
   protected async applyFilters(
