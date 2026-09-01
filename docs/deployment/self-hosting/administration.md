@@ -139,9 +139,12 @@ push.example.com {
 ```
 
 Enable `includeSubDomains` only when every subdomain is permanently HTTPS. The
-proxy must preserve the original host and scheme so browser redirects resolve
-to the configured public origin. It must replace, not append, the client-address
-header, and its direct network must appear in
+proxy must forward the exact `/admin/*` path and query without rewriting them.
+The gateway derives the OIDC callback origin and path exclusively from
+`TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN`; forwarded host and protocol headers
+are not callback trust sources. This allows the public callback to remain HTTPS
+while the proxy sends plain HTTP to Bun. The proxy must replace, not append, the
+client-address header, and its direct network must appear in
 `TRINITY_PUSH_GATEWAY_TRUSTED_PROXY_CIDRS` before forwarded addresses are
 trusted.
 

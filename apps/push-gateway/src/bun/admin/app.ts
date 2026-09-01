@@ -471,6 +471,15 @@ function callbackFailureReason(error: unknown): string {
     : 'unavailable';
 }
 
+function configuredOidcCallback(
+  configuredCallbackUrl: string,
+  requestUrl: string,
+): URL {
+  const callback = new URL(configuredCallbackUrl);
+  callback.search = new URL(requestUrl).search;
+  return callback;
+}
+
 function configurationProjection(
   options: AdminApplicationOptions,
   observedAt: string,
@@ -623,7 +632,7 @@ export function createAdminSurface(
       const identity = await (
         await authenticator()
       ).completeLogin(
-        new URL(context.req.url),
+        configuredOidcCallback(callbackUrl, context.req.url),
         digest(secret, 'oidc', oidcCookie),
       );
       const sessionToken = randomToken();

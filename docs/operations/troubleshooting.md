@@ -56,8 +56,12 @@ Never point administration at `gateway.sqlite`.
 Fetch the configured issuer's discovery document from the gateway host. Verify
 its exact issuer, authorization/token/JWKS endpoints, client authentication
 method, client secret, PKCE support, and callback URL. Check provider and gateway
-clock synchronization. Provider tokens and raw claims are intentionally not
-logged.
+clock synchronization. In the supported TLS-terminating proxy topology, keep
+the configured public origin HTTPS and forward the callback path and complete
+authorization-response query unchanged to Bun over HTTP. Forwarded host and
+protocol headers cannot repair an incorrect public origin because the gateway
+does not trust them for callback authority. Provider tokens and raw claims are
+intentionally not logged.
 
 ## Login returns forbidden
 
