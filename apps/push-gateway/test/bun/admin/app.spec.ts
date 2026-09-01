@@ -52,6 +52,7 @@ type AdminHarness = Readonly<{
   clock: MutableClock;
   logs: Readonly<Record<string, unknown>>[];
   provider: TestOidcProvider;
+  publicOrigin: string;
   surface: AdminSurface;
 }>;
 
@@ -138,11 +139,13 @@ async function createHarness(
   mode: 'missing-group' | 'no-profile' | 'success' | 'wrong-group' = 'success',
   suppliedProvider?: TestOidcProvider,
   unexpectedFailure?: UnexpectedFailure,
+  publicOrigin = PUBLIC_ORIGIN,
 ): Promise<AdminHarness> {
   const provider =
     suppliedProvider ??
     (await startTestOidcProvider({
       clientSecretMethod: contract.clientSecretMethod,
+      gatewayOrigin: publicOrigin,
       mode,
       profile: contract.profile,
     }));
@@ -170,7 +173,7 @@ async function createHarness(
     TRINITY_PUSH_GATEWAY_ADMIN_OIDC_SCOPES: contract.scopes,
     TRINITY_PUSH_GATEWAY_ADMIN_OIDC_TOKEN_ENDPOINT_AUTH_METHOD:
       contract.clientSecretMethod,
-    TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN: PUBLIC_ORIGIN,
+    TRINITY_PUSH_GATEWAY_ADMIN_PUBLIC_ORIGIN: publicOrigin,
     TRINITY_PUSH_GATEWAY_ADMIN_SESSION_SECRET: SESSION_SECRET,
     TRINITY_PUSH_GATEWAY_ANDROID_APP_ID: 'example.android',
     TRINITY_PUSH_GATEWAY_DATABASE_PATH: path.join(directory, 'gateway.sqlite'),
@@ -251,14 +254,14 @@ async function createHarness(
     store,
   });
   surfaces.push(surface);
-  return { clock, logs, provider, surface };
+  return { clock, logs, provider, publicOrigin, surface };
 }
 
 async function beginLogin(
   harness: AdminHarness,
   returnPath?: string,
 ): Promise<LoginStart> {
-  const loginUrl = new URL('/admin/auth/login', PUBLIC_ORIGIN);
+  const loginUrl = new URL('/admin/auth/login', harness.publicOrigin);
   if (returnPath !== undefined) {
     loginUrl.searchParams.set('returnPath', returnPath);
   }
@@ -403,6 +406,45 @@ describe('production administration HTTP surface', () => {
       expectNoCors(response);
     },
   );
+
+  it('establishes a session through an external HTTPS and internal HTTP proxy topology', async () => {
+    const harness = await createHarness(
+      {
+        clientSecretMethod: 'client_secret_basic',
+        profile: 'pocket-id',
+        scopes: 'openid profile email groups',
+      },
+      'success',
+      undefined,
+      undefined,
+      'https://gateway.example',
+    );
+    const start = await beginLogin(harness);
+    expect(start.authorizationUrl.searchParams.get('redirect_uri')).toBe(
+      'https://gateway.example/admin/auth/callback',
+    );
+    const internalCallback = new URL(
+      '/admin/auth/callback',
+      'http://127.0.0.1:3000',
+    );
+    internalCallback.search = start.callbackUrl.search;
+
+    const response = await harness.surface.fetch(
+      new Request(internalCallback, {
+        headers: {
+          cookie: cookies([OIDC_COOKIE, start.oidcCookie]),
+          forwarded: 'host=attacker.example;proto=https',
+          'x-forwarded-host': 'attacker.example',
+          'x-forwarded-proto': 'https',
+        },
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/admin/overview');
+    expect(cookieValue(response, SESSION_COOKIE)).toBeDefined();
+    expect(cookieValue(response, XSRF_COOKIE)).toBeDefined();
+  });
 
   it('binds a one-use login attempt to the exact browser cookie', async () => {
     const harness = await createHarness({
@@ -903,6 +945,8 @@ describe('production administration HTTP surface', () => {
       ['GET', '/admin/api/v1/session/', 404],
       ['HEAD', '/admin/api/v1/session', 404],
       ['OPTIONS', '/admin/api/v1/session', 404],
+      ['GET', '/admin/auth/callback-suffix', 404],
+      ['GET', '/admin/auth/callback/', 404],
       ['GET', '/admin/auth/unknown', 404],
       ['POST', '/admin/auth/login', 404],
       ['HEAD', '/admin/auth/login', 404],

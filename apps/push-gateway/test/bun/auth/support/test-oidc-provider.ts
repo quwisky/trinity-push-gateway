@@ -31,6 +31,7 @@ type ProviderEvent = ClosedEvent | PromptEvent | ReadyEvent;
 
 type ProviderOptions = {
   readonly clientSecretMethod?: 'client_secret_basic' | 'client_secret_post';
+  readonly gatewayOrigin?: string;
   readonly mode?: TestProviderMode;
   readonly profile: TestProviderProfile;
 };
@@ -221,7 +222,18 @@ export async function startTestOidcProvider(
       options.mode ?? 'success',
       options.clientSecretMethod ?? 'client_secret_basic',
     ],
-    { stderr: 'pipe', stdout: 'pipe' },
+    {
+      ...(options.gatewayOrigin === undefined
+        ? {}
+        : {
+            env: {
+              ...process.env,
+              TRINITY_TEST_GATEWAY_ORIGIN: options.gatewayOrigin,
+            },
+          }),
+      stderr: 'pipe',
+      stdout: 'pipe',
+    },
   );
   const events: ProviderEvent[] = [];
   const ready = Promise.withResolvers<ReadyEvent>();
