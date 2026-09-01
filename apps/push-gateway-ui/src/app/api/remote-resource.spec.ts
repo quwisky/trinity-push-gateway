@@ -4,6 +4,22 @@ import { ADMIN_PROBLEM_CATALOG } from './admin-contract.generated';
 import { RemoteResource } from './remote-resource';
 
 describe('RemoteResource', () => {
+  it('waits for a single-response transport to complete', async () => {
+    const resource = new RemoteResource<string>();
+    const response = new Subject<string>();
+
+    const resultPromise = resource.load(() => response);
+    response.next('ready');
+    await Promise.resolve();
+
+    expect(resource.state()).toEqual({ kind: 'loading' });
+    response.complete();
+    await expect(resultPromise).resolves.toMatchObject({
+      kind: 'fresh',
+      data: 'ready',
+    });
+  });
+
   it('moves from idle through loading to a first-load error', async () => {
     const resource = new RemoteResource<string>();
     const response = new Subject<string>();
