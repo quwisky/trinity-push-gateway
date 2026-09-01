@@ -91,7 +91,7 @@ The runtime's Gateway Store coordinates event delivery with an HMAC-SHA-256 fing
 5. Allow an expired pending lease to be reclaimed.
 6. Remove expired records with daily scheduled cleanup.
 
-Both adapters implement one behavioral storage contract. Bun applies the canonical migrations before listening and uses strict bindings, WAL, full synchronous durability, foreign keys, and a finite busy timeout. Its supported topology is one service instance and one local persistent volume; horizontal replicas and network-hosted SQLite files are excluded.
+Both adapters implement one behavioral storage contract. Bun applies the canonical migrations before listening and uses strict bindings, WAL, full synchronous durability, foreign keys, and a finite busy timeout. Before the first stable release, the unreleased gateway and administration migration lineages may be rebased coherently because there is no supported database upgrade contract; that first release freezes every published artifact and makes all later changes forward-only. Its supported topology is one service instance and one local persistent volume; horizontal replicas and network-hosted SQLite files are excluded.
 
 This suppresses ordinary retries while preferring a rare duplicate over silent loss in the unavoidable crash window between FCM acceptance and recording the result. The service does not claim exactly-once delivery.
 

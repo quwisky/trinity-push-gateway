@@ -14,9 +14,9 @@ const initialAdminMigration = path.join(
   adminMigrationsRoot,
   '0001_admin_foundation.sql',
 );
-const initialMigrationHash =
+const reviewedInitialMigrationHash =
   'e4df5deddd4ce4ee27af8eeacfeb50dfb365c1035207741f49cb3591e119d8da';
-const initialAdminMigrationHash =
+const reviewedInitialAdminMigrationHash =
   'c1678b95ceaa94bc038ecf9add623a64fc9a69fa529038299827e03373aca443';
 const configs = ['drizzle.d1.config.ts', 'drizzle.bun.config.ts'];
 const adminConfig = 'drizzle.admin.config.ts';
@@ -164,9 +164,9 @@ async function checkMigrationPolicy() {
   const actualInitialHash = createHash('sha256')
     .update(initialSql)
     .digest('hex');
-  if (actualInitialHash !== initialMigrationHash) {
+  if (actualInitialHash !== reviewedInitialMigrationHash) {
     throw new Error(
-      '0001_initial.sql changed after its Drizzle baseline adoption.',
+      '0001_initial.sql does not match its reviewed migration baseline.',
     );
   }
   if (
@@ -232,9 +232,9 @@ async function checkAdminMigrationPolicy() {
   }
   const initialSql = await readFile(initialAdminMigration);
   const actualHash = createHash('sha256').update(initialSql).digest('hex');
-  if (actualHash !== initialAdminMigrationHash) {
+  if (actualHash !== reviewedInitialAdminMigrationHash) {
     throw new Error(
-      '0001_admin_foundation.sql changed after its reviewed baseline adoption.',
+      '0001_admin_foundation.sql does not match its reviewed migration baseline.',
     );
   }
   if (

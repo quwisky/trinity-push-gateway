@@ -30,3 +30,4 @@ narrow runtime, privacy, delivery, operator, release, and repository boundaries.
 25. [Use openid-client for Operator authentication](./0025-use-openid-client-for-operator-authentication)
 26. [Use Hono for Bun administration routing](./0026-use-hono-for-bun-administration-routing)
 27. [Gate administration releases with real OIDC providers](./0027-gate-administration-releases-with-real-oidc-providers)
+28. [Rebase migration lineages only before the first stable release](./0028-rebase-migrations-only-before-the-first-stable-release)
