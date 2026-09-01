@@ -75,6 +75,7 @@ type AdminApplicationOptions = Readonly<{
   configuration: AdminConfiguration;
   gatewayConfiguration: BunConfiguration;
   gatewayReady: () => boolean;
+  log: (event: Readonly<Record<string, unknown>>) => void;
   now?: () => number;
   operations?: Pick<
     AdminOperations,
@@ -503,6 +504,10 @@ export function createAdminSurface(
     nowSeconds: () => Math.floor(now() / 1_000),
     storage: options.store,
   });
+  const unexpectedRequestFailure = (): Response => {
+    options.log({ event: 'admin_request_failed', outcome: 'unavailable' });
+    return adminUnavailableResponse();
+  };
   const authenticator = (): Promise<OidcAuthenticator> => {
     authenticatorPromise ??= createOidcAuthenticator(
       {
@@ -909,7 +914,7 @@ export function createAdminSurface(
     const staticResponse = options.assets.responseFor(context.req.raw);
     return staticResponse ?? adminNotFoundResponse();
   });
-  app.onError(() => adminUnavailableResponse());
+  app.onError(unexpectedRequestFailure);
 
   return Object.freeze({
     cleanup: async (nowSeconds): Promise<void> => {
@@ -940,7 +945,7 @@ export function createAdminSurface(
       try {
         return await app.fetch(request);
       } catch {
-        return adminUnavailableResponse();
+        return unexpectedRequestFailure();
       }
     },
     purgeSessions: (nowSeconds): Promise<number> =>

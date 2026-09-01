@@ -42,6 +42,11 @@ executes its normalized bounded storage query.
 
 UI, OIDC, administration-database, and metrics failures cannot alter or delay Matrix notification delivery or public `/health`. Metrics are fixed-cardinality aggregates flushed best-effort by one bounded Bun Worker; that worker never owns delivery coordination.
 
+The Hono administration module owns unexpected request failure handling at one
+interface. Route and browser-asset throws become the canonical generic `503`
+response and one fixed `admin_request_failed` event; nested runtime and server
+adapters neither re-report the failure nor receive the thrown value.
+
 ## Input boundary
 
 Requests are limited to 64 KiB and 49 client installations. Known Matrix fields are strictly validated for type, size, and cross-field consistency. Unknown fields are tolerated for forward compatibility but ignored and never forwarded.
