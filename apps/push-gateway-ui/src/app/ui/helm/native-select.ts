@@ -34,34 +34,7 @@ const HLM_NATIVE_SELECT_VALUE_ACCESSOR = {
       'spartan-native-select-wrapper group/native-select relative block w-full has-[select:disabled]:opacity-50',
     'data-slot': 'native-select-wrapper',
   },
-  template: `
-    <select
-      data-slot="native-select"
-      [id]="selectId()"
-      [class]="computedSelectClass()"
-      [attr.aria-invalid]="ariaInvalid() ? 'true' : null"
-      [tabIndex]="disabledState() ? -1 : (tabIndex() ?? 0)"
-      [value]="value()"
-      [disabled]="disabledState()"
-      (change)="valueChanged($event)"
-      (blur)="blurred()"
-    >
-      <ng-content />
-    </select>
-    <svg
-      class="spartan-native-select-icon pointer-events-none absolute size-4 select-none"
-      aria-hidden="true"
-      data-slot="native-select-icon"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  `,
+  templateUrl: './native-select.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmNativeSelect implements ControlValueAccessor {

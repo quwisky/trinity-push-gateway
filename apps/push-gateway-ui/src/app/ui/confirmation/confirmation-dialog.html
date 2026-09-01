@@ -1,0 +1,41 @@
+<dialog
+  #dialog
+  class="confirmation-dialog"
+  role="alertdialog"
+  aria-labelledby="confirmation-title"
+  aria-describedby="confirmation-description"
+  (cancel)="cancel($event)"
+>
+  @if (request(); as confirmation) {
+  <p class="eyebrow">Confirm Operator Action</p>
+  <h2 id="confirmation-title">{{ confirmation.title }}</h2>
+  <p id="confirmation-description" class="lede">
+    {{ confirmation.description }}
+  </p>
+
+  <form
+    class="confirmation-form"
+    [dynamic-form]="form()"
+    [formOptions]="formOptions()"
+    (submitted)="run()"
+  ></form>
+
+  @if (status(); as message) {
+  <p class="status-message" role="alert">{{ message }}</p>
+  }
+
+  <div class="dialog-actions">
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [disabled]="pending()"
+      (click)="close(false)"
+    >
+      Cancel
+    </button>
+  </div>
+  @if (pending()) {
+  <p class="muted" role="status">{{ confirmation.pendingLabel }}</p>
+  } }
+</dialog>

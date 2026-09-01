@@ -35,42 +35,7 @@ const HLM_CHECKBOX_VALUE_ACCESSOR = {
     'data-slot': 'checkbox',
     '[attr.data-disabled]': 'disabledState() ? "" : null',
   },
-  template: `
-    <brn-checkbox
-      [id]="inputId()"
-      [name]="name()"
-      [class]="computedClass()"
-      [checked]="checked()"
-      [(indeterminate)]="indeterminate"
-      [disabled]="disabledState()"
-      [required]="required()"
-      [aria-label]="ariaLabel()"
-      [aria-labelledby]="ariaLabelledby()"
-      [aria-describedby]="ariaDescribedby()"
-      [forceInvalid]="forceInvalid()"
-      (checkedChange)="handleChange($event)"
-      (touched)="onTouched?.()"
-    >
-      @if (checked() || indeterminate()) {
-        <span
-          class="spartan-checkbox-indicator flex items-center justify-center text-current transition-none"
-        >
-          <svg
-            class="size-3.5"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="m20 6-11 11-5-5" />
-          </svg>
-        </span>
-      }
-    </brn-checkbox>
-  `,
+  templateUrl: './checkbox.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmCheckbox implements ControlValueAccessor {

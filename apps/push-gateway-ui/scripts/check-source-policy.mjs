@@ -21,7 +21,7 @@ async function collectSourceFiles(directory) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...(await collectSourceFiles(entryPath)));
-    } else if (/\.(?:css|html|svg|ts)$/u.test(entry.name)) {
+    } else if (/\.(?:css|html|scss|svg|ts)$/u.test(entry.name)) {
       files.push(entryPath);
     }
   }
@@ -46,7 +46,7 @@ const runtimeSources = sources.filter(
 );
 
 const globalStyles = await readFile(
-  path.join(sourceRoot, 'styles.css'),
+  path.join(sourceRoot, 'styles.scss'),
   'utf8',
 );
 for (const marker of [
@@ -61,6 +61,14 @@ for (const marker of [
     `The app-owned Spartan style recipe is missing: ${marker}`,
   );
 }
+
+const productionCss = runtimeSources.find(({ relativePath }) =>
+  relativePath.endsWith('.css'),
+);
+assertPolicy(
+  productionCss === undefined,
+  `Production UI styles must use SCSS; found ${productionCss?.relativePath ?? 'CSS source'}.`,
+);
 
 const appConfig = await readFile(
   path.join(sourceRoot, 'app/app.config.ts'),
