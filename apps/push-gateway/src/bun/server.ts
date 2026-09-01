@@ -128,12 +128,7 @@ export async function startBunGateway(
                 ? adminNotFoundResponse()
                 : adminUnavailableResponse();
             }
-            try {
-              return await administration.fetch(request);
-            } catch {
-              log({ event: 'admin_request_failed', outcome: 'unavailable' });
-              return adminUnavailableResponse();
-            }
+            return await administration.fetch(request);
           }
           try {
             const response = await gateway.fetch(request, runtimeEnvironment);

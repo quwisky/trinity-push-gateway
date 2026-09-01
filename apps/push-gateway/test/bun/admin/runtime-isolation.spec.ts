@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import type { Server } from 'bun';
+import { Database } from 'bun:sqlite';
 import {
   linkSync,
   mkdirSync,
@@ -204,6 +205,41 @@ afterEach(async () => {
 });
 
 describe('administration runtime isolation', () => {
+  it('reports an unexpected administration request once without affecting delivery or health', async () => {
+    const directory = temporaryDirectory();
+    createValidAssets(path.join(directory, 'assets'));
+    const harness = await startRuntime({
+      ...gatewayEnvironment(directory),
+      ...enabledAdminEnvironment(directory),
+    });
+    await expectRuntimeEvent(harness, { event: 'admin_started' });
+    const database = new Database(path.join(directory, 'admin.sqlite'));
+    database.run('DROP TABLE operator_sessions');
+    database.close();
+
+    const administration = await fetch(
+      `${harness.origin}/admin/api/v1/session?token=request-query-secret`,
+      {
+        headers: {
+          authorization: 'Bearer request-secret',
+          cookie: 'TRINITY_ADMIN_SESSION=request-cookie',
+        },
+      },
+    );
+    const body = await administration.text();
+
+    expect(administration.status).toBe(503);
+    expect(JSON.parse(body)).toMatchObject({ code: 'admin_unavailable' });
+    expectNoCors(administration);
+    expect(
+      harness.logs.filter((event) => event.event === 'admin_request_failed'),
+    ).toEqual([{ event: 'admin_request_failed', outcome: 'unavailable' }]);
+    expect(`${body}\n${JSON.stringify(harness.logs)}`).not.toMatch(
+      /authorization|bearer|cookie|query-secret|request-secret/iu,
+    );
+    await expectDeliveryHealthy(harness);
+  });
+
   it('keeps Matrix delivery and health available for enabled-invalid configuration', async () => {
     const directory = temporaryDirectory();
     const harness = await startRuntime({
