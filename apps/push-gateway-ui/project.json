@@ -22,7 +22,7 @@
             "input": "apps/push-gateway-ui/public"
           }
         ],
-        "styles": ["apps/push-gateway-ui/src/styles.css"]
+        "styles": ["apps/push-gateway-ui/src/styles.scss"]
       },
       "configurations": {
         "production": {

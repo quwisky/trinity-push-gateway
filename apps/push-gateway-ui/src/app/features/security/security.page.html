@@ -1,0 +1,151 @@
+<header class="page-header">
+  <p class="eyebrow">Operator access</p>
+  <h1>Security</h1>
+  <p class="lede">
+    Active Operator Sessions and privacy-safe Operator Audit Entries.
+    Identity-provider accounts, groups, and profiles remain outside this UI.
+  </p>
+</header>
+
+<section class="content-panel" aria-labelledby="sessions-title">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Bounded access</p>
+      <h2 id="sessions-title">Active Operator Sessions</h2>
+    </div>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      type="button"
+      (click)="loadSessions()"
+    >
+      Refresh
+    </button>
+  </div>
+  <tpg-remote-status
+    [state]="sessionResource.state()"
+    label="Operator Sessions"
+    (retry)="loadSessions()"
+  />
+
+  @if (sessions(); as sessionList) {
+  <div class="session-list">
+    @for (session of sessionList.sessions; track session.id) {
+    <article class="session-card" [class.current-session]="session.current">
+      <div>
+        <div class="session-title-row">
+          <h3>{{ operatorLabel(session.operator) }}</h3>
+          @if (session.current) {
+          <span class="status-pill">Current session</span>
+          }
+        </div>
+        <p class="muted">
+          Last seen
+          <time [attr.datetime]="session.lastSeenAt"
+            >{{ time.format(session.lastSeenAt) }}</time
+          >
+          ({{ time.zoneLabel() }}). Idle expiry
+          <time [attr.datetime]="session.idleExpiresAt"
+            >{{ time.format(session.idleExpiresAt) }}</time
+          >.
+        </p>
+      </div>
+      <button
+        hlmBtn
+        variant="destructive"
+        size="sm"
+        type="button"
+        (click)="confirmRevocation(session)"
+      >
+        {{ session.current ? 'Revoke this session' : 'Revoke session' }}
+      </button>
+    </article>
+    }
+  </div>
+  }
+</section>
+
+<section class="content-panel" aria-labelledby="audit-title">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Privacy-safe history</p>
+      <h2 id="audit-title">Operator Audit Entries</h2>
+    </div>
+    <span class="status-pill">
+      Maximum {{ auditPolicy.maximumRangeDays }} days
+    </span>
+  </div>
+
+  <form
+    class="filter-form"
+    [dynamic-form]="auditFilterForm"
+    (submitted)="applyAuditFilters($event)"
+  ></form>
+  <tpg-remote-status
+    [state]="auditResource.state()"
+    label="Operator Audit Entries"
+    (retry)="loadAudit(true)"
+  />
+
+  @if (auditEntries().length === 0 && auditLoaded()) {
+  <div class="empty-state compact-empty">
+    <h3>No Operator Audit Entries match</h3>
+    <p>The filtered query succeeded and returned no entries.</p>
+  </div>
+  } @else if (auditEntries().length > 0) {
+  <div
+    class="table-scroll"
+    role="region"
+    tabindex="0"
+    aria-label="Operator Audit Entries table"
+  >
+    <table class="data-table">
+      <caption>
+        Operator Audit Entries in reverse chronological order. Times shown in {{
+        time.zoneLabel() }}. No Matrix, notification, address, or raw
+        identity-provider data is included.
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Occurred</th>
+          <th scope="col">Kind</th>
+          <th scope="col">Outcome</th>
+          <th scope="col">Operator Identity</th>
+          <th scope="col">Safe reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of auditEntries(); track entry.id) {
+        <tr>
+          <td>
+            <time [attr.datetime]="entry.occurredAt"
+              >{{ time.format(entry.occurredAt) }}</time
+            >
+          </td>
+          <td>{{ humanizeToken(entry.kind) }}</td>
+          <td>
+            <span class="outcome-badge" [attr.data-outcome]="entry.outcome"
+              >{{ humanizeToken(entry.outcome) }}</span
+            >
+          </td>
+          <td>{{ operatorLabel(entry.operator) }}</td>
+          <td>{{ entry.reason ? humanizeToken(entry.reason) : 'None' }}</td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (nextCursor()) {
+  <button
+    class="load-more"
+    hlmBtn
+    variant="outline"
+    type="button"
+    (click)="loadAudit(false)"
+  >
+    Load older entries
+  </button>
+  } }
+</section>
+<tpg-confirmation-dialog />

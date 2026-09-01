@@ -23,32 +23,7 @@ import { SpartanTextProps } from './spartan-form.types';
   ],
   hostDirectives: [NgForgeFieldHost],
   host: { class: 'form-field' },
-  template: `
-    @let state = field.field();
-    @let inputId = field.key() + '-input';
-    @if (field.label(); as label) {
-      <label hlmLabel [for]="inputId">
-        {{ label | dynamicText | async }}
-      </label>
-    }
-    <input
-      hlmInput
-      ngForgeControl
-      [formField]="state"
-      [id]="inputId"
-      [type]="props()?.type ?? 'text'"
-      [placeholder]="(field.placeholder() | dynamicText | async) ?? ''"
-      [attr.tabindex]="field.tabIndex()"
-      [class.control-invalid]="state().invalid() && state().touched()"
-    />
-    @if (field.errorsToDisplay()[0]; as error) {
-      <p class="field-error" [id]="field.errorId()" role="alert">
-        {{ error.message }}
-      </p>
-    } @else if (props()?.hint; as hint) {
-      <p class="field-hint" [id]="field.hintId()">{{ hint }}</p>
-    }
-  `,
+  templateUrl: './spartan-text-field.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SpartanTextFieldComponent {

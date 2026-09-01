@@ -26,6 +26,19 @@ TypeScript checks, Angular-native Vitest coverage, canonical browser-policy and
 generated-client drift, source policy, and raw/compressed browser bundle
 policy.
 
+## Angular authoring conventions
+
+Production components keep their templates and styles in colocated external
+resources. A component named `example.ts` uses `example.html` and, when it owns
+component styles, `example.scss`. Test-only host components may keep small
+inline templates local to their specs.
+
+Nx generator defaults create external HTML and SCSS resources. ESLint rejects
+non-empty inline production templates or styles, while the source-policy check
+rejects production CSS and includes SCSS in the browser source boundary. Global
+styles remain in `src/styles.scss`; do not move shared recipes into component
+styles because Angular style encapsulation would change their reach.
+
 ## Generated operator API client
 
 The published API contract is `apps/push-gateway/openapi/admin-v1.yaml`.

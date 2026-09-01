@@ -5,7 +5,7 @@ import { RouterOutlet } from '@angular/router';
   imports: [RouterOutlet],
   selector: 'tpg-root',
   templateUrl: './app.html',
-  styleUrl: './app.css',
+  styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {}

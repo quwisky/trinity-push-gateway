@@ -50,6 +50,16 @@ export default [
     },
   },
   {
+    files: ['src/app/**/*.ts'],
+    ignores: ['src/app/**/*.spec.ts', 'src/app/**/*.test.ts'],
+    rules: {
+      '@angular-eslint/component-max-inline-declarations': [
+        'error',
+        { template: 0, styles: 0 },
+      ],
+    },
+  },
+  {
     files: ['src/app/ui/helm/**/*.ts'],
     rules: {
       // These app-owned selectors preserve Spartan Helm's public template API.

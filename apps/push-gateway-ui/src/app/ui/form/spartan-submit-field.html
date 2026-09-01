@@ -1,0 +1,8 @@
+<button
+  hlmBtn
+  type="submit"
+  [disabled]="action.disabled()"
+  [tabIndex]="action.tabIndex()"
+>
+  {{ action.label() | dynamicText | async }}
+</button>

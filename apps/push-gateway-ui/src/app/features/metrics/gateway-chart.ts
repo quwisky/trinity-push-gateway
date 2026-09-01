@@ -41,45 +41,7 @@ export type GatewayChartSeries = Readonly<{
 
 @Component({
   selector: 'tpg-gateway-chart',
-  template: `
-    <div class="chart-frame">
-      <canvas #canvas role="img" [attr.aria-label]="accessibleLabel()"></canvas>
-    </div>
-    <div
-      class="table-scroll"
-      role="region"
-      tabindex="0"
-      [attr.aria-label]="tableCaption() + ' scrollable table'"
-    >
-      <table class="data-table chart-data-table">
-        <caption>
-          {{
-            tableCaption()
-          }}
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">UTC interval</th>
-            @for (seriesItem of series(); track seriesItem.label) {
-              <th scope="col">{{ seriesItem.label }}</th>
-            }
-          </tr>
-        </thead>
-        <tbody>
-          @for (label of labels(); track label; let rowIndex = $index) {
-            <tr>
-              <th scope="row">{{ label }}</th>
-              @for (seriesItem of series(); track seriesItem.label) {
-                <td>
-                  {{ displayValue(seriesItem.values[rowIndex]) }}
-                </td>
-              }
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  `,
+  templateUrl: './gateway-chart.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GatewayChart implements OnDestroy {

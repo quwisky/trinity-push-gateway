@@ -98,9 +98,16 @@
   "generators": {
     "@nx/angular:application": {
       "e2eTestRunner": "none",
+      "inlineStyle": false,
+      "inlineTemplate": false,
       "linter": "eslint",
-      "style": "css",
+      "style": "scss",
       "unitTestRunner": "vitest-angular"
+    },
+    "@nx/angular:component": {
+      "inlineStyle": false,
+      "inlineTemplate": false,
+      "style": "scss"
     }
   }
 }

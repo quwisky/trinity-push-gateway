@@ -13,16 +13,7 @@ import { HlmButton } from '../helm/button';
   imports: [AsyncPipe, DynamicTextPipe, HlmButton],
   hostDirectives: [NgForgeActionHost],
   host: { class: 'form-actions' },
-  template: `
-    <button
-      hlmBtn
-      type="submit"
-      [disabled]="action.disabled()"
-      [tabIndex]="action.tabIndex()"
-    >
-      {{ action.label() | dynamicText | async }}
-    </button>
-  `,
+  templateUrl: './spartan-submit-field.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SpartanSubmitFieldComponent {
