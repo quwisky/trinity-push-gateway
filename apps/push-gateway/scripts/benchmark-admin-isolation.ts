@@ -9,6 +9,14 @@ import { readMigrations } from '../src/bun/migrations';
 import { startBunGateway, type RunningBunGateway } from '../src/bun/server';
 import { SqliteGatewayStore } from '../src/bun/sqlite-store';
 import { SqliteAdminStore } from '../src/bun/admin/store';
+import {
+  ADMIN_ISOLATION_REGRESSION_PERCENT,
+  ADMIN_ISOLATION_ROUNDS_PER_SERIES,
+  hasSustainedAdministrationRegression,
+  summarizeAdministrationIsolationSeries,
+  type AdministrationIsolationRound,
+  type AdministrationIsolationSummary,
+} from './benchmark-admin-isolation-policy';
 
 const GATEWAY_ROOT = path.join(import.meta.dir, '..');
 const DELIVERY_MIGRATIONS = readMigrations(
@@ -17,11 +25,9 @@ const DELIVERY_MIGRATIONS = readMigrations(
 const ADMIN_MIGRATIONS = readMigrations(
   path.join(GATEWAY_ROOT, 'admin-migrations'),
 );
-const ROUNDS = 5;
 const WARMUP_REQUESTS = 300;
 const SAMPLE_REQUESTS = 2_000;
 const CONCURRENCY = 16;
-const SUSTAINED_REGRESSION_PERCENT = 5;
 const directories: string[] = [];
 const runtimes: RunningBunGateway[] = [];
 
@@ -354,34 +360,72 @@ async function exerciseFailureAndOperations(): Promise<
   }
 }
 
-function median(values: readonly number[]): number {
-  const ordered = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(ordered.length / 2);
-  return ordered[middle] ?? Number.POSITIVE_INFINITY;
+async function measureSeries(
+  roundOffset: number,
+): Promise<
+  Readonly<{ errors: number; summary: AdministrationIsolationSummary }>
+> {
+  const rounds: AdministrationIsolationRound[] = [];
+  let errors = 0;
+  for (
+    let seriesRound = 0;
+    seriesRound < ADMIN_ISOLATION_ROUNDS_PER_SERIES;
+    seriesRound += 1
+  ) {
+    const round = roundOffset + seriesRound;
+    const order = round % 2 === 0 ? [false, true] : [true, false];
+    let disabledP95Ms: number | undefined;
+    let enabledP95Ms: number | undefined;
+    for (const enabled of order) {
+      const result = await measureMode(enabled, round);
+      errors += result.errors;
+      if (enabled) {
+        enabledP95Ms = result.p95Ms;
+      } else {
+        disabledP95Ms = result.p95Ms;
+      }
+    }
+    if (disabledP95Ms === undefined || enabledP95Ms === undefined) {
+      throw new Error('Administration isolation round was incomplete.');
+    }
+    rounds.push({ disabledP95Ms, enabledP95Ms });
+  }
+  return {
+    errors,
+    summary: summarizeAdministrationIsolationSeries(rounds),
+  };
+}
+
+function reportSeries(
+  label: string,
+  roundOffset: number,
+  summary: AdministrationIsolationSummary,
+): void {
+  console.info(
+    `| ${label} disabled median p95 | ${summary.disabledMedianP95Ms.toFixed(3)} ms |`,
+  );
+  console.info(
+    `| ${label} enabled median p95 | ${summary.enabledMedianP95Ms.toFixed(3)} ms |`,
+  );
+  console.info(
+    `| ${label} median p95 delta | ${summary.medianDeltaPercent.toFixed(2)}% |`,
+  );
+  console.info(
+    `| ${label} rounds above ${String(ADMIN_ISOLATION_REGRESSION_PERCENT)}% | ${String(summary.regressedRounds)} / ${String(ADMIN_ISOLATION_ROUNDS_PER_SERIES)} |`,
+  );
+  for (const [index, round] of summary.rounds.entries()) {
+    console.info(
+      `| Round ${String(roundOffset + index + 1)} disabled / enabled | ${round.disabledP95Ms.toFixed(3)} / ${round.enabledP95Ms.toFixed(3)} ms |`,
+    );
+  }
 }
 
 try {
-  const disabled: number[] = [];
-  const enabled: number[] = [];
-  let errors = 0;
-  for (let round = 0; round < ROUNDS; round += 1) {
-    const order = round % 2 === 0 ? [false, true] : [true, false];
-    for (const mode of order) {
-      const result = await measureMode(mode, round);
-      errors += result.errors;
-      (mode ? enabled : disabled).push(result.p95Ms);
-    }
-  }
-  const disabledP95 = median(disabled);
-  const enabledP95 = median(enabled);
-  const deltaPercent = ((enabledP95 - disabledP95) / disabledP95) * 100;
-  const regressedRounds = enabled.filter(
-    (value, index) =>
-      ((value - (disabled[index] ?? Number.POSITIVE_INFINITY)) /
-        (disabled[index] ?? 1)) *
-        100 >
-      SUSTAINED_REGRESSION_PERCENT,
-  ).length;
+  const first = await measureSeries(0);
+  const confirmation = first.summary.requiresConfirmation
+    ? await measureSeries(ADMIN_ISOLATION_ROUNDS_PER_SERIES)
+    : undefined;
+  let errors = first.errors + (confirmation?.errors ?? 0);
   const isolation = await exerciseFailureAndOperations();
   errors += isolation.errors;
 
@@ -389,12 +433,16 @@ try {
   console.info('');
   console.info('| Evidence | Result |');
   console.info('| --- | ---: |');
-  console.info(`| Disabled median p95 | ${disabledP95.toFixed(3)} ms |`);
-  console.info(`| Enabled median p95 | ${enabledP95.toFixed(3)} ms |`);
-  console.info(`| Median p95 delta | ${deltaPercent.toFixed(2)}% |`);
-  console.info(
-    `| Rounds above 5% | ${String(regressedRounds)} / ${String(ROUNDS)} |`,
-  );
+  reportSeries('Initial', 0, first.summary);
+  if (confirmation === undefined) {
+    console.info('| Confirmation series | not required |');
+  } else {
+    reportSeries(
+      'Confirmation',
+      ADMIN_ISOLATION_ROUNDS_PER_SERIES,
+      confirmation.summary,
+    );
+  }
   console.info(`| Notification errors | ${String(errors)} |`);
   console.info(
     `| Metrics writer failure isolated | ${isolation.metricsFailureObserved ? 'yes' : 'no'} |`,
@@ -402,14 +450,9 @@ try {
   console.info(
     `| Operations under load | ${isolation.operations.join(', ')} |`,
   );
-  for (let round = 0; round < ROUNDS; round += 1) {
-    console.info(
-      `| Round ${String(round + 1)} disabled / enabled | ${(disabled[round] ?? 0).toFixed(3)} / ${(enabled[round] ?? 0).toFixed(3)} ms |`,
-    );
-  }
   console.info('');
   console.info(
-    `Bun ${Bun.version}; ${String(SAMPLE_REQUESTS)} measured requests per mode per round; concurrency ${String(CONCURRENCY)}.`,
+    `Bun ${Bun.version}; ${String(SAMPLE_REQUESTS)} measured requests per mode per round; concurrency ${String(CONCURRENCY)}; confirmation runs only after an initial regression.`,
   );
 
   if (errors !== 0) throw new Error('Notification errors are forbidden.');
@@ -420,8 +463,8 @@ try {
     throw new Error('An administration operation failed under Matrix load.');
   }
   if (
-    deltaPercent > SUSTAINED_REGRESSION_PERCENT &&
-    regressedRounds >= Math.ceil(ROUNDS * 0.6)
+    confirmation !== undefined &&
+    hasSustainedAdministrationRegression(first.summary, confirmation.summary)
   ) {
     throw new Error('Sustained administration p95 regression exceeds 5%.');
   }
