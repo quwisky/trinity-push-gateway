@@ -18,6 +18,9 @@
       "eu.qwky.trinity.ios": { "kind": "fcm" },
     },
   },
+  // Declares the secret for `wrangler types` so the generated Env is the same with or
+  // without a local .dev.vars. Set the value with `wrangler secret put`.
+  "secrets": { "required": ["FCM_SERVICE_ACCOUNT"] },
   "ratelimits": [
     {
       "name": "PUSHKEY_LIMITER",
