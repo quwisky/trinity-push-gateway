@@ -106,10 +106,18 @@ To enable this on a fork:
   example `https://push.example.org`. Without it the post-deploy health check is skipped
   with a warning.
 
-Dependency updates come from [Renovate](https://docs.renovatebot.com/)
-(`.github/renovate.json`) once its GitHub App covers the repository. Patches and security
-fixes open PRs directly; minor and major updates wait for approval on the dependency
-dashboard issue.
+Dependency updates come from self-hosted [Renovate](https://docs.renovatebot.com/): the
+Renovate workflow runs daily (or by hand, with a dry-run option) using
+`.github/renovate.json`. Patches and security fixes open PRs directly; minor and major
+updates wait for approval on the Dependency Dashboard issue. To enable it:
+
+- Install a Renovate GitHub App on the repository with contents, pull requests, issues
+  and workflows write, and checks, commit statuses and Dependabot alerts read.
+- Set the repository variable `RENOVATE_APP_CLIENT_ID` to the App's Client ID (the
+  `Iv…` string, not the numeric App ID).
+- Create a `renovate` environment, limited to `main`, holding the secret
+  `RENOVATE_APP_PRIVATE_KEY`.
+- Keep Issues enabled; the Dependency Dashboard lives there.
 
 ## Free-tier ceilings
 
