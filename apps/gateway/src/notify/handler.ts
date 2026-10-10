@@ -4,7 +4,7 @@ import { ConfigError, parseConfig } from '../config';
 import { errorResponse } from '../errors';
 import { logDelivery } from '../log';
 import { buildFcmMessage } from '../payload';
-import { sendFcm, type SendResult } from '../providers/fcm';
+import { sendFcm, type Outcome, type SendResult } from '../providers/fcm';
 import { allowPushkey } from '../ratelimit';
 import { MAX_BODY_BYTES, parseNotify } from './parse';
 
@@ -44,7 +44,7 @@ export async function handleNotify(
 
   const results = await Promise.all(
     notification.devices.map(
-      async (device): Promise<{ pushkey: string; outcome: string }> => {
+      async (device): Promise<{ pushkey: string; outcome: Outcome }> => {
         const { app_id: appId, pushkey } = device;
         if (!Object.hasOwn(config.apps, appId)) {
           logDelivery({ appId, outcome: 'unknown_app' });

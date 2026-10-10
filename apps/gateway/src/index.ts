@@ -19,4 +19,15 @@ app.all(NOTIFY_PATH, () =>
 
 app.notFound(() => errorResponse(404, 'M_NOT_FOUND', 'Not found'));
 
+// Fixed-shape log line: the error name only, never its message or any request data.
+app.onError((err) => {
+  console.error(
+    JSON.stringify({
+      event: 'unhandled_error',
+      name: err instanceof Error ? err.name : 'unknown',
+    }),
+  );
+  return errorResponse(500, 'M_UNKNOWN', 'Internal error');
+});
+
 export default app;
