@@ -36,6 +36,8 @@ let fcm: FcmHandler;
 let fetchSpy: ReturnType<typeof vi.spyOn<typeof globalThis, 'fetch'>>;
 
 beforeEach(() => {
+  // Keep delivery log lines out of the test output.
+  vi.spyOn(console, 'log').mockImplementation(() => {});
   fcm = ok;
   fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
     const url = input instanceof Request ? input.url : String(input);
