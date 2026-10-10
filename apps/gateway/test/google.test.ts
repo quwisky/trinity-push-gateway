@@ -24,14 +24,19 @@ function tokenResponse(): Response {
 async function setup() {
   const { serviceAccount, publicKey } = await makeServiceAccount();
   const memory = new Map<string, CachedToken>();
+  const rejected = new Map<string, string>();
   const source = createGoogleTokenSource({
     serviceAccount,
     kv: env.TOKENS,
     memory,
+    rejected,
     now,
   });
-  return { serviceAccount, publicKey, memory, source };
+  return { serviceAccount, publicKey, memory, rejected, source };
 }
+
+const kvKey = (serviceAccount: { clientEmail: string }) =>
+  `google-oauth:${serviceAccount.clientEmail}`;
 
 describe('google token source', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn<typeof globalThis, 'fetch'>>;
@@ -118,6 +123,73 @@ describe('google token source', () => {
     expect(options).toEqual({ expirationTtl: 3300 });
   });
 
+  it.each([
+    ['fractional', 3600.9, 3300],
+    ['short', 100, 60],
+    ['just above the floor', 361, 61],
+  ])(
+    'stores a %s expires_in with an integer TTL of at least 60 s',
+    async (_name, expiresIn, ttl) => {
+      const { source } = await setup();
+      fetchSpy.mockImplementation(async () =>
+        Response.json({ access_token: 'tok-1', expires_in: expiresIn }),
+      );
+      const putSpy = vi.spyOn(env.TOKENS, 'put');
+
+      await source.getAccessToken();
+
+      expect(putSpy.mock.calls[0]![2]).toEqual({ expirationTtl: ttl });
+    },
+  );
+
+  it('promotes a KV hit into memory', async () => {
+    const { serviceAccount, memory, source } = await setup();
+    const cached = { accessToken: 'kv-tok', expiresAt: NOW + 3_600_000 };
+    await env.TOKENS.put(kvKey(serviceAccount), JSON.stringify(cached));
+    const getSpy = vi.spyOn(env.TOKENS, 'get');
+
+    await source.getAccessToken();
+    await source.getAccessToken();
+
+    expect(memory.get(kvKey(serviceAccount))).toEqual(cached);
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['not JSON', 'not json'],
+    ['a JSON string', '"tok"'],
+    ['missing expiresAt', JSON.stringify({ accessToken: 'kv-tok' })],
+    [
+      'a non-string accessToken',
+      JSON.stringify({ accessToken: 7, expiresAt: NOW + 3_600_000 }),
+    ],
+    [
+      'a string expiresAt',
+      JSON.stringify({ accessToken: 'kv-tok', expiresAt: 'soon' }),
+    ],
+  ])('treats a KV value that is %s as a miss', async (_name, value) => {
+    const { serviceAccount, source } = await setup();
+    await env.TOKENS.put(kvKey(serviceAccount), value);
+
+    await expect(source.getAccessToken()).resolves.toBe('tok-1');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('a successful exchange clears the rejected-token record', async () => {
+    const { serviceAccount, memory, rejected, source } = await setup();
+    // The token endpoint hands back the very token that was rejected earlier.
+    rejected.set(kvKey(serviceAccount), 'tok-1');
+
+    await source.getAccessToken();
+    expect(rejected.has(kvKey(serviceAccount))).toBe(false);
+
+    // Without memory the KV copy is the only source, and must be trusted again.
+    memory.clear();
+    await expect(source.getAccessToken()).resolves.toBe('tok-1');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('invalidate clears memory and KV', async () => {
     const { source } = await setup();
     await source.getAccessToken();
@@ -191,12 +263,40 @@ describe('google token source', () => {
     expect((err as Error).message).not.toContain('boom');
   });
 
-  it('rejects with TokenExchangeError on a network error', async () => {
+  it('rejects with TokenExchangeError on a network error, keeping it as the cause', async () => {
     const { source } = await setup();
-    fetchSpy.mockRejectedValue(new TypeError('network down'));
-    await expect(source.getAccessToken()).rejects.toBeInstanceOf(
-      TokenExchangeError,
-    );
+    const networkError = new TypeError('network down');
+    fetchSpy.mockRejectedValue(networkError);
+    const err = await source.getAccessToken().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TokenExchangeError);
+    expect((err as TokenExchangeError).cause).toBe(networkError);
+  });
+
+  it('rejects with a key-free TokenExchangeError when signing fails', async () => {
+    const { serviceAccount } = await makeServiceAccount();
+    const badKey = [
+      '-----BEGIN PRIVATE KEY-----',
+      'SECRETKEYMATERIAL',
+      '-----END PRIVATE KEY-----',
+      '',
+    ].join('\n');
+    const source = createGoogleTokenSource({
+      serviceAccount: { ...serviceAccount, privateKey: badKey },
+      kv: env.TOKENS,
+      memory: new Map<string, CachedToken>(),
+      rejected: new Map<string, string>(),
+      now,
+    });
+
+    const err = await source.getAccessToken().catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(TokenExchangeError);
+    expect((err as TokenExchangeError).status).toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // Neither the message, the stack nor a cause may carry key material.
+    expect((err as Error).cause).toBeUndefined();
+    const text = `${(err as Error).message}\n${(err as Error).stack}`;
+    expect(text).not.toContain('SECRETKEYMATERIAL');
   });
 
   it('rejects when the response lacks access_token or expires_in', async () => {
