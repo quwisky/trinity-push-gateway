@@ -167,21 +167,23 @@ visible effect is the badge update (`aps.badge` = unread count).
 
 ### Responses
 
-| Outcome                                             | Gateway response                           |
-| --------------------------------------------------- | ------------------------------------------ |
-| Delivered, throttled, or permanently failed         | `200 {"rejected": []}`                     |
-| FCM `404 UNREGISTERED`, or `403 SENDER_ID_MISMATCH` | `200 {"rejected": ["<pushkey>"]}`          |
-| FCM 429, 5xx, or a network error                    | `502 M_UNKNOWN`, so the homeserver retries |
-| Unknown app ID (not in `APPS`)                      | `200 {"rejected": ["<pushkey>"]}`          |
-| Malformed body or more than 10 devices              | `400 M_BAD_JSON`                           |
-| Body over 64 KB                                     | `413 M_TOO_LARGE`                          |
-| Gateway misconfigured (`APPS` or the secret)        | `500 M_UNKNOWN`                            |
+| Outcome                                      | Gateway response                           |
+| -------------------------------------------- | ------------------------------------------ |
+| Delivered, throttled, or permanently failed  | `200 {"rejected": []}`                     |
+| FCM `404 UNREGISTERED`                       | `200 {"rejected": ["<pushkey>"]}`          |
+| FCM 429, 5xx, or a network error             | `502 M_UNKNOWN`, so the homeserver retries |
+| Unknown app ID (not in `APPS`)               | `200 {"rejected": ["<pushkey>"]}`          |
+| Malformed body or more than 10 devices       | `400 M_BAD_JSON`                           |
+| Body over 64 KB                              | `413 M_TOO_LARGE`                          |
+| Gateway misconfigured (`APPS` or the secret) | `500 M_UNKNOWN`                            |
 
 Only dead tokens are rejected, because a rejected pushkey makes the homeserver delete
 the pusher.
 
-A typo in `APPS`, or a service account from the wrong Firebase project, makes the gateway
-reject pushkeys and homeservers delete those pushers. Double-check both before deploying.
+A typo in `APPS` makes the gateway reject those pushkeys, and homeservers then delete the
+pushers, so double-check it before deploying. A service account from the wrong Firebase
+project (FCM `403 SENDER_ID_MISMATCH`) is logged as a failure and rejects nothing, so a
+misdeploy stops delivery without deleting anyone's pusher.
 
 ## Privacy
 

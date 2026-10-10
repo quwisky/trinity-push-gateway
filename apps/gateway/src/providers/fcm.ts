@@ -45,8 +45,10 @@ function extractCode(body: unknown): string | undefined {
 
 /**
  * Only definitely-dead tokens are `rejected` (the homeserver deletes the
- * pusher): 404 UNREGISTERED and 403 SENDER_ID_MISMATCH. A bare 404 or 403 is
- * most likely a misconfigured project and is `failed`.
+ * pusher): 404 UNREGISTERED. Everything that can stem from gateway
+ * misconfiguration is `failed`, including a bare 404 and 403
+ * SENDER_ID_MISMATCH: a service account from the wrong Firebase project gets
+ * that for every token, and rejecting would wipe every pusher.
  */
 export function classifyFcmResponse(
   status: number,
@@ -59,12 +61,7 @@ export function classifyFcmResponse(
   const withCode = (outcome: Outcome): SendResult =>
     code === undefined ? { outcome, status } : { outcome, status, code };
 
-  if (
-    (status === 404 && code === 'UNREGISTERED') ||
-    (status === 403 && code === 'SENDER_ID_MISMATCH')
-  ) {
-    return withCode('rejected');
-  }
+  if (status === 404 && code === 'UNREGISTERED') return withCode('rejected');
   if (status === 429 || status >= 500) return withCode('retry');
   return withCode('failed');
 }

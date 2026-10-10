@@ -67,10 +67,10 @@ describe('classifyFcmResponse', () => {
       { outcome: 'failed', status: 404, code: 'NOT_FOUND' },
     ],
     [
-      '403 SENDER_ID_MISMATCH',
+      '403 SENDER_ID_MISMATCH is failed (wrong project must not delete pushers)',
       403,
       fcmErr('SENDER_ID_MISMATCH'),
-      { outcome: 'rejected', status: 403, code: 'SENDER_ID_MISMATCH' },
+      { outcome: 'failed', status: 403, code: 'SENDER_ID_MISMATCH' },
     ],
     [
       '403 PERMISSION_DENIED is failed',
