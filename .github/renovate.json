@@ -1,0 +1,59 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":dependencyDashboard"
+  ],
+  "description": [
+    "Modelled on the Trinity client's Renovate config, minus its patch automerge: every update here arrives as a pull request a maintainer merges.",
+    "Patches skip the dashboard gate and open PRs straight away; minor and major updates wait for a tick on the dependency dashboard. minimumReleaseAge holds every release for three days, so a version yanked soon after publishing never reaches a branch.",
+    "Commits and PR titles are build(deps): …, which commitlint and the PR title check accept and release-please keeps out of the changelog."
+  ],
+  "baseBranchPatterns": ["main"],
+  "timezone": "Europe/Berlin",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "build",
+  "semanticCommitScope": "deps",
+  "automerge": false,
+  "dependencyDashboardApproval": true,
+  "rebaseWhen": "conflicted",
+  "minimumReleaseAge": "3 days",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 4am on monday"]
+  },
+  "vulnerabilityAlerts": {
+    "description": "Security fixes skip the dashboard gate and soak for one day instead of three, the same minimumReleaseAge pnpm applies to installs.",
+    "labels": ["security"],
+    "minimumReleaseAge": "1 day",
+    "dependencyDashboardApproval": false
+  },
+  "packageRules": [
+    {
+      "description": "Patches need no dashboard tick; they still open a pull request.",
+      "matchUpdateTypes": ["patch"],
+      "dependencyDashboardApproval": false
+    },
+    {
+      "description": "Nx packages must move in lockstep.",
+      "matchPackageNames": ["nx", "@nx/**"],
+      "groupName": "nx"
+    },
+    {
+      "description": "wrangler and the Vitest plugin share the workerd runtime, so update them together.",
+      "matchPackageNames": ["wrangler", "@cloudflare/**"],
+      "groupName": "cloudflare workers tooling"
+    },
+    {
+      "description": "commitlint packages move together.",
+      "matchPackageNames": ["@commitlint/**"],
+      "groupName": "commitlint"
+    },
+    {
+      "description": "GitHub Actions digests are grouped into one PR.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
+  ]
+}

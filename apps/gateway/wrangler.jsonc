@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "trinity-push-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  // The official instance answers only on its Custom Domain. Forks: set your own hostname
+  // (a zone on your Cloudflare account, with no existing CNAME record for it), or remove
+  // `routes` and set `workers_dev` to true to use <name>.<subdomain>.workers.dev instead.
+  "workers_dev": false,
+  "routes": [{ "pattern": "push.trinityproject.dev", "custom_domain": true }],
+  "kv_namespaces": [
+    {
+      "binding": "TOKENS",
+      // The official instance's namespace. Forks: replace with the ID of your own
+      // (`wrangler kv namespace create TOKENS`); see the README.
+      "id": "40d296832ede4b1197623a4e1a158b3e",
+    },
+  ],
+  "vars": {
+    "APPS": {
+      "dev.trinityproject.trinity.android": { "kind": "fcm" },
+      "dev.trinityproject.trinity.ios": { "kind": "fcm" },
+    },
+  },
+  // Declares the secret for `wrangler types` so the generated Env is the same with or
+  // without a local .dev.vars. Set the value with `wrangler secret put`.
+  "secrets": { "required": ["FCM_SERVICE_ACCOUNT"] },
+  "ratelimits": [
+    {
+      "name": "PUSHKEY_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 },
+    },
+  ],
+}

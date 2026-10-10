@@ -1,0 +1,138 @@
+name: Renovate
+
+# Self-hosted Renovate, as in the Trinity client. .github/renovate.json is the repository
+# config; this workflow is what actually runs Renovate against the repository.
+on:
+  schedule:
+    # Midnight UTC, daily. This cron IS the schedule: the repository config deliberately
+    # leaves Renovate's own `schedule` open, because setting both is how a bot ends up
+    # firing outside its own window and never doing anything.
+    - cron: '0 0 * * *'
+  # Manual runs, with a dry run for trying config changes without opening PRs.
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run (log what would happen, open nothing)'
+        type: boolean
+        default: false
+      logLevel:
+        description: 'Renovate log level'
+        type: choice
+        options: [info, debug]
+        default: info
+
+# Two Renovate runs against one repository fight over the same branches.
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+    # An App installation token lives for one hour; stay under it so a slow run fails on
+    # the job timeout instead of a burst of 401s halfway through pushing branches.
+    timeout-minutes: 55
+    # The App's private key is a secret of this environment, which only main can use, so a
+    # workflow pushed to any other branch cannot read it.
+    environment: renovate
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A short-lived installation token for the Renovate GitHub App, not a PAT and not
+      # GITHUB_TOKEN: PRs opened with GITHUB_TOKEN trigger no workflows, so Renovate PRs
+      # would get no CI. RENOVATE_APP_CLIENT_ID is the App's Client ID (the `Iv…` string,
+      # not the numeric App ID), set as a repository variable.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          # Only what Renovate uses, not the installation's full grant: branches and
+          # commits, its PRs, the Dependency Dashboard issue, action digests in workflow
+          # files, reading CI results, and security advisories for vulnerabilityAlerts.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+          permission-workflows: write
+          permission-checks: read
+          permission-statuses: read
+          permission-vulnerability-alerts: read
+
+      # No `configurationFile:` input: that is Renovate's global config. The repository
+      # config is .github/renovate.json, which Renovate discovers on its own.
+      - uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d # v46.3.7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # The config is committed, so there is nothing to onboard.
+          RENOVATE_ONBOARDING: 'false'
+          RENOVATE_REQUIRE_CONFIG: 'required'
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || '' }}
+          # Keep the log on the runner's /tmp, which the container action mounts, so the
+          # health check below can read what the run actually did.
+          RENOVATE_LOG_FILE: /tmp/renovate-log.ndjson
+          RENOVATE_LOG_FILE_LEVEL: info
+
+      # Renovate exits 0 when it aborts a repository (config errors, platform errors,
+      # repository-changed), so a green run is not proof it did anything. Require its own
+      # end-of-repository marker, no abort reasons, and an open Dependency Dashboard issue,
+      # which dependencyDashboardApproval makes the gate for every non-patch update.
+      - name: Verify Renovate actually processed the repository
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dryRun }}
+          RENOVATE_LOG_FILE: /tmp/renovate-log.ndjson
+        run: |
+          set -euo pipefail
+          log="$RENOVATE_LOG_FILE"
+
+          if [ ! -s "$log" ]; then
+            echo "::error::Renovate wrote no log file - it never reached the repository."
+            exit 1
+          fi
+
+          aborts='repository-changed|config-validation|config-secrets-invalid|platform-failure|repository-not-found|rate-limit-exceeded|cannot-fork'
+          if grep -Eq "\"($aborts)\"" "$log"; then
+            echo '::error::Renovate aborted this repository (matching lines below); it exits 0 on these.'
+            grep -E "\"($aborts)\"" "$log" | head -20
+            exit 1
+          fi
+
+          if ! grep -q 'Repository finished' "$log"; then
+            echo '::error::Renovate never logged "Repository finished" - the run did not complete, or the marker was renamed upstream.'
+            exit 1
+          fi
+
+          if [ "${DRY_RUN:-false}" = 'true' ]; then
+            echo 'Dry run: skipping the dependency-dashboard check (it writes nothing).'
+            exit 0
+          fi
+
+          dashboards=$(gh issue list --repo "$REPO" --state open \
+            --search 'Dependency Dashboard in:title' --json title --jq 'length')
+          if [ "$dashboards" -eq 0 ]; then
+            echo '::error::No open Dependency Dashboard issue. dependencyDashboardApproval is on, so without it no non-patch update can be approved.'
+            exit 1
+          fi
+
+          echo 'Renovate completed; dependency dashboard present.'
+
+      # The log is the whole diagnosis for an abort; on a healthy run nobody reads it.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: renovate-log
+          path: /tmp/renovate-log.ndjson
+          if-no-files-found: ignore
+          retention-days: 7
+          overwrite: true

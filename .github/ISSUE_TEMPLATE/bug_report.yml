@@ -1,0 +1,96 @@
+name: Bug report
+description: The push gateway behaves incorrectly
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        **Before you paste anything:** gateway requests and logs can contain pushkeys
+        (device tokens), Matrix user, room and event IDs, and service-account keys. Redact
+        them. Report suspected security vulnerabilities privately to
+        [quwisky@qwky.eu](mailto:quwisky@qwky.eu). Search
+        [existing issues](https://github.com/quwisky/trinity-push-gateway/issues) first.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: Describe what you observed, including the gateway's HTTP status and errcode if you have them.
+      placeholder: Notifications stopped arriving on Android; the homeserver logs show 502 from the gateway.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: The notification should arrive on the phone.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the starting state. If you cannot reproduce it reliably, say so; "unknown" is fine.
+      placeholder: |
+        1. Point Trinity at the gateway in Settings → Notifications → Push gateway
+        2. Send a message to the account from another client
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Which gateway?
+      options:
+        - The official instance
+        - My own deployment
+        - Unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Affected devices
+      multiple: true
+      options:
+        - Android
+        - iOS
+        - Unknown
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Gateway version
+      description: The release tag or commit, if you know it. Write "unknown" otherwise.
+      placeholder: v0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: homeserver
+    attributes:
+      label: Homeserver
+      description: Optional. The server implementation and version.
+      placeholder: matrix.org · or · Synapse 1.119 (self-hosted)
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Gateway delivery log lines (Workers Logs) or homeserver pusher logs.
+        **Redact pushkeys, Matrix IDs, tokens and keys.**
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Other observations
+      description: Optional. How often does it happen? Did it work in an earlier version?

@@ -1,0 +1,104 @@
+name: Release
+
+# release-please keeps one release PR open on main with the version bump and CHANGELOG.md.
+# Merging that PR makes it tag the merge commit and publish the GitHub release, and the
+# deploy job below ships the Worker in the same run.
+#
+# The release PR and the tag come from the release GitHub App's token, not GITHUB_TOKEN:
+# pushes made with GITHUB_TOKEN trigger no workflows, so CI would never run on the release
+# PR. The deploy job lives in this workflow, gated on release_created, so each deploy
+# is tied to exactly one release that this run created.
+on:
+  push:
+    branches: [main]
+
+# One group for every release run. Never cancel mid-flight: a half-finished deploy is
+# worse than a slow one. A newer queued push replaces an older one, losing nothing.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: Release PR and tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Forks without the App set up (a repository variable) skip the job instead of failing.
+    if: vars.RELEASE_APP_CLIENT_ID != ''
+    # The App's private key lives only in this environment. The workflow token keeps the
+    # top-level read-only permissions; the App opens the PR and creates the tag and release.
+    environment: release-app
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      # Contents for the release commits, tag and release; pull-requests for the release
+      # PR, its labels and its comment.
+      - name: Mint the release App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Runs only in the run that created a release, so each deploy matches exactly one
+  # release. FCM_SERVICE_ACCOUNT lives in Cloudflare (wrangler secret put), never in GitHub.
+  deploy:
+    name: Deploy the Worker
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The Cloudflare token and account ID are secrets of this environment, which only main
+    # can use, so no other job or branch can read them. The URL makes each deploy show up
+    # under the repository's Deployments with a link to the gateway.
+    environment:
+      name: production
+      url: ${{ vars.GATEWAY_URL }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      # No dependency cache in the deploy job: it is rare, and a cache restored into the
+      # job that holds the Cloudflare token is a poisoning risk not worth a minute saved.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm install --frozen-lockfile
+      # The release commit is release-please's version bump, which CI never saw on its own,
+      # so run the full gate again on exactly what is about to ship.
+      - name: Verify before deploying
+        run: pnpm exec nx run-many -t lint typecheck test build --skip-nx-cache
+      - run: pnpm exec nx run gateway:deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # GATEWAY_URL is a repository variable holding the deployed origin, e.g.
+      # https://push.example.org. Without it the check is skipped with a warning.
+      - name: Check the deployed gateway answers
+        env:
+          GATEWAY_URL: ${{ vars.GATEWAY_URL }}
+        run: |
+          if [ -z "$GATEWAY_URL" ]; then
+            echo "::warning::GATEWAY_URL is not set, so the post-deploy health check was skipped."
+            exit 0
+          fi
+          body=$(curl -fsS --retry 6 --retry-delay 5 --retry-all-errors --max-time 10 "${GATEWAY_URL%/}/health")
+          if [ "$body" != "ok" ]; then
+            echo "::error::${GATEWAY_URL%/}/health answered but not with ok."
+            exit 1
+          fi
+          echo "Deployed gateway is healthy."

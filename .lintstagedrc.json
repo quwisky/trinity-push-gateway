@@ -1,0 +1,4 @@
+{
+  "apps/**/*.ts": ["eslint --fix --no-warn-ignored", "prettier --write"],
+  "*.{js,cjs,mjs,json,jsonc,md,yaml,yml}": "prettier --write"
+}
