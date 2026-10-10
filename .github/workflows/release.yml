@@ -59,6 +59,12 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The Cloudflare token and account ID are secrets of this environment, which only main
+    # can use, so no other job or branch can read them. The URL makes each deploy show up
+    # under the repository's Deployments with a link to the gateway.
+    environment:
+      name: production
+      url: ${{ vars.GATEWAY_URL }}
     permissions:
       contents: read
     steps:

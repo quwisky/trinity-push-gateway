@@ -99,9 +99,10 @@ To enable this on a fork:
   the repository. Its token is what makes CI run on release PRs.
 - Set the repository variable `RELEASE_APP_CLIENT_ID`. Without it the release job is
   skipped, so forks that skip this setup stay green.
-- Create a `release-app` environment holding the secret `RELEASE_APP_PRIVATE_KEY`.
-- Add the repository secrets `CLOUDFLARE_API_TOKEN` (permission to edit Workers) and
-  `CLOUDFLARE_ACCOUNT_ID`.
+- Create a `release-app` environment, limited to `main`, holding the secret `RELEASE_APP_PRIVATE_KEY`.
+- Create a `production` environment, limited to `main`, holding the secrets
+  `CLOUDFLARE_API_TOKEN` (permission to edit Workers) and `CLOUDFLARE_ACCOUNT_ID`. Only
+  the deploy job uses it.
 - Optionally set the repository variable `GATEWAY_URL` to the deployed origin, for
   example `https://push.example.org`. Without it the post-deploy health check is skipped
   with a warning.
