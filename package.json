@@ -14,7 +14,7 @@
     "typecheck": "nx run-many -t typecheck",
     "build": "nx run-many -t build",
     "format": "nx format:write",
-    "format:check": "nx format:check",
+    "format:check": "nx format:check --all",
     "smoke": "node apps/gateway/scripts/smoke.mjs"
   },
   "devDependencies": {

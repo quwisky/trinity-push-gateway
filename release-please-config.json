@@ -4,6 +4,7 @@
   "include-component-in-tag": false,
   "pull-request-title-pattern": "release: cut the v${version} release",
   "bump-minor-pre-major": true,
+  "initial-version": "0.1.0",
   "changelog-sections": [
     { "type": "feat", "section": "Added" },
     { "type": "fix", "section": "Fixed" },
