@@ -41,6 +41,10 @@ const DeviceDataSchema = v.optional(
   {},
 );
 
+// Counts end up in FCM as strings, the iOS badge and Android notification_count;
+// FCM rejects values beyond the safe integer range, so reject them up front.
+const Count = v.pipe(v.number(), v.safeInteger(), v.minValue(0));
+
 const NotifySchema = v.looseObject({
   notification: v.looseObject({
     event_id: v.optional(v.string()),
@@ -48,10 +52,8 @@ const NotifySchema = v.looseObject({
     prio: v.optional(v.string()),
     counts: v.optional(
       v.looseObject({
-        unread: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
-        missed_calls: v.optional(
-          v.pipe(v.number(), v.integer(), v.minValue(0)),
-        ),
+        unread: v.optional(Count),
+        missed_calls: v.optional(Count),
       }),
     ),
     devices: v.pipe(
