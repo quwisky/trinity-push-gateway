@@ -24,7 +24,10 @@
     "deploy": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": { "command": "wrangler deploy", "cwd": "{projectRoot}" }
+      "options": {
+        "command": "node scripts/deploy.mjs",
+        "cwd": "{projectRoot}"
+      }
     },
     "test": {},
     "typecheck": {}
