@@ -4,6 +4,11 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // The official instance answers only on its Custom Domain. Forks: set your own hostname
+  // (a zone on your Cloudflare account, with no existing CNAME record for it), or remove
+  // `routes` and set `workers_dev` to true to use <name>.<subdomain>.workers.dev instead.
+  "workers_dev": false,
+  "routes": [{ "pattern": "push.trinityproject.dev", "custom_domain": true }],
   "kv_namespaces": [
     {
       "binding": "TOKENS",

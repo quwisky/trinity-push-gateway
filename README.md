@@ -8,10 +8,11 @@ message content.
 
 ## Point Trinity at it
 
-In Trinity, open Settings → Notifications → Push gateway and enter the full notify URL:
+In Trinity, open Settings → Notifications → Push gateway and enter the full notify URL of
+the official instance:
 
 ```
-https://<your-worker>.workers.dev/_matrix/push/v1/notify
+https://push.trinityproject.dev/_matrix/push/v1/notify
 ```
 
 For a custom build, set `environment.push.gatewayUrl` to the same URL instead. Trinity's
@@ -37,7 +38,12 @@ You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first).
    pnpm exec wrangler kv namespace create TOKENS
    ```
 
-4. **App IDs.** Edit the `APPS` var in `apps/gateway/wrangler.jsonc`. It maps each
+4. **Hostname.** The `routes` entry in `apps/gateway/wrangler.jsonc` serves the Worker on
+   the official Custom Domain. Change `pattern` to your own hostname; it must be in a zone
+   on your Cloudflare account and must not already have a CNAME record. To use
+   `*.workers.dev` instead, remove `routes` and set `"workers_dev": true`.
+
+5. **App IDs.** Edit the `APPS` var in `apps/gateway/wrangler.jsonc`. It maps each
    accepted pusher app ID to its provider, and only `{ "kind": "fcm" }` exists:
 
    ```json
@@ -49,7 +55,7 @@ You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first).
 
    Pushers for any other app ID are rejected without calling FCM.
 
-5. **Secret.** Run this from `apps/gateway`:
+6. **Secret.** Run this from `apps/gateway`:
 
    ```sh
    cd apps/gateway
@@ -59,16 +65,16 @@ You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first).
 
    Delete `key.json` afterwards. The service account lives only in Cloudflare.
 
-6. **Deploy:**
+7. **Deploy:**
 
    ```sh
    pnpm exec nx run gateway:deploy
    ```
 
-7. **Smoke test** with a real FCM token from a device:
+8. **Smoke test** with a real FCM token from a device:
 
    ```sh
-   pnpm smoke --url https://<your-worker>.workers.dev --app-id <app id> --pushkey <fcm token>
+   pnpm smoke --url https://<your-hostname> --app-id <app id> --pushkey <fcm token>
    ```
 
    It exits 1 if the gateway does not answer 200 or lists the pushkey as rejected. Add
@@ -103,10 +109,13 @@ To enable this on a fork:
   skipped, so forks that skip this setup stay green.
 - Create a `release-app` environment, limited to `main`, holding the secret `RELEASE_APP_PRIVATE_KEY`.
 - Create a `production` environment, limited to `main`, holding the secrets
-  `CLOUDFLARE_API_TOKEN` (permission to edit Workers) and `CLOUDFLARE_ACCOUNT_ID`. Only
-  the deploy job uses it.
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Only the deploy job uses it. Create
+  the token from the "Edit Cloudflare Workers" template, trimmed to: Account → Workers
+  Scripts: Edit and Account Settings: Read (your account only), and Zone → Zone: Read,
+  Workers Routes: Edit and DNS: Edit (only the zone of your hostname). Drop the zone
+  permissions if you deploy to `*.workers.dev`.
 - Optionally set the repository variable `GATEWAY_URL` to the deployed origin, for
-  example `https://push.example.org`. Without it the post-deploy health check is skipped
+  example `https://push.trinityproject.dev`. Without it the post-deploy health check is skipped
   with a warning.
 
 Dependency updates come from self-hosted [Renovate](https://docs.renovatebot.com/): the
