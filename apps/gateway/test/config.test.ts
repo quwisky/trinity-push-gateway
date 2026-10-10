@@ -49,6 +49,13 @@ describe('parseConfig', () => {
     );
   });
 
+  it('rejects an array APPS', () => {
+    expect(() => parse({ APPS: [{ kind: 'fcm' }] })).toThrow(ConfigError);
+    expect(messageOf(() => parse({ APPS: [{ kind: 'fcm' }] }))).toContain(
+      'APPS',
+    );
+  });
+
   it('rejects empty APPS', () => {
     expect(() => parse({ APPS: {} })).toThrow(ConfigError);
   });

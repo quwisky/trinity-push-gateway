@@ -26,6 +26,8 @@ export class ConfigError extends Error {
 const PEM_HEADER = '-----BEGIN PRIVATE KEY-----';
 
 const AppsSchema = v.pipe(
+  // `v.record` accepts arrays and would output index keys, so reject them.
+  v.custom<unknown>((input) => !Array.isArray(input)),
   v.record(v.string(), v.object({ kind: v.literal('fcm') })),
   v.minEntries(1),
 );
