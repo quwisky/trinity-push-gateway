@@ -67,8 +67,11 @@ function describeIssues(
 }
 
 function parseSecret(raw: unknown): unknown {
-  if (typeof raw !== 'string') {
+  if (raw === undefined) {
     throw new ConfigError('FCM_SERVICE_ACCOUNT is not set');
+  }
+  if (typeof raw !== 'string') {
+    throw new ConfigError('FCM_SERVICE_ACCOUNT must be a JSON string');
   }
   try {
     return JSON.parse(raw);
