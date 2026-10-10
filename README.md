@@ -23,7 +23,7 @@ own entries in `APPS`.
 
 ## Deploy your own
 
-You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first).
+You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first). Before the KV, secret and deploy steps, log in with `pnpm exec wrangler login`, or set the `CLOUDFLARE_API_TOKEN` environment variable.
 
 1. **Firebase.** Create a Firebase project and add your Android app and your iOS app to
    it. For iOS, upload an APNs authentication key (`.p8`) under Project settings → Cloud
@@ -66,7 +66,7 @@ You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first).
    cd ../..
    ```
 
-   Delete `key.json` afterwards. The service account lives only in Cloudflare.
+   Delete `key.json` afterwards. The service account lives only in Cloudflare. If the Worker does not exist yet, `wrangler secret put` creates it.
 
 7. **Deploy** with the namespace ID and hostname from steps 3 and 4:
 
@@ -164,6 +164,8 @@ Stable, prerelease and TestFlight builds need nothing extra on the gateway:
 - `APPS` is keyed by the pusher app ID (`PushConfig.appId`), not the bundle or package
   ID. A side-by-side variant with its own package ID only needs registering as an extra
   app in the same Firebase project.
+- The `secondaryDebug` variant (`dev.trinityproject.trinity.secondary`) has its own package
+  ID. Register that package in Firebase only if you want push on it.
 
 ### Data keys
 
