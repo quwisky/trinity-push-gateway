@@ -1,0 +1,3 @@
+# Copy to .dev.vars for `nx run gateway:dev`. The value is the whole Firebase
+# service-account JSON on one line.
+FCM_SERVICE_ACCOUNT={"type":"service_account",…}

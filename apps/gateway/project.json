@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "gateway",
+  "projectType": "application",
+  "sourceRoot": "apps/gateway/src",
+  "targets": {
+    "types": {
+      "executor": "nx:run-commands",
+      "options": { "command": "wrangler types", "cwd": "{projectRoot}" }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "command": "wrangler deploy --dry-run --outdir dist",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": { "command": "wrangler dev", "cwd": "{projectRoot}" }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "wrangler deploy", "cwd": "{projectRoot}" }
+    },
+    "test": {},
+    "typecheck": {}
+  }
+}

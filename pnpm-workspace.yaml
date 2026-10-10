@@ -1,0 +1,11 @@
+# pnpm workspace root. Keeping `packages` empty declares the root explicitly, so
+# pnpm never walks up to a parent directory. The gateway is one Nx project driven
+# by this root package.json; it is not a pnpm sub-package.
+packages: []
+minimumReleaseAge: 1440
+
+# Dependencies that may run install/build scripts (name -> boolean).
+allowBuilds:
+  esbuild: true
+  nx: true
+  workerd: true

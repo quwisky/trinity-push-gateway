@@ -1,0 +1,8 @@
+dist
+.wrangler
+.nx
+.husky/_
+coverage
+pnpm-lock.yaml
+CHANGELOG.md
+apps/gateway/worker-configuration.d.ts
