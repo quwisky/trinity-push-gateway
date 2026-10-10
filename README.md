@@ -31,17 +31,20 @@ You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first).
 2. **Service account.** In Project settings → Service accounts, create a service account
    with the Firebase Cloud Messaging API Admin role and download its JSON key as
    `key.json`.
-3. **KV namespace.** Create it, then put the returned ID in the `TOKENS` entry of
-   `apps/gateway/wrangler.jsonc`:
+3. **KV namespace.** Create it and note the returned ID (or create it in the dashboard
+   under Storage & databases → Workers KV):
 
    ```sh
    pnpm exec wrangler kv namespace create TOKENS
    ```
 
-4. **Hostname.** The `routes` entry in `apps/gateway/wrangler.jsonc` serves the Worker on
-   the official Custom Domain. Change `pattern` to your own hostname; it must be in a zone
-   on your Cloudflare account and must not already have a CNAME record. To use
-   `*.workers.dev` instead, remove `routes` and set `"workers_dev": true`.
+   Leave the placeholder ID in `apps/gateway/wrangler.jsonc` as it is; deploys substitute
+   the real one from `KV_NAMESPACE_ID`.
+
+4. **Hostname.** Pick the hostname the gateway will answer on, such as
+   `push.example.org`. It must be in a zone on your Cloudflare account and must not
+   already have a CNAME record. The gateway is deployed only on that Custom Domain, never
+   on `*.workers.dev`.
 
 5. **App IDs.** Edit the `APPS` var in `apps/gateway/wrangler.jsonc`. It maps each
    accepted pusher app ID to its provider, and only `{ "kind": "fcm" }` exists:
@@ -65,11 +68,14 @@ You need a Cloudflare account, Node 24 and pnpm 12 (`pnpm install` first).
 
    Delete `key.json` afterwards. The service account lives only in Cloudflare.
 
-7. **Deploy:**
+7. **Deploy** with the namespace ID and hostname from steps 3 and 4:
 
    ```sh
-   pnpm exec nx run gateway:deploy
+   KV_NAMESPACE_ID=<namespace id> GATEWAY_DOMAIN=<hostname> pnpm exec nx run gateway:deploy
    ```
+
+   The deploy script writes a temporary `wrangler.deploy.jsonc` with the real ID, deploys
+   it with `--domain`, and deletes it again.
 
 8. **Smoke test** with a real FCM token from a device:
 
@@ -95,13 +101,13 @@ on `main`; the PR title check runs the same commitlint config on it.
 `main` with the version bump and `CHANGELOG.md`. Merging it tags `vX.Y.Z`, publishes the
 GitHub release, and deploys the Worker in the same workflow run. The deploy job re-runs
 lint, typecheck, tests and build on the release commit first, and afterwards checks that
-`GET /health` on the deployed gateway answers `ok`.
+`GET /health` on `https://$GATEWAY_DOMAIN` answers `ok`.
 
 To enable this on a fork:
 
-- Replace the KV namespace ID, hostname and `APPS` in `apps/gateway/wrangler.jsonc` with
-  your own (deploy steps 3–5). The committed values belong to the official instance; the
-  KV ID is not secret.
+- Set the repository variables `KV_NAMESPACE_ID` and `GATEWAY_DOMAIN` (deploy steps 3
+  and 4). Neither is secret. Edit `APPS` in `apps/gateway/wrangler.jsonc` if your app IDs
+  differ (step 5).
 - Create a GitHub App with contents and pull-requests write access, and install it on
   the repository. Its token is what makes CI run on release PRs.
 - Set the repository variable `RELEASE_APP_CLIENT_ID`. Without it the release job is
@@ -111,11 +117,7 @@ To enable this on a fork:
   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Only the deploy job uses it. Create
   the token from the "Edit Cloudflare Workers" template, trimmed to: Account → Workers
   Scripts: Edit and Account Settings: Read (your account only), and Zone → Zone: Read,
-  Workers Routes: Edit and DNS: Edit (only the zone of your hostname). Drop the zone
-  permissions if you deploy to `*.workers.dev`.
-- Optionally set the repository variable `GATEWAY_URL` to the deployed origin, for
-  example `https://push.trinityproject.dev`. Without it the post-deploy health check is skipped
-  with a warning.
+  Workers Routes: Edit and DNS: Edit (only the zone of your hostname).
 
 Dependency updates come from self-hosted [Renovate](https://docs.renovatebot.com/): the
 Renovate workflow runs daily (or by hand, with a dry-run option) using
