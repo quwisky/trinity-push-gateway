@@ -92,15 +92,18 @@ describe('parseNotify', () => {
     });
   });
 
-  it('keeps counts.unread of Number.MAX_SAFE_INTEGER', () => {
-    const result = parseNotify(
-      body({ counts: { unread: Number.MAX_SAFE_INTEGER }, devices: [] }),
-    );
-    expect(result).toMatchObject({
-      ok: true,
-      notification: { counts: { unread: Number.MAX_SAFE_INTEGER } },
-    });
-  });
+  it.each(['unread', 'missed_calls'])(
+    'keeps counts.%s of Number.MAX_SAFE_INTEGER',
+    (field) => {
+      const result = parseNotify(
+        body({ counts: { [field]: Number.MAX_SAFE_INTEGER }, devices: [] }),
+      );
+      expect(result).toMatchObject({
+        ok: true,
+        notification: { counts: { [field]: Number.MAX_SAFE_INTEGER } },
+      });
+    },
+  );
 
   it.each([
     [{ unread: -1 }],
@@ -172,10 +175,20 @@ describe('parseNotify', () => {
 
   it('never echoes request values in error messages', () => {
     const secret = 'SECRET-PUSHKEY';
+    // Every case puts the secret into the very field that fails validation.
     const results = [
-      parseNotify(body({ devices: [{ app_id: 'a', pushkey: 5, secret }] })),
-      parseNotify(body({ room_id: secret, devices: 'x' })),
+      parseNotify(body({ devices: [{ app_id: 'a', pushkey: [secret] }] })),
+      parseNotify(body({ devices: [{ app_id: { secret }, pushkey: 'k' }] })),
+      parseNotify(body({ devices: [secret] })),
+      parseNotify(body({ devices: secret })),
+      parseNotify(body({ event_id: [secret], devices: [] })),
+      parseNotify(body({ room_id: { secret }, devices: [] })),
+      parseNotify(body({ prio: [secret], devices: [] })),
+      parseNotify(body({ counts: secret, devices: [] })),
       parseNotify(body({ counts: { unread: secret }, devices: [] })),
+      parseNotify(body({ counts: { missed_calls: secret }, devices: [] })),
+      parseNotify(body(secret)),
+      parseNotify(JSON.stringify(secret)),
       parseNotify(`{"notification": "${secret}`),
     ];
     for (const r of results) {
