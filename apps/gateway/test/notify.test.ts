@@ -88,6 +88,37 @@ function post(payload: string, bindings: object = env): Promise<Response> {
   );
 }
 
+function postStream(stream: ReadableStream<Uint8Array>): Promise<Response> {
+  const req = new Request('http://gw' + NOTIFY_PATH, {
+    method: 'POST',
+    body: stream,
+    duplex: 'half',
+  } as RequestInit);
+  // A stream body is sent chunked: there is no length to trust up front.
+  expect(req.headers.get('content-length')).toBeNull();
+  return Promise.resolve(app.fetch(req, env, createExecutionContext()));
+}
+
+function chunked(
+  text: string,
+  chunkSize: number,
+  hooks: { pulled?: () => void; cancelled?: () => void } = {},
+): ReadableStream<Uint8Array> {
+  const bytes = new TextEncoder().encode(text);
+  let offset = 0;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= bytes.length) return controller.close();
+      hooks.pulled?.();
+      controller.enqueue(bytes.slice(offset, offset + chunkSize));
+      offset += chunkSize;
+    },
+    cancel() {
+      hooks.cancelled?.();
+    },
+  });
+}
+
 describe('POST notify', () => {
   it('delivers', async () => {
     const res = await post(body());
@@ -216,6 +247,58 @@ describe('POST notify', () => {
     const res = await post('x'.repeat(MAX_BODY_BYTES + 1));
     expect(res.status).toBe(413);
     expect(await res.json()).toMatchObject({ errcode: 'M_TOO_LARGE' });
+  });
+
+  it('answers 413 M_TOO_LARGE for an oversized streamed body, cancelling early', async () => {
+    const chunkSize = 1024;
+    const totalChunks = 1000;
+    let pulled = 0;
+    let cancelled = false;
+    const res = await postStream(
+      chunked('x'.repeat(chunkSize * totalChunks), chunkSize, {
+        pulled: () => pulled++,
+        cancelled: () => (cancelled = true),
+      }),
+    );
+    expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({ errcode: 'M_TOO_LARGE' });
+    expect(cancelled).toBe(true);
+    // The limit is 64 chunks; allow a little read-ahead, but not the whole body.
+    expect(pulled).toBeLessThan(totalChunks / 2);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('answers 413 for a streamed body one byte over the limit', async () => {
+    const res = await postStream(
+      chunked('x'.repeat(MAX_BODY_BYTES + 1), MAX_BODY_BYTES),
+    );
+    expect(res.status).toBe(413);
+  });
+
+  it('delivers a streamed body under the limit, with multibyte text split across chunks', async () => {
+    const payload = body([device('pk-stream')], {
+      event_id: '$e',
+      room_id: '!r:x',
+      prio: 'high',
+      counts: { unread: 2 },
+      content: { body: 'héllo wörld ✓ 🎉' },
+    });
+    const res = await postStream(chunked(payload, 7));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ rejected: [] });
+    expect(sentBody(0).message.token).toBe('pk-stream');
+  });
+
+  it('answers 400 for a request without a body', async () => {
+    const res = await Promise.resolve(
+      app.fetch(
+        new Request('http://gw' + NOTIFY_PATH, { method: 'POST' }),
+        env,
+        createExecutionContext(),
+      ),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ errcode: 'M_BAD_JSON' });
   });
 
   it('answers 500 M_UNKNOWN for a broken config without calling out', async () => {
