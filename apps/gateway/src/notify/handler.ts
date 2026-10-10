@@ -25,12 +25,12 @@ export async function handleNotify(
 ): Promise<Response> {
   const declared = Number(c.req.header('content-length'));
   if (declared > MAX_BODY_BYTES) {
-    return errorResponse(413, 'M_TOO_LARGE', 'request body too large');
+    return errorResponse(413, 'M_TOO_LARGE', 'Request body too large');
   }
 
   const raw = await readTextWithLimit(c.req.raw.body, MAX_BODY_BYTES);
   if (raw === null) {
-    return errorResponse(413, 'M_TOO_LARGE', 'request body too large');
+    return errorResponse(413, 'M_TOO_LARGE', 'Request body too large');
   }
 
   const parsed = parseNotify(raw);

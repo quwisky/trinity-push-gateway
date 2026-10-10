@@ -37,4 +37,32 @@ describe('readTextWithLimit', () => {
       await readTextWithLimit(streamOf(bytes(1, 2), bytes(3, 4)), 3),
     ).toBeNull();
   });
+
+  it('still returns null when cancelling the stream rejects', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(bytes(1, 2, 3, 4));
+      },
+      cancel() {
+        return Promise.reject(new Error('cancel failed'));
+      },
+    });
+    expect(await readTextWithLimit(stream, 3)).toBeNull();
+  });
+
+  it('releases the reader lock after going over the limit', async () => {
+    const stream = streamOf(bytes(1, 2, 3, 4));
+    await readTextWithLimit(stream, 3);
+    expect(stream.locked).toBe(false);
+  });
+
+  it('releases the reader lock and rethrows when the stream errors', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      pull() {
+        throw new Error('stream broke');
+      },
+    });
+    await expect(readTextWithLimit(stream, 3)).rejects.toThrow('stream broke');
+    expect(stream.locked).toBe(false);
+  });
 });

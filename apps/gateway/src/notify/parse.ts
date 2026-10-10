@@ -96,7 +96,7 @@ export function parseNotify(raw: string): ParseResult {
       ok: false,
       status: 413,
       errcode: 'M_TOO_LARGE',
-      error: 'request body too large',
+      error: 'Request body too large',
     };
   }
 

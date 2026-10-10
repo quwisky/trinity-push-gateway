@@ -159,6 +159,7 @@ describe('parseNotify', () => {
       ok: false,
       status: 413,
       errcode: 'M_TOO_LARGE',
+      error: 'Request body too large',
     });
   });
 
