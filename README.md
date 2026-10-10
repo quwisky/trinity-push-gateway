@@ -14,9 +14,11 @@ In Trinity, open Settings → Notifications → Push gateway and enter the full 
 https://<your-worker>.workers.dev/_matrix/push/v1/notify
 ```
 
-For a custom build, set `environment.push.gatewayUrl` to the same URL instead. The
-default app IDs (`eu.qwky.trinity.android` and `eu.qwky.trinity.ios`) are already
-allowlisted in `apps/gateway/wrangler.jsonc`.
+For a custom build, set `environment.push.gatewayUrl` to the same URL instead. Trinity's
+pusher app IDs, `dev.trinityproject.trinity.android` and `dev.trinityproject.trinity.ios`
+(the client's base app ID plus the platform), are allowlisted in
+`apps/gateway/wrangler.jsonc`. A build that registers under another base app ID needs its
+own entries in `APPS`.
 
 ## Deploy your own
 

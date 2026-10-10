@@ -9,7 +9,7 @@ const USAGE = `Usage: pnpm smoke --url <gateway> --app-id <id> --pushkey <token>
 
   --url       Gateway origin or full notify URL. ${NOTIFY_PATH} is appended
               when the URL does not already end with it.
-  --app-id    Pusher app ID, e.g. eu.qwky.trinity.android.
+  --app-id    Pusher app ID, e.g. dev.trinityproject.trinity.android.
   --pushkey   FCM registration token of the device to notify.
   --render    Set to "device" to send trinity_render: "device".
   --help      Show this text.

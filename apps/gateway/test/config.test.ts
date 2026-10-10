@@ -8,7 +8,7 @@ const validSa = {
   private_key: '-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----\n',
 };
 
-const apps = { 'eu.qwky.trinity.android': { kind: 'fcm' } };
+const apps = { 'dev.trinityproject.trinity.android': { kind: 'fcm' } };
 
 function parse(
   overrides: { APPS?: unknown; FCM_SERVICE_ACCOUNT?: unknown } = {},

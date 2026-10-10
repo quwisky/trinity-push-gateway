@@ -8,7 +8,7 @@ import { fcmSendUrl } from '../src/providers/fcm';
 
 const FCM_URL = fcmSendUrl('trinity-test');
 const ACCESS_TOKEN = 'ya29.test-access-token';
-const APP_ID = 'eu.qwky.trinity.android';
+const APP_ID = 'dev.trinityproject.trinity.android';
 
 function fcmError(status: number, errorCode: string): Response {
   return Response.json(

@@ -14,8 +14,8 @@
   ],
   "vars": {
     "APPS": {
-      "eu.qwky.trinity.android": { "kind": "fcm" },
-      "eu.qwky.trinity.ios": { "kind": "fcm" },
+      "dev.trinityproject.trinity.android": { "kind": "fcm" },
+      "dev.trinityproject.trinity.ios": { "kind": "fcm" },
     },
   },
   // Declares the secret for `wrangler types` so the generated Env is the same with or
