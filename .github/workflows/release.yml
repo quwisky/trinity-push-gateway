@@ -77,12 +77,6 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-      - name: Check the KV namespace ID is not the placeholder
-        run: |
-          if grep -q '00000000000000000000000000000000' apps/gateway/wrangler.jsonc; then
-            echo "::error file=apps/gateway/wrangler.jsonc::The TOKENS KV namespace ID is still the placeholder. Create the namespace and commit its real ID before releasing."
-            exit 1
-          fi
       - run: pnpm install --frozen-lockfile
       # The release commit is release-please's version bump, which CI never saw on its own,
       # so run the full gate again on exactly what is about to ship.

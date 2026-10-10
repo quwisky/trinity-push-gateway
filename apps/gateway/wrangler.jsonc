@@ -12,9 +12,9 @@
   "kv_namespaces": [
     {
       "binding": "TOKENS",
-      // Placeholder. Replace with the ID of your own namespace
+      // The official instance's namespace. Forks: replace with the ID of your own
       // (`wrangler kv namespace create TOKENS`); see the README.
-      "id": "00000000000000000000000000000000",
+      "id": "40d296832ede4b1197623a4e1a158b3e",
     },
   ],
   "vars": {

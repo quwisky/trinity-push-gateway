@@ -97,12 +97,11 @@ GitHub release, and deploys the Worker in the same workflow run. The deploy job 
 lint, typecheck, tests and build on the release commit first, and afterwards checks that
 `GET /health` on the deployed gateway answers `ok`.
 
-Before the first release, create the KV namespace (deploy step 3) and commit its real ID
-to `apps/gateway/wrangler.jsonc`. The ID is not secret. The deploy job fails while the
-placeholder ID is still there.
-
 To enable this on a fork:
 
+- Replace the KV namespace ID, hostname and `APPS` in `apps/gateway/wrangler.jsonc` with
+  your own (deploy steps 3–5). The committed values belong to the official instance; the
+  KV ID is not secret.
 - Create a GitHub App with contents and pull-requests write access, and install it on
   the repository. Its token is what makes CI run on release PRs.
 - Set the repository variable `RELEASE_APP_CLIENT_ID`. Without it the release job is
