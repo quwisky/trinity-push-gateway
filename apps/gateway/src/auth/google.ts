@@ -35,6 +35,11 @@ export class TokenExchangeError extends Error {
 }
 
 const sharedMemory = new Map<string, CachedToken>();
+/**
+ * Access tokens that `invalidate()` dropped, per cache key. Kept in isolate
+ * memory so a KV delete that failed cannot hand the same token back.
+ */
+const sharedRejected = new Map<string, string>();
 
 function isCachedToken(value: unknown): value is CachedToken {
   if (typeof value !== 'object' || value === null) return false;
@@ -46,10 +51,12 @@ export function createGoogleTokenSource(opts: {
   serviceAccount: ServiceAccount;
   kv: KVNamespace;
   memory?: Map<string, CachedToken>;
+  rejected?: Map<string, string>;
   now?: () => number;
 }): TokenSource {
   const { serviceAccount, kv } = opts;
   const memory = opts.memory ?? sharedMemory;
+  const rejected = opts.rejected ?? sharedRejected;
   const now = opts.now ?? Date.now;
   const key = `google-oauth:${serviceAccount.clientEmail}`;
 
@@ -126,6 +133,7 @@ export function createGoogleTokenSource(opts: {
       expiresAt: now() + expiresIn * 1000,
     };
     memory.set(key, token);
+    rejected.delete(key);
     try {
       await kv.put(key, JSON.stringify(token), {
         expirationTtl: Math.max(KV_MIN_TTL_S, expiresIn - REFRESH_MARGIN_S),
@@ -142,7 +150,7 @@ export function createGoogleTokenSource(opts: {
       if (inMemory && isValid(inMemory)) return inMemory.accessToken;
 
       const inKv = await readKv();
-      if (inKv && isValid(inKv)) {
+      if (inKv && isValid(inKv) && inKv.accessToken !== rejected.get(key)) {
         memory.set(key, inKv);
         return inKv.accessToken;
       }
@@ -151,6 +159,8 @@ export function createGoogleTokenSource(opts: {
     },
 
     async invalidate() {
+      const dropped = memory.get(key);
+      if (dropped) rejected.set(key, dropped.accessToken);
       memory.delete(key);
       try {
         await kv.delete(key);

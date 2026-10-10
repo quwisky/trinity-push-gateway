@@ -126,6 +126,60 @@ describe('google token source', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  describe('when KV cannot delete the invalidated token', () => {
+    async function setupStaleKv() {
+      const { serviceAccount } = await makeServiceAccount();
+      const kv = {
+        get: (...args: Parameters<KVNamespace['get']>) =>
+          (env.TOKENS.get as (...a: unknown[]) => unknown)(...args),
+        put: () => Promise.reject(new Error('kv down')),
+        delete: () => Promise.reject(new Error('kv down')),
+      } as unknown as KVNamespace;
+      await env.TOKENS.put(
+        `google-oauth:${serviceAccount.clientEmail}`,
+        JSON.stringify({
+          accessToken: 'stale-tok',
+          expiresAt: NOW + 3_600_000,
+        }),
+      );
+      const source = createGoogleTokenSource({
+        serviceAccount,
+        kv,
+        memory: new Map<string, CachedToken>(),
+        rejected: new Map<string, string>(),
+        now,
+      });
+      return { source };
+    }
+
+    it('exchanges a new token instead of re-reading the rejected one', async () => {
+      const { source } = await setupStaleKv();
+      await expect(source.getAccessToken()).resolves.toBe('stale-tok');
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      await source.invalidate();
+      fetchSpy.mockImplementation(async () =>
+        Response.json({ access_token: 'fresh-tok', expires_in: 3600 }),
+      );
+
+      await expect(source.getAccessToken()).resolves.toBe('fresh-tok');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('serves the new token from memory afterwards', async () => {
+      const { source } = await setupStaleKv();
+      await source.getAccessToken();
+      await source.invalidate();
+      fetchSpy.mockImplementation(async () =>
+        Response.json({ access_token: 'fresh-tok', expires_in: 3600 }),
+      );
+      await source.getAccessToken();
+
+      await expect(source.getAccessToken()).resolves.toBe('fresh-tok');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('rejects with TokenExchangeError on an HTTP error', async () => {
     const { source } = await setup();
     fetchSpy.mockResolvedValue(
