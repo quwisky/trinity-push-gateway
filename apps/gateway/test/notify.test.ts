@@ -9,6 +9,7 @@ import { fcmSendUrl } from '../src/providers/fcm';
 const FCM_URL = fcmSendUrl('trinity-test');
 const ACCESS_TOKEN = 'ya29.test-access-token';
 const APP_ID = 'dev.trinityproject.trinity.android';
+const TOO_LARGE_MESSAGE = 'Request body too large';
 
 function fcmError(status: number, errorCode: string): Response {
   return Response.json(
@@ -246,7 +247,10 @@ describe('POST notify', () => {
   it('answers 413 M_TOO_LARGE for an oversized body', async () => {
     const res = await post('x'.repeat(MAX_BODY_BYTES + 1));
     expect(res.status).toBe(413);
-    expect(await res.json()).toMatchObject({ errcode: 'M_TOO_LARGE' });
+    expect(await res.json()).toEqual({
+      errcode: 'M_TOO_LARGE',
+      error: TOO_LARGE_MESSAGE,
+    });
   });
 
   it('answers 413 M_TOO_LARGE for an oversized streamed body, cancelling early', async () => {
@@ -261,11 +265,31 @@ describe('POST notify', () => {
       }),
     );
     expect(res.status).toBe(413);
-    expect(await res.json()).toMatchObject({ errcode: 'M_TOO_LARGE' });
+    expect(await res.json()).toEqual({
+      errcode: 'M_TOO_LARGE',
+      error: TOO_LARGE_MESSAGE,
+    });
     expect(cancelled).toBe(true);
     // The limit is 64 chunks; allow a little read-ahead, but not the whole body.
     expect(pulled).toBeLessThan(totalChunks / 2);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('answers 413, not 500, when cancelling an oversized streamed body fails', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(MAX_BODY_BYTES + 1));
+      },
+      cancel() {
+        return Promise.reject(new Error('cancel failed'));
+      },
+    });
+    const res = await postStream(stream);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({
+      errcode: 'M_TOO_LARGE',
+      error: TOO_LARGE_MESSAGE,
+    });
   });
 
   it('answers 413 for a streamed body one byte over the limit', async () => {
@@ -273,6 +297,30 @@ describe('POST notify', () => {
       chunked('x'.repeat(MAX_BODY_BYTES + 1), MAX_BODY_BYTES),
     );
     expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({ error: TOO_LARGE_MESSAGE });
+  });
+
+  it('delivers a streamed body of exactly the limit', async () => {
+    // Pins the MAX_BODY_BYTES wiring: no content-length, so only the reader
+    // enforces the limit.
+    const filler = (n: number) => 'x'.repeat(n);
+    const base = body([device('pk-exact')], {
+      event_id: '$e',
+      room_id: '!r:x',
+      counts: { unread: 2 },
+      pad: '',
+    });
+    const payload = base.replace(
+      '"pad":""',
+      `"pad":"${filler(MAX_BODY_BYTES - base.length)}"`,
+    );
+    expect(new TextEncoder().encode(payload).length).toBe(MAX_BODY_BYTES);
+
+    const res = await postStream(chunked(payload, 1000));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ rejected: [] });
+    expect(sentBody(0).message.token).toBe('pk-exact');
   });
 
   it('delivers a streamed body under the limit, with multibyte text split across chunks', async () => {

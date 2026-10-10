@@ -98,7 +98,7 @@ describe('buildFcmMessage', () => {
   it.each([
     ['absent', undefined],
     ['low', 'low'],
-    ['other', 'HIGH'],
+    ['uppercase HIGH (prio is case-sensitive)', 'HIGH'],
   ])('maps %s prio to normal', async (_name, prio) => {
     const base = notification();
     const n =
@@ -144,6 +144,64 @@ describe('buildFcmMessage', () => {
     expect(m.android.notification).toBeUndefined();
     expect(m.data.unread).toBe('0');
     expect(m.apns.headers).not.toHaveProperty('apns-collapse-id');
+  });
+
+  it.each([
+    ['high', 'HIGH', '10'],
+    ['low', 'NORMAL', '5'],
+  ])(
+    'keeps the push type and %s priority on an event-less push',
+    async (prio, androidPriority, apnsPriority) => {
+      const m = await build(
+        withoutKeys(notification({ prio, counts: { unread: 1 } }), 'event_id'),
+      );
+      expect(m.apns.headers).toEqual({
+        'apns-push-type': 'alert',
+        'apns-priority': apnsPriority,
+      });
+      expect(m.android.priority).toBe(androidPriority);
+    },
+  );
+
+  describe('in device mode', () => {
+    const device: Device = {
+      ...dev,
+      data: { ...dev.data, trinity_render: 'device' },
+    };
+
+    it('sends only a badge for an event-less notification with unread', async () => {
+      const m = await build(
+        withoutKeys(notification({ counts: { unread: 4 } }), 'event_id'),
+        device,
+      );
+      expect(m.apns.payload.aps).toEqual({ badge: 4 });
+      expect(m.android.notification).toBeUndefined();
+      expect(m.apns.headers).not.toHaveProperty('apns-collapse-id');
+      expect(m.data).toMatchObject({ unread: '4' });
+      expect(m.data).not.toHaveProperty('event_id');
+    });
+
+    it('returns null for an event-less notification without unread', async () => {
+      const n = withoutKeys(notification(), 'event_id', 'counts');
+      expect(await buildFcmMessage(n, device)).toBeNull();
+    });
+
+    it('omits absent room id and counts', async () => {
+      const m = await build(
+        withoutKeys(notification(), 'counts', 'room_id'),
+        device,
+      );
+      expect(m.apns.payload.aps).toEqual({
+        alert: { title: 'Trinity', body: 'New message' },
+        sound: 'default',
+        'mutable-content': 1,
+      });
+      expect(m.android.notification).toBeUndefined();
+      expect(m.apns.headers).not.toHaveProperty('apns-collapse-id');
+      for (const key of ['unread', 'missed_calls', 'room_id']) {
+        expect(m.data).not.toHaveProperty(key);
+      }
+    });
   });
 
   it('returns null for an event-less notification without unread', async () => {

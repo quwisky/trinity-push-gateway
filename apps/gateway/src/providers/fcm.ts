@@ -66,9 +66,17 @@ export function classifyFcmResponse(
   return withCode('failed');
 }
 
-/** Carries the token endpoint's HTTP status when there was one, never its body. */
-function tokenExchangeResult(err: unknown): SendResult {
-  const status = err instanceof TokenExchangeError ? err.status : undefined;
+/**
+ * Carries the token endpoint's HTTP status when there was one, never its body.
+ * `fallbackStatus` is the status already known when the exchange was a re-try.
+ */
+function tokenExchangeResult(
+  err: unknown,
+  fallbackStatus?: number,
+): SendResult {
+  const status =
+    (err instanceof TokenExchangeError ? err.status : undefined) ??
+    fallbackStatus;
   return status === undefined
     ? { outcome: 'retry', code: 'TOKEN_EXCHANGE' }
     : { outcome: 'retry', status, code: 'TOKEN_EXCHANGE' };
@@ -129,7 +137,7 @@ export async function sendFcm(
   try {
     accessToken = await tokens.getAccessToken();
   } catch (err) {
-    return tokenExchangeResult(err);
+    return tokenExchangeResult(err, 401);
   }
 
   const second = await post(message, projectId, accessToken);

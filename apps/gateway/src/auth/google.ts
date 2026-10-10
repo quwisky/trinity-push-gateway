@@ -27,8 +27,8 @@ export interface TokenSource {
 export class TokenExchangeError extends Error {
   readonly status?: number;
 
-  constructor(message: string, status?: number) {
-    super(message);
+  constructor(message: string, status?: number, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'TokenExchangeError';
     this.status = status;
   }
@@ -98,8 +98,11 @@ export function createGoogleTokenSource(opts: {
           assertion,
         }).toString(),
       });
-    } catch {
-      throw new TokenExchangeError('token endpoint request failed');
+    } catch (cause) {
+      // A fetch failure carries no secrets, so it is safe to keep as the cause.
+      throw new TokenExchangeError('token endpoint request failed', undefined, {
+        cause,
+      });
     }
 
     if (!res.ok) {
@@ -136,7 +139,10 @@ export function createGoogleTokenSource(opts: {
     rejected.delete(key);
     try {
       await kv.put(key, JSON.stringify(token), {
-        expirationTtl: Math.max(KV_MIN_TTL_S, expiresIn - REFRESH_MARGIN_S),
+        expirationTtl: Math.max(
+          KV_MIN_TTL_S,
+          Math.floor(expiresIn - REFRESH_MARGIN_S),
+        ),
       });
     } catch {
       // KV is only a cache; the token is already usable from memory.

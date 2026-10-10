@@ -3,13 +3,11 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it, vi } from 'vitest';
 import app, { NOTIFY_PATH } from '../src/index';
 
-function call(path: string, method = 'GET'): Promise<Response> {
-  return Promise.resolve(
-    app.fetch(
-      new Request('http://gw' + path, { method }),
-      env,
-      createExecutionContext(),
-    ),
+async function call(path: string, method = 'GET'): Promise<Response> {
+  return app.fetch(
+    new Request('http://gw' + path, { method }),
+    env,
+    createExecutionContext(),
   );
 }
 

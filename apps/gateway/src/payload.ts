@@ -63,11 +63,9 @@ export async function buildFcmMessage(
     priority: high ? 'HIGH' : 'NORMAL',
   };
 
-  if (hasEvent) {
-    aps.alert = { title: FALLBACK_TITLE, body: FALLBACK_BODY };
-  }
   if (unread !== undefined) aps.badge = unread;
   if (hasEvent) {
+    aps.alert = { title: FALLBACK_TITLE, body: FALLBACK_BODY };
     aps.sound = 'default';
     aps['mutable-content'] = 1;
     if (n.room_id !== undefined) aps['thread-id'] = n.room_id;

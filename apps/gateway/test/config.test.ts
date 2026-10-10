@@ -43,7 +43,6 @@ describe('parseConfig', () => {
   });
 
   it('rejects an unknown kind', () => {
-    expect(() => parse({ APPS: { a: { kind: 'apns' } } })).toThrow(ConfigError);
     expect(messageOf(() => parse({ APPS: { a: { kind: 'apns' } } }))).toContain(
       'APPS',
     );
@@ -57,17 +56,48 @@ describe('parseConfig', () => {
   });
 
   it('rejects empty APPS', () => {
-    expect(() => parse({ APPS: {} })).toThrow(ConfigError);
+    expect(messageOf(() => parse({ APPS: {} }))).toBe('invalid APPS');
   });
 
-  it.each([undefined, 'nope'])(
-    'rejects a missing or non-JSON secret (%s)',
+  it('rejects a missing secret', () => {
+    expect(messageOf(() => parse({ FCM_SERVICE_ACCOUNT: undefined }))).toBe(
+      'FCM_SERVICE_ACCOUNT is not set',
+    );
+  });
+
+  it.each([42, null, {}, ['x']])(
+    'rejects a secret that is not a string (%j)',
     (secret) => {
-      expect(messageOf(() => parse({ FCM_SERVICE_ACCOUNT: secret }))).toContain(
-        'FCM_SERVICE_ACCOUNT',
+      expect(messageOf(() => parse({ FCM_SERVICE_ACCOUNT: secret }))).toBe(
+        'FCM_SERVICE_ACCOUNT must be a JSON string',
       );
     },
   );
+
+  it('rejects a non-JSON secret', () => {
+    expect(messageOf(() => parse({ FCM_SERVICE_ACCOUNT: 'nope' }))).toBe(
+      'FCM_SERVICE_ACCOUNT is not valid JSON',
+    );
+  });
+
+  it.each([
+    ['null', 'null'],
+    ['an array', '[]'],
+    ['a string', '"x"'],
+  ])('rejects a secret that is JSON %s, not an object', (_name, secret) => {
+    expect(messageOf(() => parse({ FCM_SERVICE_ACCOUNT: secret }))).toMatch(
+      /^invalid FCM_SERVICE_ACCOUNT/,
+    );
+  });
+
+  it.each(['project_id', 'client_email'])('rejects an empty %s', (field) => {
+    const message = messageOf(() =>
+      parse({
+        FCM_SERVICE_ACCOUNT: JSON.stringify({ ...validSa, [field]: '' }),
+      }),
+    );
+    expect(message).toBe(`invalid FCM_SERVICE_ACCOUNT.${field}`);
+  });
 
   it('rejects a service account missing private_key', () => {
     const rest: Record<string, unknown> = { ...validSa };
