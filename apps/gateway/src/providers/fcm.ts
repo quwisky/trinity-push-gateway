@@ -1,4 +1,4 @@
-import type { TokenSource } from '../auth/google';
+import { TokenExchangeError, type TokenSource } from '../auth/google';
 import type { FcmMessage } from '../payload';
 
 export type Outcome = 'ok' | 'rejected' | 'retry' | 'failed';
@@ -69,10 +69,13 @@ export function classifyFcmResponse(
   return withCode('failed');
 }
 
-const TOKEN_EXCHANGE_RESULT: SendResult = {
-  outcome: 'retry',
-  code: 'TOKEN_EXCHANGE',
-};
+/** Carries the token endpoint's HTTP status when there was one, never its body. */
+function tokenExchangeResult(err: unknown): SendResult {
+  const status = err instanceof TokenExchangeError ? err.status : undefined;
+  return status === undefined
+    ? { outcome: 'retry', code: 'TOKEN_EXCHANGE' }
+    : { outcome: 'retry', status, code: 'TOKEN_EXCHANGE' };
+}
 
 /** Posts to FCM once. `undefined` means the request never got a response. */
 async function post(
@@ -111,8 +114,8 @@ export async function sendFcm(
   let accessToken: string;
   try {
     accessToken = await tokens.getAccessToken();
-  } catch {
-    return TOKEN_EXCHANGE_RESULT;
+  } catch (err) {
+    return tokenExchangeResult(err);
   }
 
   const first = await post(message, projectId, accessToken);
@@ -128,8 +131,8 @@ export async function sendFcm(
   }
   try {
     accessToken = await tokens.getAccessToken();
-  } catch {
-    return TOKEN_EXCHANGE_RESULT;
+  } catch (err) {
+    return tokenExchangeResult(err);
   }
 
   const second = await post(message, projectId, accessToken);

@@ -190,7 +190,11 @@ describe('sendFcm', () => {
     const src = tokens();
     src.getAccessToken.mockRejectedValue(new TokenExchangeError('boom', 400));
     const result = await sendFcm(message, { projectId: 'p1', tokens: src });
-    expect(result).toEqual({ outcome: 'retry', code: 'TOKEN_EXCHANGE' });
+    expect(result).toEqual({
+      outcome: 'retry',
+      status: 400,
+      code: 'TOKEN_EXCHANGE',
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -208,9 +212,15 @@ describe('sendFcm', () => {
       new Response('{}', { status: 401 }),
     );
     const src = tokens('t1');
-    src.getAccessToken.mockRejectedValueOnce(new TokenExchangeError('boom'));
+    src.getAccessToken.mockRejectedValueOnce(
+      new TokenExchangeError('boom', 503),
+    );
     const result = await sendFcm(message, { projectId: 'p1', tokens: src });
-    expect(result).toEqual({ outcome: 'retry', code: 'TOKEN_EXCHANGE' });
+    expect(result).toEqual({
+      outcome: 'retry',
+      status: 503,
+      code: 'TOKEN_EXCHANGE',
+    });
   });
 
   it('still retries after 401 when invalidate rejects', async () => {
