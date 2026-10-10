@@ -85,12 +85,17 @@ commitlint. [release-please](https://github.com/googleapis/release-please) keeps
 release PR open on `main` with the version bump and `CHANGELOG.md`. Merging it tags
 `vX.Y.Z`, publishes the GitHub release, and deploys the Worker in the same workflow run.
 
+Before the first release, create the KV namespace (deploy step 3) and commit its real ID
+to `apps/gateway/wrangler.jsonc`. The ID is not secret. The deploy job fails while the
+placeholder ID is still there.
+
 To enable this on a fork:
 
 - Create a GitHub App with contents and pull-requests write access, and install it on
   the repository. Its token is what makes CI run on release PRs.
-- Create a `release-app` environment holding the variable `RELEASE_APP_CLIENT_ID` and
-  the secret `RELEASE_APP_PRIVATE_KEY`.
+- Set the repository variable `RELEASE_APP_CLIENT_ID`. Without it the release job is
+  skipped, so forks that skip this setup stay green.
+- Create a `release-app` environment holding the secret `RELEASE_APP_PRIVATE_KEY`.
 - Add the repository secrets `CLOUDFLARE_API_TOKEN` (permission to edit Workers) and
   `CLOUDFLARE_ACCOUNT_ID`.
 
@@ -156,8 +161,9 @@ unknown value means the default.
   collapse ID and `mutable-content: 1`, so a Notification Service Extension can rewrite
   each one.
 
-Notifications without an event (sent when a room is read) carry the data keys only on
-Android, and only a badge update on iOS (`aps.badge` = unread count).
+Notifications without an event (sent when a room is read) still carry the data keys on
+both platforms (FCM puts them at the top level of the APNs payload). On iOS the only
+visible effect is the badge update (`aps.badge` = unread count).
 
 ### Responses
 
@@ -166,10 +172,16 @@ Android, and only a badge update on iOS (`aps.badge` = unread count).
 | Delivered, throttled, or permanently failed         | `200 {"rejected": []}`                     |
 | FCM `404 UNREGISTERED`, or `403 SENDER_ID_MISMATCH` | `200 {"rejected": ["<pushkey>"]}`          |
 | FCM 429, 5xx, or a network error                    | `502 M_UNKNOWN`, so the homeserver retries |
+| Unknown app ID (not in `APPS`)                      | `200 {"rejected": ["<pushkey>"]}`          |
 | Malformed body or more than 10 devices              | `400 M_BAD_JSON`                           |
+| Body over 64 KB                                     | `413 M_TOO_LARGE`                          |
+| Gateway misconfigured (`APPS` or the secret)        | `500 M_UNKNOWN`                            |
 
 Only dead tokens are rejected, because a rejected pushkey makes the homeserver delete
 the pusher.
+
+A typo in `APPS`, or a service account from the wrong Firebase project, makes the gateway
+reject pushkeys and homeservers delete those pushers. Double-check both before deploying.
 
 ## Privacy
 
