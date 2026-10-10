@@ -10,6 +10,15 @@ import { MAX_BODY_BYTES, parseNotify } from './parse';
 
 const UPSTREAM_ERROR = 'Push delivery failed upstream, retry later';
 
+// An unknown app ID is client-controlled, so only a bounded prefix is logged.
+const MAX_LOGGED_APP_ID = 128;
+
+function loggableUnknownAppId(appId: string): string {
+  return appId.length > MAX_LOGGED_APP_ID
+    ? `${appId.slice(0, MAX_LOGGED_APP_ID)}\u2026`
+    : appId;
+}
+
 export async function handleNotify(
   c: Context<{ Bindings: Env }>,
 ): Promise<Response> {
@@ -47,7 +56,10 @@ export async function handleNotify(
       async (device): Promise<{ pushkey: string; outcome: Outcome }> => {
         const { app_id: appId, pushkey } = device;
         if (!Object.hasOwn(config.apps, appId)) {
-          logDelivery({ appId, outcome: 'unknown_app' });
+          logDelivery({
+            appId: loggableUnknownAppId(appId),
+            outcome: 'unknown_app',
+          });
           return { pushkey, outcome: 'rejected' };
         }
         if (!(await allowPushkey(limiter, pushkey))) {
