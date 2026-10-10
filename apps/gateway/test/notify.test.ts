@@ -114,6 +114,37 @@ describe('POST notify', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('caps the logged app id for an unknown app', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const long = 'a'.repeat(5000);
+    const res = await post(body([device('pk-long-app', { app_id: long })]));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ rejected: ['pk-long-app'] });
+
+    const lines = logSpy.mock.calls.map(([line]) => String(line));
+    expect(lines.join('\n')).not.toContain('a'.repeat(129));
+    const [delivery] = lines
+      .map((line) => JSON.parse(line))
+      .filter((l) => l.event === 'delivery');
+    expect(delivery).toMatchObject({ outcome: 'unknown_app' });
+    expect(delivery.appId).toBe('a'.repeat(128) + '\u2026');
+    expect(delivery.appId).toHaveLength(129);
+  });
+
+  it('logs a short unknown app id unchanged', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const appId = 'org.example.unknown1';
+    expect(appId).toHaveLength(20);
+    await post(body([device('pk-short-app', { app_id: appId })]));
+
+    const deliveries = logSpy.mock.calls
+      .map(([line]) => JSON.parse(String(line)))
+      .filter((l) => l.event === 'delivery');
+    expect(deliveries).toEqual([
+      { event: 'delivery', appId, outcome: 'unknown_app' },
+    ]);
+  });
+
   it('answers 502 on an upstream failure', async () => {
     fcm = () => fcmError(503, 'UNAVAILABLE');
     const res = await post(body([device('pk-503')]));
