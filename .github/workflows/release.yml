@@ -66,10 +66,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      # No dependency cache in the deploy job: it is rare, and a cache restored into the
+      # job that holds the Cloudflare token is a poisoning risk not worth a minute saved.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-          cache: pnpm
       - name: Check the KV namespace ID is not the placeholder
         run: |
           if grep -q '00000000000000000000000000000000' apps/gateway/wrangler.jsonc; then
@@ -77,7 +78,27 @@ jobs:
             exit 1
           fi
       - run: pnpm install --frozen-lockfile
+      # The release commit is release-please's version bump, which CI never saw on its own,
+      # so run the full gate again on exactly what is about to ship.
+      - name: Verify before deploying
+        run: pnpm exec nx run-many -t lint typecheck test build --skip-nx-cache
       - run: pnpm exec nx run gateway:deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # GATEWAY_URL is a repository variable holding the deployed origin, e.g.
+      # https://push.example.org. Without it the check is skipped with a warning.
+      - name: Check the deployed gateway answers
+        env:
+          GATEWAY_URL: ${{ vars.GATEWAY_URL }}
+        run: |
+          if [ -z "$GATEWAY_URL" ]; then
+            echo "::warning::GATEWAY_URL is not set, so the post-deploy health check was skipped."
+            exit 0
+          fi
+          body=$(curl -fsS --retry 6 --retry-delay 5 --retry-all-errors --max-time 10 "${GATEWAY_URL%/}/health")
+          if [ "$body" != "ok" ]; then
+            echo "::error::${GATEWAY_URL%/}/health answered but not with ok."
+            exit 1
+          fi
+          echo "Deployed gateway is healthy."

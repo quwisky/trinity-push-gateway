@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a capability the push gateway does not have yet
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search [existing issues](https://github.com/quwisky/trinity-push-gateway/issues)
+        first. Note the gateway's constraints: it runs on the Cloudflare Workers free tier
+        and never sees message content (`event_id_only` pushers).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation you hit, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Optional. If you have an approach in mind, describe it here.
+
+  - type: checkboxes
+    id: audience
+    attributes:
+      label: Who is this for?
+      options:
+        - label: Operators deploying the gateway
+        - label: Homeserver admins
+        - label: Trinity client implementers

@@ -1,0 +1,12 @@
+# Use the bug and feature forms to collect enough context for initial triage.
+blank_issues_enabled: false
+
+contact_links:
+  # The gateway handles device tokens and notification metadata for every Trinity user
+  # pointed at it, so a vulnerability must not be disclosed in the public tracker.
+  - name: Security vulnerability (do not open an issue)
+    url: mailto:quwisky@qwky.eu
+    about: Report suspected security vulnerabilities privately by email.
+  - name: Problem in the Trinity app itself
+    url: https://github.com/quwisky/trinity-matrix-client/issues
+    about: Settings, registration and how notifications look on the device belong to the client.

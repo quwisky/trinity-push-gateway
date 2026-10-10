@@ -81,9 +81,13 @@ without the binding.
 ## Releases
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/), checked by
-commitlint. [release-please](https://github.com/googleapis/release-please) keeps a
-release PR open on `main` with the version bump and `CHANGELOG.md`. Merging it tags
-`vX.Y.Z`, publishes the GitHub release, and deploys the Worker in the same workflow run.
+commitlint in the commit hook. PRs are squash-merged, so the PR title becomes the commit
+on `main`; the PR title check runs the same commitlint config on it.
+[release-please](https://github.com/googleapis/release-please) keeps a release PR open on
+`main` with the version bump and `CHANGELOG.md`. Merging it tags `vX.Y.Z`, publishes the
+GitHub release, and deploys the Worker in the same workflow run. The deploy job re-runs
+lint, typecheck, tests and build on the release commit first, and afterwards checks that
+`GET /health` on the deployed gateway answers `ok`.
 
 Before the first release, create the KV namespace (deploy step 3) and commit its real ID
 to `apps/gateway/wrangler.jsonc`. The ID is not secret. The deploy job fails while the
@@ -98,6 +102,14 @@ To enable this on a fork:
 - Create a `release-app` environment holding the secret `RELEASE_APP_PRIVATE_KEY`.
 - Add the repository secrets `CLOUDFLARE_API_TOKEN` (permission to edit Workers) and
   `CLOUDFLARE_ACCOUNT_ID`.
+- Optionally set the repository variable `GATEWAY_URL` to the deployed origin, for
+  example `https://push.example.org`. Without it the post-deploy health check is skipped
+  with a warning.
+
+Dependency updates come from [Renovate](https://docs.renovatebot.com/)
+(`.github/renovate.json`) once its GitHub App covers the repository. Patches and security
+fixes open PRs directly; minor and major updates wait for approval on the dependency
+dashboard issue.
 
 ## Free-tier ceilings
 
