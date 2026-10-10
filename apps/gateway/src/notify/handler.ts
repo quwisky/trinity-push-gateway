@@ -7,6 +7,7 @@ import { buildFcmMessage } from '../payload';
 import { sendFcm, type Outcome, type SendResult } from '../providers/fcm';
 import { allowPushkey } from '../ratelimit';
 import { MAX_BODY_BYTES, parseNotify } from './parse';
+import { readTextWithLimit } from './read-body';
 
 const UPSTREAM_ERROR = 'Push delivery failed upstream, retry later';
 
@@ -18,7 +19,12 @@ export async function handleNotify(
     return errorResponse(413, 'M_TOO_LARGE', 'request body too large');
   }
 
-  const parsed = parseNotify(await c.req.text());
+  const raw = await readTextWithLimit(c.req.raw.body, MAX_BODY_BYTES);
+  if (raw === null) {
+    return errorResponse(413, 'M_TOO_LARGE', 'request body too large');
+  }
+
+  const parsed = parseNotify(raw);
   if (!parsed.ok) {
     return errorResponse(parsed.status, parsed.errcode, parsed.error);
   }
