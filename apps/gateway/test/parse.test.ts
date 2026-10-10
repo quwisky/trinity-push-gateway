@@ -92,11 +92,23 @@ describe('parseNotify', () => {
     });
   });
 
+  it('keeps counts.unread of Number.MAX_SAFE_INTEGER', () => {
+    const result = parseNotify(
+      body({ counts: { unread: Number.MAX_SAFE_INTEGER }, devices: [] }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      notification: { counts: { unread: Number.MAX_SAFE_INTEGER } },
+    });
+  });
+
   it.each([
     [{ unread: -1 }],
     [{ unread: 1.5 }],
     [{ unread: '2' }],
     [{ missed_calls: -1 }],
+    [{ unread: 1e21 }],
+    [{ missed_calls: 9007199254740992 }],
   ])('rejects invalid counts %j', (counts) => {
     expect(parseNotify(body({ counts, devices: [] }))).toMatchObject({
       ok: false,
