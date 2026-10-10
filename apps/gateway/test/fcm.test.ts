@@ -223,6 +223,32 @@ describe('sendFcm', () => {
     });
   });
 
+  it('keeps status 401 when the token re-exchange after 401 fails without a status', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('{}', { status: 401 }),
+    );
+    const src = tokens('t1');
+    src.getAccessToken.mockRejectedValueOnce(new Error('kv down'));
+    const result = await sendFcm(message, { projectId: 'p1', tokens: src });
+    expect(result).toEqual({
+      outcome: 'retry',
+      status: 401,
+      code: 'TOKEN_EXCHANGE',
+    });
+  });
+
+  it('invalidates before it asks for the second token after a 401', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+      .mockResolvedValueOnce(Response.json({}));
+    const src = tokens('t1', 't2');
+    await sendFcm(message, { projectId: 'p1', tokens: src });
+    const [firstGet, secondGet] = src.getAccessToken.mock.invocationCallOrder;
+    const [invalidate] = src.invalidate.mock.invocationCallOrder;
+    expect(firstGet).toBeLessThan(invalidate!);
+    expect(invalidate).toBeLessThan(secondGet!);
+  });
+
   it('still retries after 401 when invalidate rejects', async () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('{}', { status: 401 }))
