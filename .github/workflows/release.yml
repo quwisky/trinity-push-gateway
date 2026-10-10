@@ -6,8 +6,8 @@ name: Release
 #
 # The release PR and the tag come from the release GitHub App's token, not GITHUB_TOKEN:
 # pushes made with GITHUB_TOKEN trigger no workflows, so CI would never run on the release
-# PR. The deploy job lives in this workflow for the same reason. A tag pushed with
-# GITHUB_TOKEN would start no separate deploy workflow.
+# PR. The deploy job lives in this workflow, gated on release_created, so each deploy
+# is tied to exactly one release that this run created.
 on:
   push:
     branches: [main]
@@ -26,6 +26,8 @@ jobs:
     name: Release PR and tag
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Forks without the App set up (a repository variable) skip the job instead of failing.
+    if: vars.RELEASE_APP_CLIENT_ID != ''
     # The App's private key lives only in this environment. The workflow token keeps the
     # top-level read-only permissions; the App opens the PR and creates the tag and release.
     environment: release-app
@@ -68,6 +70,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - name: Check the KV namespace ID is not the placeholder
+        run: |
+          if grep -q '00000000000000000000000000000000' apps/gateway/wrangler.jsonc; then
+            echo "::error file=apps/gateway/wrangler.jsonc::The TOKENS KV namespace ID is still the placeholder. Create the namespace and commit its real ID before releasing."
+            exit 1
+          fi
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec nx run gateway:deploy
         env:
